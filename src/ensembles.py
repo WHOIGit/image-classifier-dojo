@@ -66,7 +66,8 @@ def argparse_init(parser=None):
     model.add_argument('--loss-smoothing', nargs='?', default=0.0, const=0.1, type=float, help='Label Smoothing Regularization arg. Range is 0-1. Default is 0. Const is 0.1')
 
     model.add_argument('--epoch-max', metavar='MAX', default=100, type=int, help='Maximum number of training epochs. Default is 100')
-    model.add_argument('--epoch-stop', metavar='STOP', default=10, type=int, help='Early Stopping for Boosting. Default is 10')
+
+    model.add_argument('--early-stopping-rounds', metavar='EPOCHS', default=10, type=int, help='Early Stopping for Boosting. Default is 10')
 
     parser.add_argument('--workers', dest='num_workers', metavar='N', type=int, help='Total number of dataloader worker threads. If set, overrides --workers-per-gpu')
     parser.add_argument('--workers_per_gpu', metavar='N', default=4, type=int, help='Number of data-loading threads per GPU. 4 per GPU is typical. Default is 4')
@@ -193,10 +194,21 @@ def patch_goog(model):
 def main(args):
     torch.set_float32_matmul_precision('medium')
 
-    logger = torchensemble.utils.logging.set_logger(args.run)
+    try:
+        logger = torchensemble.utils.logging.set_logger(log_file=args.run,
+            log_console_level="info", log_file_level='info', use_tb_logger=True)
+    except ImportError:
+        logger = torchensemble.utils.logging.set_logger(log_file=args.run,
+            log_console_level="info", log_file_level='info', use_tb_logger=False)
+        tb_logdir = logger.root.handlers[0].baseFilename.replace('.log','_tb_logger')
+        logger.info(f'tensorboard not installed, removing tb_logdir: {tb_logdir}')
+        os.rmdir(tb_logdir)
 
     # Setup Model & Data Module
+
     lightning_module, datamodule = setup_model_and_datamodule(args)
+    basemodel_args = {k: getattr(args, k) for k in 'model batch_size num_classes freeze weights'.split()}
+    logger.info(f'base_model: {basemodel_args}')
     base_model = lightning_module.model
     if isinstance(base_model, Inception3):
         base_model = patch_iv3(base_model)
@@ -207,7 +219,7 @@ def main(args):
     datamodule.setup('fit', without_source=True)
 
     EnsembleMethod = ENSEMBLE_MAPPING[args.ensemble]
-    ensemble_args = dict(estimator=base_model, n_estimators=args.num_ensembles)
+    ensemble_args = dict(n_estimators=args.num_ensembles)
     fit_args = dict()
     match EnsembleMethod:
         case torchensemble.VotingClassifier:
@@ -220,7 +232,7 @@ def main(args):
         case torchensemble.GradientBoostingClassifier:
             base_model.aux_logits = False
             fit_args['use_reduction_sum'] = True
-            fit_args['early_stopping_rounds'] = args.epoch_stop
+            fit_args['early_stopping_rounds'] = args.early_stopping_rounds
         case torchensemble.FastGeometricClassifier:
             fit_args['cycle'] = 4
             fit_args['lr_1'] = 5e-2
@@ -228,8 +240,8 @@ def main(args):
         case torchensemble.FusionClassifier:
             base_model.aux_logits = False
 
-
-    ensemble = EnsembleMethod(**ensemble_args)
+    logger.info(f'ensemble_args: {ensemble_args}')
+    ensemble = EnsembleMethod(estimator=base_model, **ensemble_args)
 
     # Loss Function
     if args.loss_function == 'CrossEntropyLoss':
@@ -238,23 +250,27 @@ def main(args):
             Criterion = CleverCrossEntropyLoss
     else:
         raise NotImplemented(f'--loss-function {args.loss_function}')
-    criterion = Criterion(weight=args.loss_weights_tensor, label_smoothing=args.loss_smoothing)
+    criterion_args = dict(weight=args.loss_weights_tensor, label_smoothing=args.loss_smoothing)
+    logger.info(f'criterion_args: {criterion_args}')
+    criterion = Criterion(**criterion_args)
     ensemble.set_criterion(criterion)
 
     # Gradient Descent Optimizer
-    ensemble.set_optimizer("Adam", lr=0.001, weight_decay=0)
+    optimizer_args = dict(optimizer_name="Adam", lr=0.001, weight_decay=0)
+    logger.info(f'optimizer_args: {optimizer_args}')
+    ensemble.set_optimizer(**optimizer_args)
 
     # Set the learning rate scheduler
     #ensemble.set_scheduler("CosineAnnealingLR", T_max=...)
 
     # FIT THE MODEL
+    fit_args['epochs'] = args.epoch_max
+    fit_args['save_dir'] = args.outdir
+    #fit_args['log_interval'] = 100
+    logger.info(f'fit_args: {fit_args}')
     ensemble.fit(train_loader = datamodule.train_dataloader(),
                  test_loader = datamodule.val_dataloader(),
-                 epochs = args.epoch_max,
-                 save_dir = args.outdir,
-                 #log_interval = 100,
-                 **fit_args,
-                 )
+                 **fit_args)
 
 
 # if file is called directly, must set import paths to project root
