@@ -1,6 +1,7 @@
 import os
 import random
 
+from tqdm import tqdm
 import lightning as L
 import lightning.pytorch as pl
 from torch.utils.data import random_split, DataLoader
@@ -89,7 +90,7 @@ class ImageListsWithLabelIndex(L.LightningDataModule):
         bad_ext = []
         sources_targets = []
         with open(listfile) as f:
-            for line in f.read().splitlines():
+            for line in tqdm(f.read().splitlines(), desc=listfile):
                 if not line: continue
                 trg, src = line.split()
                 trg = int(trg)
