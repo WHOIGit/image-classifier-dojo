@@ -16,11 +16,11 @@ from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint, Stochast
 
 from aim.pytorch_lightning import AimLogger
 
+# if file is called directly, must set import paths to project root
 if __name__ == '__main__':
     import sys
     PROJECT_ROOT = pathlib.Path(__file__).parent.parent.absolute()
     if sys.path[0] != str(PROJECT_ROOT): sys.path.insert(0, str(PROJECT_ROOT))
-    #os.chdir(PROJECT_ROOT)
 
 from src.patches.aim_patches import S3ArtifactStoragePatcher, AimLoggerWithContext
 from src.patches.model_summary_patch import ModelSummaryWithGradCallback
@@ -69,14 +69,14 @@ def argparse_init(parser=None):
     #model.add_argument('--module', nargs=2, metavar='MODULE.CLASS', default=f'{SupervisedModel}.{SupervisedModel.__name__}')
     model.add_argument('--model', help='Model Class/Module Name or torch model checkpoint file', required=True)  # TODO checkopint file, also check loading from s3
     model.add_argument('--weights', default='DEFAULT', help='''Specify a model's weights. Either "DEFAULT", some specific identifier, or "None" for no-pretrained-weights''')
-    model.add_argument('--seed', type=int, help='Set a specific seed for deterministic output & dataset-splitting reproducability.')
+    model.add_argument('--seed', type=int, help='Set a specific seed for deterministic output')
     model.add_argument('--batch', dest='batch_size', metavar='SIZE', default=256, type=int, help='Number of images per batch. Defaults is 256')
     model.add_argument('--num-classes', type=int, help=argparse.SUPPRESS)
     model.add_argument('--freeze', metavar='LAYERS', help='Freezes a models leading feature layers. '
         'Positive int freezes the first N layers/features/blocks. A negative int like "-1" freezes all but the last feature/layer/block. '
         'A positive float like "0.8" freezes the leading 80%% of features/layers/blocks. fc or final classifier layers are never frozen.')
-    model.add_argument('--loss-function', nargs=2, metavar='MODULE.CLASS', default='CrossEntropyLoss')
-    model.add_argument('--loss-weights', default=None, help='If "normalize", rare class instances will be boosted. Else a filepath to a perclass list of loss weights. Default is None')
+    model.add_argument('--loss-function', default='CrossEntropyLoss', help=argparse.SUPPRESS)
+    model.add_argument('--loss-weights', default=False, help='If "normalize", rare class instances will be boosted. Else a filepath to a perclass list of loss weights. Default is None')
     model.add_argument('--loss-weights-tensor', help=argparse.SUPPRESS)
     model.add_argument('--loss-smoothing', nargs='?', default=0.0, const=0.1, type=float, help='Label Smoothing Regularization arg. Range is 0-1. Default is 0. Const is 0.1')
     #model.add_argument('--ensemble', metavar='MODE', choices=..., help='Model Ensembling')
@@ -137,14 +137,7 @@ def argparse_runtime_args(args):
         args.artifacts_location = f'file://{args.artifacts_location}'
 
 
-def main(args):
-    torch.set_float32_matmul_precision('medium')
-
-    if args.env:
-        load_dotenv(override=True) if args.env is True else load_dotenv(args.env, override=True)
-    os.environ['CUDA_VISIBLE_DEVICES'] = ','.join(map(str,args.gpus))
-
-    # Training Augmentation Setup
+def parse_training_transforms(args):
     training_transforms = []
     if args.flip:
         flip_tforms = []
@@ -153,24 +146,43 @@ def main(args):
         if 'y' in args.flip:
             flip_tforms.append(transforms.RandomHorizontalFlip(p=0.5))
         training_transforms.extend(flip_tforms)
+    return training_transforms
 
-    # Setup Model & Data Module
+
+def setup_model_and_datamodule(args):
+    # Training Augmentation Setup
+    training_transforms = parse_training_transforms(args)
+
+    # Model and Datamodule
     args.model = check_model_name(args.model)
     model_base_transforms = get_model_base_transforms(args.model)
     datamodule = ImageListsWithLabelIndex(args.trainlist, args.vallist, args.classlist,
         base_transforms=model_base_transforms, training_transforms=training_transforms,
         batch_size=args.batch_size, num_workers=args.num_workers)
-
     args.num_classes = len(datamodule.classes)
-    if args.loss_weights == 'normalize':
-        class_counts = torch.bincount(datamodule.training_dataset.targets + datamodule.validation_dataset.targets)
-        class_weights = 1.0 / class_counts.float()
-        args.loss_weights_tensor = class_weights / class_weights.sum()
-    elif args.loss_weights and os.path.isfile(args.loss_weights):
-        with open(args.loss_weight) as f:
-            args.loss_weights_tensor = torch.Tensor([float(line) for line in f.read().splitlines()])
 
-    model = SupervisedModel(get_hparams(args))
+    if 'loss_weights' in args:
+        if args.loss_weights == 'normalize':
+            class_counts = torch.bincount(datamodule.training_dataset.targets + datamodule.validation_dataset.targets)
+            class_weights = 1.0 / class_counts.float()
+            args.loss_weights_tensor = class_weights / class_weights.sum()
+        elif os.path.isfile(args.loss_weights):
+            with open(args.loss_weight) as f:
+                args.loss_weights_tensor = torch.Tensor([float(line) for line in f.read().splitlines()])
+
+    model = SupervisedModel(args)
+    return model, datamodule
+
+
+def main(args):
+    torch.set_float32_matmul_precision('medium')
+
+    if args.env:
+        load_dotenv(override=True) if args.env is True else load_dotenv(args.env, override=True)
+    os.environ['CUDA_VISIBLE_DEVICES'] = ','.join(map(str,args.gpus))
+
+    # Setup Model & Data Module
+    model, datamodule = setup_model_and_datamodule(just_hparams(args))
 
     ## Setup Epoch Logger ##
     args_logger, env_logger = None,None
@@ -245,6 +257,8 @@ def main(args):
         callbacks.append( ModelSummaryWithGradCallback(max_depth=2) )
 
     # Checkpointing
+    # https://lightning.ai/docs/pytorch/stable/api/lightning.pytorch.callbacks.ModelCheckpoint.html
+    # https://lightning.ai/docs/pytorch/stable/common/checkpointing_advanced.html
     chkpt_path = os.path.join(args.checkpoints_path,loggers[0].experiment.hash)
     callbacks.append(ModelCheckpoint(
         dirpath=chkpt_path,
@@ -274,7 +288,7 @@ def main(args):
         found_batch_size = tuner.scale_batch_size(model, datamodule=datamodule,
             mode=args.autobatch, method='fit', max_trials=10, init_val=args.batch_size)
         args.batch_size_init, args.batch_size = args.batch_size, min([found_batch_size, args.autobatch_max or float('inf')])
-        model.save_hyperparameters(get_hparams(args))
+        model.save_hyperparameters(just_hparams(args))
 
     # Do Training
     trainer.fit(model, datamodule=datamodule)
@@ -309,7 +323,7 @@ def main(args):
 
 
 
-def args_subsetter_factory(parser):
+def args_subsetter_factory(parser: argparse.ArgumentParser):
     def args_subset(args, arg_names, group_titles, exclude=[]):
         arguments = []
         if arg_names is not None:
@@ -325,7 +339,7 @@ def args_subsetter_factory(parser):
 if __name__ == '__main__':
     parser = argparse_init()
     args_subsetter = args_subsetter_factory(parser)
-    def get_hparams(args_namespace):
+    def just_hparams(args_namespace: argparse.Namespace):
         return args_subsetter(args_namespace, [], ['Model Parameters', 'Epoch Parameters'])
     args = parser.parse_args()
     argparse_runtime_args(args)

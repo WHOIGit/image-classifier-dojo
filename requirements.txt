@@ -12,3 +12,4 @@ plotly
 coolname
 python-dotenv
 aim<4  # aimstack experiment tracker
+torchensemble

@@ -120,7 +120,7 @@ def freeze_model_features(model, freeze):
 
 
 class SupervisedModel(L.LightningModule):
-    def __init__(self, args):
+    def __init__(self, args: Union[dict,argparse.Namespace]):
         super().__init__()
         if isinstance(args,dict):
             args = argparse.Namespace(**args)
@@ -301,102 +301,4 @@ class SupervisedModel(L.LightningModule):
         ...
     def on_predict_model_eval(self):
         ...
-
-'''
-class MultiLossSupervisedModel(SupervisedModel):
-    def __init__(self, loss_functions: dict[str, nn.CrossEntropyLoss], **kwargs):
-        super().__init__(**kwargs)
-        self.criterion = loss_functions
-        self.loss_keys = list(loss_functions.keys())
-        self.best_epoch: dict[str,int] = {k:0 for k in self.loss_keys}
-        self.best_epoch_val_loss: dict[str,float] = {k:np.inf for k in self.loss_keys}
-        self.training_loss_by_epoch: dict[str, dict[int,float]] = {k:dict() for k in self.loss_keys}
-        self.validation_loss_by_epoch: dict[str, dict[int,float]] = {k:dict() for k in self.loss_keys}
-
-    def on_fit_start(self):
-        super().on_fit_start()
-        self.best_epoch = {k:0 for k in self.loss_keys}
-        self.best_epoch_val_loss = {k:np.inf for k in self.loss_keys}
-        self.training_loss_by_epoch = {k: dict() for k in self.loss_keys}
-        self.validation_loss_by_epoch = {k: dict() for k in self.loss_keys}
-
-    def loss(self, y_hat, y):
-        if isinstance(y_hat,InceptionOutputs) and self.model.aux_logits:
-            incploss = lambda F: F(y_hat.logits, y) + INCEPTION_AUXLOSS_WEIGHT*F(y_hat.aux_logits, y)
-            batch_loss = {k:incploss(Criterion) for k,Criterion in self.criterion.items()}
-        elif isinstance(y_hat, GoogLeNetOutputs) and self.model.aux_logits:
-            googloss = lambda F: F(y_hat.logits, y) + GOOGLENET_AUXLOSS_WEIGHT*( F(y_hat.aux_logits2,y) + F(y_hat.aux_logits1,y) )
-            batch_loss = {k:googloss(Criterion) for k,Criterion in self.criterion.items()}
-        else:
-            batch_loss = {k:Criterion(y_hat,y) for k,Criterion in self.criterion.items()}
-        return batch_loss
-
-    def on_train_epoch_start(self) -> None:
-        # Clearing previous epoch's values
-        self.validation_preds = []
-        self.validation_targets = []
-        self.validation_sources = []
-        # initializing step loss for epoch
-        for key in self.loss_keys:
-            self.training_loss_by_epoch[key][self.current_epoch] = 0
-            self.validation_loss_by_epoch[key][self.current_epoch] = 0
-
-    def training_step(self, batch, batch_idx):
-        input_data, input_targets = batch[0], batch[1]
-        outputs = self.forward(input_data)
-        loss = self.loss(outputs, input_targets.view(-1))
-
-        loss_agg = 0
-        for key in self.loss_keys:
-            loss_agg += loss[key].item()
-            self.training_loss_by_epoch[key][self.current_epoch] += loss[key].item()
-            self.log(f'train_loss_{key}', loss[key], on_step=False, on_epoch=True, reduce_fx=torch.sum)
-        loss_agg = loss_agg / len(loss.keys())  # uses the average of different methods for backprop
-        self.log(f'train_loss', loss_agg, on_step=False, on_epoch=True, reduce_fx=torch.sum)
-        return loss_agg
-
-    def validation_step(self, batch, batch_idx):
-        input_data, input_targets = batch[0], batch[1]
-        loss, preds = self.eval_step(input_data, input_targets)
-
-        self.validation_preds.append(preds.cpu().numpy())
-        self.validation_targets.append(input_targets.cpu().numpy())
-        if len(batch)==3: # TODO document what this 3rd batch item is
-            input_srcs = batch[2]
-            self.validation_sources.append(input_srcs)
-
-        # METRICS and LOGGING
-        self.update_metrics(preds, input_targets)
-
-        loss_agg = 0
-        for key in self.loss_keys:
-            loss_agg += loss[key].item()
-            self.validation_loss_by_epoch[key][self.current_epoch] += loss[key].item()
-            self.log(f'val_loss_{key}', loss[key], on_step=False, on_epoch=True, reduce_fx=torch.sum)
-        loss_agg = loss_agg / len(loss.keys())  # uses the average of different methods for backprop
-        self.log(f'val_loss', loss_agg, on_step=False, on_epoch=True, reduce_fx=torch.sum)
-
-    def on_validation_epoch_end(self):
-        self.validation_targets = np.concatenate(self.validation_targets, axis=0)
-        self.validation_preds = np.concatenate(self.validation_preds, axis=0)
-        pred_classes = np.argmax(self.validation_preds, axis=1)
-        if self.validation_sources:
-            self.validation_sources = [item for sublist in self.validation_sources for item in sublist]
-
-        # Is it a best epoch?
-        for key in self.loss_keys:
-            val_loss = self.validation_loss_by_epoch[key][self.current_epoch]
-            if val_loss < self.best_epoch_val_loss[key]:
-                self.best_epoch_val_loss[key] = val_loss
-                self.best_epoch[key] = self.current_epoch
-            self.log(f'best_epoch_{key}', self.best_epoch[key], on_epoch=True, prog_bar=True)
-
-        # METRICS & LOGGING
-        for mode in ['weighted','micro','macro']:  # perclass not available to log as metric
-            for stat in ['f1','recall','precision']:
-                key = f'{stat}_{mode}'
-                datum = self.metrics[key].compute()
-                #if mode=='micro' and stat in ['recall','precision']: continue  # identical to macro
-                self.log(f'val_{stat}_{mode}', datum, on_epoch=True)
-'''
 

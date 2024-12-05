@@ -19,5 +19,6 @@ datasets/
 experiments/
 slogs/
 sbatchs/
+logs/
 
 

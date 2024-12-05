@@ -18,10 +18,11 @@ class ImageDatasetWithSource(Dataset):
     instead of:        for inputs,labels in my_dataloader: ....
     adapted from: https://gist.github.com/andrewjong/6b02ff237533b3b2c554701fb53d5c4d
     """
-    def __init__(self, sources_targets, classes, transform=None):
+    def __init__(self, sources_targets, classes, transform=None, without_source=False):
         self.sources, self.targets = zip(*sources_targets)
         self.classes = classes
         self.transform = transform
+        self.without_source = without_source
 
     @property
     def labels(self):
@@ -33,6 +34,8 @@ class ImageDatasetWithSource(Dataset):
         sample = torchvision.datasets.folder.default_loader(src)
         if self.transform is not None:
             sample = self.transform(sample)
+        if self.without_source:
+            return sample, target
         return sample, target, src
 
     def __len__(self):
@@ -54,7 +57,10 @@ class ImageDatasetWithSource(Dataset):
 
 
 class ImageListsWithLabelIndex(L.LightningDataModule):
-    def __init__(self, train_src, val_src, classlist, base_transforms, training_transforms=[], test_src=None, batch_size=108, num_workers=4):
+    def __init__(self, train_src, val_src, classlist,
+                 base_transforms, training_transforms=[],
+                 test_src=None, batch_size=108, num_workers=4,
+                 ):
         super().__init__()
         self.training_source = train_src
         self.validation_source = val_src
@@ -101,21 +107,22 @@ class ImageListsWithLabelIndex(L.LightningDataModule):
         errors = bad_file + bad_ext + bad_class
         return sources_targets, errors
 
-    def setup(self, stage: str):
+    def setup(self, stage: str, without_source=False):
         # Assign train/val datasets for use in dataloaders
         if stage == "fit":
             training_samples, train_ds_errors = self.parse_listfile_with_targets(self.training_source)
             validation_samples, val_ds_errors = self.parse_listfile_with_targets(self.validation_source)
 
             if train_ds_errors or val_ds_errors:
-                print('BAD SAMPLES:', len(train_ds_errors)+len(val_ds_errors))
-                raise RuntimeError
+                raise RuntimeError(f'BAD SAMPLES: {len(train_ds_errors)+len(val_ds_errors)}')
 
             validation_transform = transforms.Compose(self.base_transforms)
             training_transform = transforms.Compose(self.training_transforms + self.base_transforms)
 
-            self.training_dataset = ImageDatasetWithSource(sources_targets=training_samples, classes=self.classes, transform=training_transform)
-            self.validation_dataset = ImageDatasetWithSource(sources_targets=validation_samples, classes=self.classes, transform=validation_transform)
+            self.training_dataset = ImageDatasetWithSource(sources_targets=training_samples, classes=self.classes,
+                transform=training_transform, without_source=without_source)
+            self.validation_dataset = ImageDatasetWithSource(sources_targets=validation_samples, classes=self.classes,
+                transform=validation_transform, without_source=without_source)
 
 
         # Assign test dataset for use in dataloader(s)
@@ -130,6 +137,8 @@ class ImageListsWithLabelIndex(L.LightningDataModule):
         return DataLoader(self.validation_dataset, batch_size=self.batch_size, num_workers=self.num_workers)
 
     def test_dataloader(self):
+        if self.testing_dataset is None:
+            self.setup('test')
         return DataLoader(self.testing_dataset, batch_size=self.batch_size, num_workers=self.num_workers)
 
     @property
