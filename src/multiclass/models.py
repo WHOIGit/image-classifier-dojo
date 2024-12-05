@@ -124,7 +124,7 @@ class SupervisedModel(L.LightningModule):
         super().__init__()
         if isinstance(args,dict):
             args = argparse.Namespace(**args)
-        self.save_hyperparameters(args)
+        self.save_hyperparameters(args)  # TODO filter out hparams from other args here
 
         if args.loss_function == 'CrossEntropyLoss':
             Criterion = nn.CrossEntropyLoss

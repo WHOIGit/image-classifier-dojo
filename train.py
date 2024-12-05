@@ -10,7 +10,8 @@ if __name__ == '__main__':
     parser = argparse_init()
     args_subsetter = args_subsetter_factory(parser)
     def just_hparams(args_namespace):
-        return args_subsetter(args_namespace, [], ['Model Parameters', 'Epoch Parameters'])
+        subparsers = ['Model Parameters', 'Epoch Parameters']
+        return args_subsetter(args_namespace, [], subparsers)
     src.train.just_hparams = just_hparams
     args = parser.parse_args()
     argparse_runtime_args(args)
