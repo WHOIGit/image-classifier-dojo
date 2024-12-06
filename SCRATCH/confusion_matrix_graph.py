@@ -73,7 +73,7 @@ def create_misclassification_plot(cm, classes):
         )
         buttons.append(button)
 
-    # Update layout with scrollable axes and improved formatting
+    # Update layout with scrollable axes
     fig.update_layout(
         title=dict(
             text=f'Misclassifications for {classes[0]}<br>True Positives = {cm[0][0]}, False Positives = {initial_fp_count}, False Negatives = {initial_fn_count}',
@@ -111,8 +111,8 @@ def create_misclassification_plot(cm, classes):
             'y': 1.15,
             'yanchor': 'top',
         }],
-        width=1200,  # Increased width
-        height=800,  # Increased height
+        width=1200,
+        height=800,
         margin=dict(
             l=50,
             r=50,
@@ -124,15 +124,13 @@ def create_misclassification_plot(cm, classes):
     return fig
 
 if __name__ == "__main__":
-    # Class names
+
     classes = ['Akashiwo', 'Bacillaria', 'Bidulphia', 'Cochlodinium', 'Didinium_sp', 'Euplotes_sp', 'Eutintinnus',
                'Favella', 'Helicostomella_subulata', 'Hemiaulus', 'Karenia', 'Odontella', 'Parvicorbicula_socialis',
                'Pleuronema_sp', 'Protoperidinium', 'Stenosemella_sp1', 'Stephanopyxis', 'Strombidium_capitatum',
                'Tiarina_fusus', 'Tintinnid', 'Tintinnidium', 'bubble', 'pollen', 'zooplankton']
     
-    # Confusion matrix data
     cm = torch.tensor([
-        # Your confusion matrix data here
         [ 2,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0],
         [ 0,  5,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0],
         [ 0,  0,  5,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  2,  0,  0,  0,  0,  0,  0,  0,  0,  0],
@@ -158,9 +156,7 @@ if __name__ == "__main__":
         [ 0,  0,  2,  2,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  1,  0,  0,  0,  0,  1,  1],
         [ 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  5,  0,  0,  0,  0,  0, 22]])
 
-    # Convert confusion matrix to numpy array
     cm = cm.numpy()
     
-    # Create and show the plot
     fig = create_misclassification_plot(cm, classes)
     fig.show()
