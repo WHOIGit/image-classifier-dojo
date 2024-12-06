@@ -3,7 +3,12 @@ import numpy as np
 import plotly.graph_objects as go
 
 def create_misclassification_plot(cm, classes):
-    
+
+    # Select initial class to show
+    idx = 23
+    initial_fp_count = sum(cm[idx][j] for j, val in enumerate(cm[idx, :]) if j != idx and val > 0)
+    initial_fn_count = sum(cm[j][idx] for j, val in enumerate(cm[:, idx]) if j != idx and val > 0)
+
     fig = go.Figure()
     
     for i, cls in enumerate(classes):
@@ -31,7 +36,7 @@ def create_misclassification_plot(cm, classes):
                 mode='markers',
                 name=f'FP ({cls})',
                 marker=dict(symbol='diamond', size=20, color='blue'),
-                visible=(i == 0)
+                visible=(i == idx)
             )
         )
         
@@ -43,20 +48,16 @@ def create_misclassification_plot(cm, classes):
                 mode='markers',
                 name=f'FN ({cls})',
                 marker=dict(symbol='circle', size=20, color='green'),
-                visible=(i == 0)
+                visible=(i == idx)
             )
         )
 
     # Create dropdown menu buttons for class selection
     buttons = []
     for i, cls in enumerate(classes):
-        # Calculate initial FP and FN counts for first class
-        initial_fp_count = sum(1 for j, val in enumerate(cm[0, :]) if j != 0 and val > 0)
-        initial_fn_count = sum(1 for j, val in enumerate(cm[:, 0]) if j != 0 and val > 0)
-
         # Calculate FP and FN counts
-        fp_count = sum(1 for j, val in enumerate(cm[i, :]) if j != i and val > 0)
-        fn_count = sum(1 for j, val in enumerate(cm[:, i]) if j != i and val > 0)
+        fp_count = sum(cm[i][j] for j, val in enumerate(cm[i, :]) if j != i and val > 0)
+        fn_count = sum(cm[j][i] for j, val in enumerate(cm[:, i]) if j != i and val > 0)
         
         # Create visibility list for traces
         visible = [False] * len(classes) * 2
@@ -76,7 +77,7 @@ def create_misclassification_plot(cm, classes):
     # Update layout with scrollable axes
     fig.update_layout(
         title=dict(
-            text=f'Misclassifications for {classes[0]}<br>True Positives = {cm[0][0]}, False Positives = {initial_fp_count}, False Negatives = {initial_fn_count}',
+            text=f'Misclassifications for {classes[idx]}<br>True Positives = {cm[idx][idx]}, False Positives = {initial_fp_count}, False Negatives = {initial_fn_count}',
             x=0.5,
             y=0.95
         ),
@@ -103,6 +104,7 @@ def create_misclassification_plot(cm, classes):
             x=1
         ),
         updatemenus=[{
+            'active': idx,
             'buttons': buttons,
             'direction': 'down',
             'showactive': True,
