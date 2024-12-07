@@ -65,7 +65,7 @@ def create_misclassification_plot(cm, classes):
             method='update',
             args=[
                 {'visible': visible},
-                {'title': f'Misclassifications for {cls}<br>True Positives = {cm[i][i]}, False Positives = {fp_count}, False Negatives = {fn_count}'}
+                {'title': f'Misclassifications for {cls}<br>True Positives = {cm[i][i]}, False Positives = {fp_sum}, False Negatives = {fn_sum}'}
             ]
         )
         buttons.append(button)
