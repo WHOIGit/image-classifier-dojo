@@ -1,5 +1,4 @@
 import torch
-import numpy as np
 import plotly.graph_objects as go
 
 def create_misclassification_plot(cm, classes):
@@ -10,14 +9,18 @@ def create_misclassification_plot(cm, classes):
     initial_fn_count = sum(cm[j][idx] for j, val in enumerate(cm[:, idx]) if j != idx and val > 0)
 
     fig = go.Figure()
-    
+    buttons = []
     for i, cls in enumerate(classes):
-        # Calculate false positives 
+        # Calculate FP and FN total
+        fp_sum = sum(cm[i][j] for j, val in enumerate(cm[i, :]) if j != i and val > 0)
+        fn_sum = sum(cm[j][i] for j, val in enumerate(cm[:, i]) if j != i and val > 0)
+
+        # Calculate false positives
         fp_classes = []
         fp_values = []
         for j, val in enumerate(cm[i, :]):  # Row represents predictions
             if j != i and val > 0: # Exclude diagonal (true positives) and zero values
-                fp_classes.append(classes[j])
+                fp_classes.append(j)
                 fp_values.append(val)
                 
         # Calculate false negatives 
@@ -25,47 +28,40 @@ def create_misclassification_plot(cm, classes):
         fn_values = []
         for j, val in enumerate(cm[:, i]):  # Column represents actual classes
             if j != i and val > 0:  # Exclude diagonal (true positives) and zero values
-                fn_classes.append(classes[j])
+                fn_classes.append(j)
                 fn_values.append(val)
-        
-        # Add scatter plot trace for false positives
-        fig.add_trace(
-            go.Scatter(
-                x=fp_classes,
+
+        # scatter plot trace for false positives
+        trace_FP = go.Scatter(
+                x=[classes[j] for j in fp_classes],
                 y=fp_values,
                 mode='markers',
                 name=f'FP ({cls})',
                 marker=dict(symbol='diamond', size=20, color='blue'),
                 visible=(i == idx)
             )
-        )
-        
-        # Add scatter plot trace for false negatives
-        fig.add_trace(
-            go.Scatter(
-                x=fn_classes,
+
+        # scatter plot trace for false negatives
+        trace_NP = go.Scatter(
+                x=[classes[j] for j in fn_classes],
                 y=fn_values,
                 mode='markers',
                 name=f'FN ({cls})',
                 marker=dict(symbol='circle', size=20, color='green'),
                 visible=(i == idx)
             )
-        )
 
-    # Create dropdown menu buttons for class selection
-    buttons = []
-    for i, cls in enumerate(classes):
-        # Calculate FP and FN counts
-        fp_count = sum(cm[i][j] for j, val in enumerate(cm[i, :]) if j != i and val > 0)
-        fn_count = sum(cm[j][i] for j, val in enumerate(cm[:, i]) if j != i and val > 0)
-        
+        # adding traces to fig
+        fig.add_trace(trace_NP)
+        fig.add_trace(trace_FP)
+
         # Create visibility list for traces
         visible = [False] * len(classes) * 2
         visible[i*2] = True    # Show false positives for selected class
         visible[i*2+1] = True  # Show false negatives for selected class
-        
+
         button = dict(
-            label=f'{cls} (TP: {cm[i][i]}, FP: {fp_count}, FN: {fn_count})',
+            label=f'{cls} (TP: {cm[i][i]}, FP: {fp_sum}, FN: {fn_sum})',
             method='update',
             args=[
                 {'visible': visible},
@@ -79,15 +75,12 @@ def create_misclassification_plot(cm, classes):
         title=dict(
             text=f'Misclassifications for {classes[idx]}<br>True Positives = {cm[idx][idx]}, False Positives = {initial_fp_count}, False Negatives = {initial_fn_count}',
             x=0.5,
-            y=0.95
+            y=0.95,
         ),
         xaxis=dict(
             tickangle=45,
             showgrid=True,
             rangeslider=dict(visible=True),
-            tickmode='array',
-            ticktext=classes,
-            tickvals=list(range(len(classes)))
         ),
         yaxis=dict(
             title='Number of Misclassifications',
@@ -98,32 +91,28 @@ def create_misclassification_plot(cm, classes):
         showlegend=True,
         legend=dict(
             orientation="h",
-            yanchor="bottom",
-            y=1.02,
             xanchor="right",
-            x=1
+            yanchor="bottom",
+            x=1,
+            y=1.02,
         ),
         updatemenus=[{
             'active': idx,
             'buttons': buttons,
             'direction': 'down',
             'showactive': True,
-            'x': 0.5,
             'xanchor': 'center',
-            'y': 1.15,
             'yanchor': 'top',
+            'x': 0.5,
+            'y': 1.15,
         }],
         width=1200,
         height=800,
-        margin=dict(
-            l=50,
-            r=50,
-            t=150,  # Increased top margin for legend
-            b=100
-        )
+        margin=dict(l=50, r=50, b=100, t=150),  # Increased top margin t for legend
     )
 
     return fig
+
 
 if __name__ == "__main__":
 
@@ -162,3 +151,4 @@ if __name__ == "__main__":
     
     fig = create_misclassification_plot(cm, classes)
     fig.show()
+
