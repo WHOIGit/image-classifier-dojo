@@ -4,7 +4,7 @@ import random
 from tqdm import tqdm
 import lightning as L
 import lightning.pytorch as pl
-from torch.utils.data import random_split, DataLoader
+from torch.utils.data import DataLoader
 from torch.utils.data.dataset import Dataset
 
 import torchvision
