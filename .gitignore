@@ -15,6 +15,7 @@ venv/
 aim-artifacts/
 
 # other
+SCRATCH/
 datasets/
 experiments/
 slogs/
