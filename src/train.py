@@ -24,7 +24,8 @@ if __name__ == '__main__':
 
 from src.patches.aim_patches import S3ArtifactStoragePatcher, AimLoggerWithContext
 from src.patches.model_summary_patch import ModelSummaryWithGradCallback
-from src.multiclass.callbacks import BarPlotMetricAim, PlotConfusionMetricAim
+from src.multiclass.callbacks import BarPlotMetricAim, PlotConfusionMetricAim, PlotPerclassDropdownAim, \
+    LogNormalizedLoss
 from src.multiclass.datasets import ImageListsWithLabelIndex
 from src.multiclass.models import MulticlassClassifier, get_model_base_transforms, check_model_name
 
@@ -230,8 +231,11 @@ def main(args):
     ## Setup Callbacks ##
     callbacks=[]
 
-    validation_results_callbacks = []
-    # TODO
+    validation_results_callbacks = [
+        LogNormalizedLoss(),
+    ]
+    callbacks.append(validation_results_callbacks)
+
 
     plotting_callbacks = [
         #BarPlotMetricAim('f1_perclass', order_reverse=True),
@@ -250,6 +254,8 @@ def main(args):
         PlotConfusionMetricAim(order_by='classes', normalize=True),
         PlotConfusionMetricAim(order_by='f1_perclass', normalize=True),
         #PlotConfusionMetricAim(order_by='recall_perclass', normalize=True),
+
+        PlotPerclassDropdownAim(),
     ]
     callbacks.extend(plotting_callbacks)
 
