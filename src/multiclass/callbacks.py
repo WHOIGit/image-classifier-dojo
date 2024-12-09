@@ -6,9 +6,23 @@ import aim
 import plotly.graph_objects as go
 import h5py as h5
 import numpy as np
+from aim.sdk.adapters.pytorch_lightning import AimLogger
 from scipy.io import savemat
 import lightning.pytorch as pl
 from torchmetrics.functional.classification.confusion_matrix import _confusion_matrix_reduce
+
+
+class LogNormalizedLoss(pl.callbacks.Callback):
+    def __init__(self, train_normloss='train_normloss', val_normloss='val_normloss'):
+        self.train_normloss_name = train_normloss
+        self.val_normloss_name = val_normloss
+
+    def on_validation_end(self, trainer, pl_module):
+        if pl_module.training_loss_by_epoch and pl_module.training_loss_by_epoch[0] and pl_module.validation_loss_by_epoch[0]: # else errors on autobatch
+            val_normloss = pl_module.validation_loss_by_epoch[pl_module.current_epoch]/pl_module.validation_loss_by_epoch[0]
+            train_normloss = pl_module.training_loss_by_epoch[pl_module.current_epoch]/pl_module.training_loss_by_epoch[0]
+            pl_module.log('val_normloss', val_normloss, on_epoch=True)
+            pl_module.log('train_normloss', train_normloss, on_epoch=True)
 
 
 class BarPlotMetricAim(pl.callbacks.Callback):
@@ -26,11 +40,11 @@ class BarPlotMetricAim(pl.callbacks.Callback):
 
         metrics = pl_module.metrics
         metric_obj = metrics[self.metric_key]
-
-        classes = trainer.datamodule.classes
+        validation_dataset = trainer.datamodule.validation_dataset if trainer.datamodule else trainer.val_dataloaders.dataset
+        classes = validation_dataset.classes
         categories = [f'{c} {i:>03}' for i,c in enumerate(classes)]
         scores = metric_obj.compute().cpu().numpy()
-        counts = trainer.datamodule.validation_dataset.count_perclass.values()
+        counts = validation_dataset.count_perclass.values()
 
         if self.order_by.lower() in ['class', 'classes', 'classlist']:
             order_by = [i for i,c in enumerate(classes)]
@@ -70,11 +84,14 @@ class BarPlotMetricAim(pl.callbacks.Callback):
             hoverlabel = dict(font_family="Courier New, monospace", font_size=12),
         )
 
+
         aim_figure = aim.Figure(fig)
         #name, context = trainer.logger.parse_context(self.metric_key)
         name = self.metric_key
         context = dict(figure_order = self.order_by)
-        [logger.experiment.track(aim_figure, name=name, epoch=epoch, context=context) for logger in trainer.loggers]
+        for logger in trainer.loggers:
+            if isinstance(logger,AimLogger):
+                 logger.experiment.track(aim_figure, name=name, epoch=epoch, context=context)
 
 
 class PlotConfusionMetricAim(pl.callbacks.Callback):
@@ -95,8 +112,9 @@ class PlotConfusionMetricAim(pl.callbacks.Callback):
         metrics = pl_module.metrics
         metric_obj = metrics[self.metric_key]
 
-        classes = trainer.datamodule.classes
-        counts = trainer.datamodule.validation_dataset.count_perclass.values()
+        validation_dataset = trainer.datamodule.validation_dataset if trainer.datamodule else trainer.val_dataloaders.dataset
+        classes = validation_dataset.classes
+        counts = validation_dataset.count_perclass.values()
         matrix_counts = metric_obj.compute().cpu()
         categories = [f'({int(sum)}) {c} {i:>03}' for i, c, sum in zip(range(len(classes)), classes, matrix_counts.sum(dim=1))]
         categories_x = [f'{i:>03} {c} ({int(sum)})' for i, c, sum in zip(range(len(classes)), classes, matrix_counts.sum(dim=0))]
@@ -181,4 +199,148 @@ class PlotConfusionMetricAim(pl.callbacks.Callback):
         #name, context = trainer.logger.parse_context(self.metric_key)
         name = self.metric_key
         context = dict(figure_order = self.order_by, normalize=self.normalize)
-        [logger.experiment.track(aim_figure, name=name, epoch=epoch, context=context) for logger in trainer.loggers]
+        for logger in trainer.loggers:
+            if isinstance(logger, AimLogger):
+                logger.experiment.track(aim_figure, name=name, epoch=epoch, context=context)
+
+
+class PlotPerclassDropdownAim(pl.callbacks.Callback):
+    def __init__(self, title='Class Compare (ep{EPOCH})', best_only=True):
+        self.metric_key = 'confusion_matrix'
+        self.title = title
+        self.best_only = best_only
+
+    def on_validation_end(self, trainer, pl_module):
+        epoch = pl_module.current_epoch
+        if not(pl_module.best_epoch==epoch or not self.best_only):
+            return
+
+        metrics = pl_module.metrics
+        cm = metrics['confusion_matrix'].compute().cpu()
+
+        validation_dataset = trainer.datamodule.validation_dataset if trainer.datamodule else trainer.val_dataloaders.dataset
+        classes = validation_dataset.classes
+        categories_y = [f'{c} {i:>03}' for i,c,sum in zip(range(len(classes)), classes, cm.sum(dim=1))]
+        categories = [f'{i:>03} {c}' for i,c,sum in zip(range(len(classes)), classes, cm.sum(dim=1))]
+
+
+        # Select initial class to show
+        idx = 0
+        initial_fp_count = sum(cm[idx][j] for j, val in enumerate(cm[idx, :]) if j != idx and val > 0)
+        initial_fn_count = sum(cm[j][idx] for j, val in enumerate(cm[:, idx]) if j != idx and val > 0)
+
+        fig = go.Figure()
+        buttons = []
+        for i, cls in enumerate(categories_y):
+            # Calculate FP and FN total
+            fp_sum = sum(cm[i][j] for j, val in enumerate(cm[i, :]) if j != i and val > 0)
+            fn_sum = sum(cm[j][i] for j, val in enumerate(cm[:, i]) if j != i and val > 0)
+
+            # Calculate false positives
+            fp_classes = []
+            fp_values = []
+            for j, val in enumerate(cm[i, :]):  # Row represents predictions
+                if j != i and val > 0:  # Exclude diagonal (true positives) and zero values
+                    fp_classes.append(j)
+                    fp_values.append(val)
+
+            # Calculate false negatives
+            fn_classes = []
+            fn_values = []
+            for j, val in enumerate(cm[:, i]):  # Column represents actual classes
+                if j != i and val > 0:  # Exclude diagonal (true positives) and zero values
+                    fn_classes.append(j)
+                    fn_values.append(val)
+
+            # reordering for horizontal barplot
+            # fp_classes = list(reversed(fp_classes))
+            # fp_values = list(reversed(fp_values))
+            # fn_classes = list(reversed(fn_classes))
+            # fn_values = list(reversed(fn_values))
+
+            # scatter plot trace for false positives
+            trace_FP = go.Bar(
+                y=[categories_y[j] for j in fp_classes],
+                x=fp_values,
+                name=f'FP ({cls})',
+                marker=dict(color='blue'),
+                orientation='h',
+                visible=(i == idx),
+            )
+
+            # scatter plot trace for false negatives
+            trace_NP = go.Bar(
+                y=[categories_y[j] for j in fn_classes],
+                x=fn_values,
+                name=f'FN ({cls})',
+                marker=dict(color='green'),
+                orientation='h',
+                visible=(i == idx),
+            )
+
+            # adding traces to fig
+            fig.add_trace(trace_NP)
+            fig.add_trace(trace_FP)
+
+            # Create visibility list for traces
+            visible = [False] * len(classes) * 2
+            visible[i * 2] = True  # Show false positives for selected class
+            visible[i * 2 + 1] = True  # Show false negatives for selected class
+
+            button = dict(
+                label=f'{categories[i]} (TP: {cm[i][i]:.0f}, FP: {fp_sum:.0f}, FN: {fn_sum:.0f})',
+                method='update',
+                args=[
+                    {'visible': visible},
+                    {
+                        'title': f'Misclassifications for {categories[i]}<br>True Positives = {cm[i][i]:.0f}, False Positives = {fp_sum:.0f}, False Negatives = {fn_sum:.0f}'}
+                ]
+            )
+            buttons.append(button)
+
+        # Update layout with scrollable axes
+        fig.update_layout(
+            barmode='stack',
+            title=dict(
+                text=f'Misclassifications for {categories[idx]}<br>True Positives = {cm[idx][idx]:.0f}, False Positives = {initial_fp_count:.0f}, False Negatives = {initial_fn_count:.0f}',
+                x=0.5,
+                y=0.95,
+            ),
+            hoverlabel=dict(namelength=-1, font_family="Courier New, monospace", font_size=12),
+            font=dict(family='Courier New, monospace', size=10),
+            yaxis=dict(
+                visible=True,
+                showgrid=True,
+                autorange='reversed',
+            ),
+            xaxis=dict(
+                title='Number of Misclassifications',
+                showgrid=True,
+                rangemode='tozero'
+            ),
+            hovermode='closest',
+            showlegend=True,
+            legend=dict(
+                orientation="h",
+                xanchor="right",
+                yanchor="bottom",
+                x=1,
+                y=1.02,
+            ),
+            updatemenus=[{
+                'active': idx,
+                'buttons': buttons,
+                'direction': 'down',
+                'showactive': True,
+                'xanchor': 'left',
+                'yanchor': 'top',
+                'y': 1.15,
+            }],
+        )
+
+        aim_figure = aim.Figure(fig)
+        name = 'Misclassifieds Explorer'
+        context = dict()
+        for logger in trainer.loggers:
+            if isinstance(logger, AimLogger):
+                logger.experiment.track(aim_figure, name=name, epoch=epoch, context=context)
