@@ -26,7 +26,7 @@ from src.patches.aim_patches import S3ArtifactStoragePatcher, AimLoggerWithConte
 from src.patches.model_summary_patch import ModelSummaryWithGradCallback
 from src.multiclass.callbacks import BarPlotMetricAim, PlotConfusionMetricAim
 from src.multiclass.datasets import ImageListsWithLabelIndex
-from src.multiclass.models import SupervisedModel, get_model_base_transforms, check_model_name
+from src.multiclass.models import MulticlassClassifier, get_model_base_transforms, check_model_name
 
 def argparse_init(parser=None):
     if parser is None:
@@ -111,7 +111,7 @@ def argparse_init(parser=None):
 def argparse_runtime_args(args):
     # Record GPUs
     if not args.gpus:
-        args.gpus = [int(gpu) for gpu in os.environ.get('CUDA_VISIBLE_DEVICES','UNSET').split(',') if gpu!='UNSET']
+        args.gpus = [int(gpu) for gpu in os.environ.get('CUDA_VISIBLE_DEVICES','UNSET').split(',') if gpu not in ['','UNSET']]
     if not args.num_workers:
         args.num_workers = len(args.gpus)*args.workers_per_gpu
 
@@ -172,8 +172,8 @@ def setup_model_and_datamodule(args):
             with open(args.loss_weight) as f:
                 args.loss_weights_tensor = torch.Tensor([float(line) for line in f.read().splitlines()])
 
-    try: lightning_module = SupervisedModel(just_hparams(args))  # TODO this just_hparams thing is clunk.
-    except NameError: lightning_module = SupervisedModel(args)
+    try: lightning_module = MulticlassClassifier(just_hparams(args))  # TODO this just_hparams thing is clunk.
+    except NameError: lightning_module = MulticlassClassifier(args)
     return lightning_module, datamodule
 
 

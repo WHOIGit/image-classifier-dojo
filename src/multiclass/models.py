@@ -1,5 +1,5 @@
 import argparse
-from typing import Union
+from typing import Union, Literal
 
 import numpy as np
 
@@ -75,7 +75,6 @@ def get_namebrand_model(model_name, num_classes, pretrained:Union[None,str]=None
 
 def freeze_model_features(model, freeze):
     """
-
     :param model:
     :param freeze:
     :return:
@@ -119,19 +118,29 @@ def freeze_model_features(model, freeze):
         raise ValueError(f'Model name "{type(model)}" UNKNOWN')
 
 
-class SupervisedModel(L.LightningModule):
-    def __init__(self, args: Union[dict,argparse.Namespace]):
+class MulticlassClassifier(L.LightningModule):
+    def __init__(self, args: Union[dict,argparse.Namespace], model=None):
         super().__init__()
         if isinstance(args,dict):
             args = argparse.Namespace(**args)
         self.save_hyperparameters(args)  # TODO filter out hparams from other args here
 
+        args.module_class = self.__class__.__name__
+
         if args.loss_function == 'CrossEntropyLoss':
             Criterion = nn.CrossEntropyLoss
         else: raise NotImplemented
-
         self.criterion = Criterion(weight=args.loss_weights_tensor, label_smoothing=args.loss_smoothing)
-        self.model = get_namebrand_model(args.model, args.num_classes, args.weights, args.freeze)
+
+        if model is not None:
+            self.model = model
+            args.model_class = model.__class__.__name__
+        elif isinstance(args.model, str):
+            self.model = get_namebrand_model(args.model, args.num_classes, args.weights, args.freeze)
+            args.model_class = self.model.__class__.__name__
+        else:
+            raise ValueError
+        self.save_hyperparameters(args)
 
         # Instance Variables
         self.best_epoch = 0
@@ -149,34 +158,33 @@ class SupervisedModel(L.LightningModule):
         self.metrics = nn.ModuleDict()
         self.setup_metrics()
 
-    def on_fit_start(self):
-        # reset, eg after autobatch
-        self.best_epoch = 0
-        self.best_epoch_val_loss = np.inf
-        self.training_loss_by_epoch = {}
-        self.validation_loss_by_epoch = {}
-        self.validation_preds = []
-        self.validation_targets = []
-        self.validation_sources = []
-
     def setup_metrics(self):
         num_classes = self.hparams.num_classes
         for mode in ['weighted','micro','macro',None]:
-            for stat,MetricClass in zip(['f1','recall','accuracy','precision'],[tm.F1Score,tm.Recall,tm.Accuracy,tm.Precision]):
+            for stat,MetricClass in zip(['f1','recall','accuracy','precision','accuracy'],
+                                        [tm.F1Score,tm.Recall,tm.Accuracy,tm.Precision,tm.Accuracy]):
                 key = f'{stat}_{mode or "perclass"}'
                 self.metrics[key] = MetricClass(task='multiclass', num_classes=num_classes, average=mode)
         self.metrics['confusion_matrix'] = tm.ConfusionMatrix(task='multiclass', num_classes=num_classes)
 
     def update_metrics(self, preds, targets):
         for mode in ['weighted','micro','macro',None]:
-            for stat in ['f1','recall','precision']:
+            for stat in ['f1','recall','precision','accuracy']:
                 key = f'{stat}_{mode or "perclass"}'
                 self.metrics[key].update(preds,targets)
         self.metrics['confusion_matrix'].update(preds,targets)
 
+    def log_metrics(self, stage:Literal['val','test','train']):
+        for mode in ['weighted','micro','macro']:  # perclass not available to log as metric
+            for stat in ['f1','recall','precision','accuracy']:
+                key = f'{stat}_{mode}'
+                datum = self.metrics[key].compute()
+                #if mode=='micro' and stat in ['recall','precision']: continue  # identical to macro
+                self.log(f'{stage}_{stat}_{mode}', datum, on_epoch=True)
+
     def reset_metrics(self):
         for mode in ['weighted','micro','macro',None]:
-            for stat in ['f1','recall','precision']:
+            for stat in ['f1','recall','precision','accuracy']:
                 key = f'{stat}_{mode or "perclass"}'
                 self.metrics[key].reset()
         self.metrics['confusion_matrix'].reset()
@@ -206,13 +214,25 @@ class SupervisedModel(L.LightningModule):
             return y_hat.logits
         return y_hat
 
+    def on_fit_start(self):
+        # reset, eg after autobatch
+        self.best_epoch = 0
+        self.best_epoch_val_loss = np.inf
+        self.training_loss_by_epoch = {}
+        self.validation_loss_by_epoch = {}
+        #self.validation_preds = []
+        #self.validation_targets = []
+        #self.validation_sources = []
+
     def on_train_epoch_start(self) -> None:
+        # initializing step loss for epoch
+        self.training_loss_by_epoch[self.current_epoch] = 0
+
+    def on_validation_epoch_start(self) -> None:
         # Clearing previous epoch's values
         self.validation_preds = []
         self.validation_targets = []
         self.validation_sources = []
-        # initializing step loss for epoch
-        self.training_loss_by_epoch[self.current_epoch] = 0
         self.validation_loss_by_epoch[self.current_epoch] = 0
         self.reset_metrics()
 
@@ -259,21 +279,7 @@ class SupervisedModel(L.LightningModule):
             self.best_epoch = self.current_epoch
 
         # METRICS & LOGGING
-        for mode in ['weighted','micro','macro']:  # perclass not available to log as metric
-            for stat in ['f1','recall','precision']:
-                key = f'{stat}_{mode}'
-                datum = self.metrics[key].compute()
-                #if mode=='micro' and stat in ['recall','precision']: continue  # identical to macro
-                self.log(f'val_{stat}_{mode}', datum, on_epoch=True)
-
-        # train and val loss already handled, normalized is nice to view overfitting
-        # TODO as callback, not in main loop
-        if self.validation_loss_by_epoch[0] and self.training_loss_by_epoch[0]: # else errors on autobatch
-            val_normloss = val_loss/self.validation_loss_by_epoch[0]
-            train_normloss = self.training_loss_by_epoch[self.current_epoch]/self.training_loss_by_epoch[0]
-            self.log('val_normloss', val_normloss, on_epoch=True)
-            self.log('train_normloss', train_normloss, on_epoch=True)
-
+        self.log_metrics(stage='val')
         self.log_dict(dict(best_epoch=self.best_epoch), on_epoch=True, prog_bar=True)
 
     def test_step(self, batch, batch_idx):
@@ -301,4 +307,3 @@ class SupervisedModel(L.LightningModule):
         ...
     def on_predict_model_eval(self):
         ...
-
