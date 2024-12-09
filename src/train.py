@@ -124,7 +124,7 @@ def argparse_runtime_args(args):
         args.version = None
 
     if not args.run:
-        args.run = coolname.generate_slug(3)
+        args.run = coolname.generate_slug(2)
         print(f'RUN: {args.run}')
 
     # Set Seed. If args.seed is 0 ie None, a random seed value is used and stored
