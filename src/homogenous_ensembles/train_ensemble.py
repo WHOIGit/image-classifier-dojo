@@ -219,6 +219,7 @@ def main(args):
     # using torchensemble's classic-pytorch-style "fit" method
     logger.info(f'fit_args: {fit_args}')
     ensemble.fit(train_loader = datamodule.train_dataloader(),
+                 test_loader = datamodule.val_dataloader(),
                  **fit_args)
 
 
