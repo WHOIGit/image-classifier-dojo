@@ -17,12 +17,15 @@ class LogNormalizedLoss(pl.callbacks.Callback):
         self.train_normloss_name = train_normloss
         self.val_normloss_name = val_normloss
 
-    def on_validation_end(self, trainer, pl_module):
-        if pl_module.training_loss_by_epoch and pl_module.training_loss_by_epoch[0] and pl_module.validation_loss_by_epoch[0]: # else errors on autobatch
-            val_normloss = pl_module.validation_loss_by_epoch[pl_module.current_epoch]/pl_module.validation_loss_by_epoch[0]
+    def on_train_end(self, trainer, pl_module):
+        if pl_module.training_loss_by_epoch and pl_module.training_loss_by_epoch[0]: # else errors on autobatch
             train_normloss = pl_module.training_loss_by_epoch[pl_module.current_epoch]/pl_module.training_loss_by_epoch[0]
-            pl_module.log('val_normloss', val_normloss, on_epoch=True)
             pl_module.log('train_normloss', train_normloss, on_epoch=True)
+
+    def on_validation_end(self, trainer, pl_module):
+        if pl_module.validation_loss_by_epoch and pl_module.validation_loss_by_epoch[0]:
+            val_normloss = pl_module.validation_loss_by_epoch[pl_module.current_epoch]/pl_module.validation_loss_by_epoch[0]
+            pl_module.log('val_normloss', val_normloss, on_epoch=True)
 
 
 class BarPlotMetricAim(pl.callbacks.Callback):
