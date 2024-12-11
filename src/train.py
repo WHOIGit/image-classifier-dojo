@@ -189,10 +189,8 @@ def setup_model_and_datamodule(args):
 def setup_aimlogger(args, context_postfixes:dict=None, context_prefixes:dict=None):
     args_logger, env_logger = None,None
     logger_kwargs = dict(experiment=args.experiment, run_name=args.run)
-    if context_prefixes:
-        logger_kwargs['context_prefixes'] = context_prefixes
-    if context_postfixes:
-        logger_kwargs['context_postfixes'] = context_postfixes
+    logger_kwargs['context_postfixes'] = context_postfixes
+    logger_kwargs['context_prefixes'] = context_prefixes
 
     if 'AIM_ARTIFACTS_S3_ENDPOINT' in os.environ and os.environ['AIM_ARTIFACTS_S3_ENDPOINT']:
         S3ArtifactStoragePatcher(endpoint_url=os.environ['AIM_ARTIFACTS_S3_ENDPOINT'],
