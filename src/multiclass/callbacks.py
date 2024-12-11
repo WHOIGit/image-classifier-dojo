@@ -91,7 +91,7 @@ class BarPlotMetricAim(pl.callbacks.Callback):
         aim_figure = aim.Figure(fig)
         #name, context = trainer.logger.parse_context(self.metric_key)
         name = self.metric_key
-        context = dict(figure_order = self.order_by)
+        context = dict(figure_order = self.order_by, subset='val')
         for logger in trainer.loggers:
             if isinstance(logger,AimLogger):
                  logger.experiment.track(aim_figure, name=name, epoch=epoch, context=context)
@@ -201,7 +201,7 @@ class PlotConfusionMetricAim(pl.callbacks.Callback):
         aim_figure = aim.Figure(fig)
         #name, context = trainer.logger.parse_context(self.metric_key)
         name = self.metric_key
-        context = dict(figure_order = self.order_by, normalize=self.normalize)
+        context = dict(figure_order = self.order_by, normalize=self.normalize, subset='val')
         for logger in trainer.loggers:
             if isinstance(logger, AimLogger):
                 logger.experiment.track(aim_figure, name=name, epoch=epoch, context=context)
@@ -343,7 +343,7 @@ class PlotPerclassDropdownAim(pl.callbacks.Callback):
 
         aim_figure = aim.Figure(fig)
         name = 'Misclassifieds Explorer'
-        context = dict()
+        context = dict(subset='val')
         for logger in trainer.loggers:
             if isinstance(logger, AimLogger):
                 logger.experiment.track(aim_figure, name=name, epoch=epoch, context=context)
