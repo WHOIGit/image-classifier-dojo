@@ -214,13 +214,14 @@ def setup_aimlogger(args, context_postfixes:dict=None, context_prefixes:dict=Non
     if args_logger and env_logger:
         loggers = [args_logger, env_logger]
     else:
-        loggers = [args_logger or env_logger]
-    if len(loggers)==1:
-        return loggers[0]
-    elif len(loggers)>1:
+        loggers = args_logger or env_logger
+
+    if loggers is None:
+        warnings.warn('NO AIM LOGGERS CREATED')
+    elif isinstance(loggers,AimLogger):
         return loggers
     else:
-        warnings.warn('NO AIM LOGGERS CREATED')
+        return loggers
 
 
 def main(args):
@@ -240,6 +241,7 @@ def main(args):
                     rebalanced={'yes': '_rebalanced', 'no': '_unbalanced'})  # lossfunction loss_rebalanced option?
     # val_/train_ already handled by default
     logger = setup_aimlogger(args, context_postfixes=contexts)
+    assert logger is not None, 'Aim logger is None. Did you forget to set --repo, --env, or AIM_REPO env variable?'
 
     ## Setup Callbacks ##
     callbacks=[]
@@ -247,7 +249,7 @@ def main(args):
     validation_results_callbacks = [
         LogNormalizedLoss(),
     ]
-    callbacks.append(validation_results_callbacks)
+    callbacks.extend(validation_results_callbacks)
 
 
     plotting_callbacks = [
@@ -283,12 +285,10 @@ def main(args):
     # https://lightning.ai/docs/pytorch/stable/common/checkpointing_advanced.html
     hashid = logger.experiment.hash if isinstance(logger,AimLogger) else logger[0].experiment.hash
     chkpt_path = os.path.join(args.checkpoints_path,hashid)
-    callbacks.append(ModelCheckpoint(
-        dirpath=chkpt_path,
-        filename='best.ckpt',
-        monitor='val_loss',
-        mode='min',
-    ))
+    ckpt_callback = ModelCheckpoint(
+        dirpath=chkpt_path, filename='best.ckpt',
+        monitor='val_loss', mode='min')
+    callbacks.append(ckpt_callback)
 
     if args.swa:
         callbacks.append(StochasticWeightAveraging(args.swa_lr, swa_epoch_start=args.swa, annealing_epochs=args.swa_annealing))
@@ -337,6 +337,7 @@ def main(args):
 
     print('DONE!')
 
+
 def args_subsetter_factory(parser: argparse.ArgumentParser):
     def args_subset(args, arg_names, group_titles, exclude=[]):
         arguments = []
@@ -349,6 +350,7 @@ def args_subsetter_factory(parser: argparse.ArgumentParser):
         subset = argparse.Namespace(**{k:v for k,v in vars(args).items() if k in arguments and k not in exclude})
         return subset
     return args_subset
+
 
 if __name__ == '__main__':
     parser = argparse_init()

@@ -17,12 +17,12 @@ class LogNormalizedLoss(pl.callbacks.Callback):
         self.train_normloss_name = train_normloss
         self.val_normloss_name = val_normloss
 
-    def on_train_end(self, trainer, pl_module):
+    def on_train_epoch_end(self, trainer, pl_module):
         if pl_module.training_loss_by_epoch and pl_module.training_loss_by_epoch[0]: # else errors on autobatch
             train_normloss = pl_module.training_loss_by_epoch[pl_module.current_epoch]/pl_module.training_loss_by_epoch[0]
             pl_module.log('train_normloss', train_normloss, on_epoch=True)
 
-    def on_validation_end(self, trainer, pl_module):
+    def on_validation_epoch_end(self, trainer, pl_module):
         if pl_module.validation_loss_by_epoch and pl_module.validation_loss_by_epoch[0]:
             val_normloss = pl_module.validation_loss_by_epoch[pl_module.current_epoch]/pl_module.validation_loss_by_epoch[0]
             pl_module.log('val_normloss', val_normloss, on_epoch=True)
@@ -36,7 +36,7 @@ class BarPlotMetricAim(pl.callbacks.Callback):
         self.order_by = order_by
         self.order_reverse = order_reverse
 
-    def on_validation_end(self, trainer, pl_module):
+    def on_validation_epoch_end(self, trainer, pl_module):
         epoch = pl_module.current_epoch
         if not(pl_module.best_epoch==epoch or not self.best_only):
             return
@@ -107,7 +107,7 @@ class PlotConfusionMetricAim(pl.callbacks.Callback):
         self.best_only = best_only
         self.order_by = order_by or 'classes'
 
-    def on_validation_end(self, trainer, pl_module):
+    def on_validation_epoch_end(self, trainer, pl_module):
         epoch = pl_module.current_epoch
         if not(pl_module.best_epoch==epoch or not self.best_only):
             return
@@ -213,7 +213,7 @@ class PlotPerclassDropdownAim(pl.callbacks.Callback):
         self.title = title
         self.best_only = best_only
 
-    def on_validation_end(self, trainer, pl_module):
+    def on_validation_epoch_end(self, trainer, pl_module):
         epoch = pl_module.current_epoch
         if not(pl_module.best_epoch==epoch or not self.best_only):
             return
