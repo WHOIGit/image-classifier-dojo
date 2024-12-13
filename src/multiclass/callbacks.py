@@ -36,7 +36,7 @@ class BarPlotMetricAim(pl.callbacks.Callback):
         self.order_by = order_by
         self.order_reverse = order_reverse
 
-    def on_validation_epoch_end(self, trainer, pl_module):
+    def on_validation_end(self, trainer, pl_module):
         epoch = pl_module.current_epoch
         if not(pl_module.best_epoch==epoch or not self.best_only):
             return
@@ -108,7 +108,7 @@ class PlotConfusionMetricAim(pl.callbacks.Callback):
         self.order_by = order_by or 'classes'
         self.hide_zeros = hide_zeros
 
-    def on_validation_epoch_end(self, trainer, pl_module):
+    def on_validation_end(self, trainer, pl_module):
         epoch = pl_module.current_epoch
         if not(pl_module.best_epoch==epoch or not self.best_only):
             return
@@ -216,7 +216,7 @@ class PlotPerclassDropdownAim(pl.callbacks.Callback):
         self.title = title
         self.best_only = best_only
 
-    def on_validation_epoch_end(self, trainer, pl_module):
+    def on_validation_end(self, trainer, pl_module):
         epoch = pl_module.current_epoch
         if not(pl_module.best_epoch==epoch or not self.best_only):
             return
