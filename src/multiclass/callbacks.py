@@ -245,7 +245,7 @@ class PlotPerclassDropdownAim(pl.callbacks.Callback):
             for j, val in enumerate(cm[i, :]):  # Row represents predictions
                 if j != i and val > 0:  # Exclude diagonal (true positives) and zero values
                     fp_classes.append(j)
-                    fp_values.append(val)
+                    fp_values.append(val.item())
 
             # Calculate false negatives
             fn_classes = []
@@ -253,13 +253,7 @@ class PlotPerclassDropdownAim(pl.callbacks.Callback):
             for j, val in enumerate(cm[:, i]):  # Column represents actual classes
                 if j != i and val > 0:  # Exclude diagonal (true positives) and zero values
                     fn_classes.append(j)
-                    fn_values.append(val)
-
-            # reordering for horizontal barplot
-            # fp_classes = list(reversed(fp_classes))
-            # fp_values = list(reversed(fp_values))
-            # fn_classes = list(reversed(fn_classes))
-            # fn_values = list(reversed(fn_values))
+                    fn_values.append(val.item())
 
             # scatter plot trace for false positives
             trace_FP = go.Bar(
@@ -269,20 +263,26 @@ class PlotPerclassDropdownAim(pl.callbacks.Callback):
                 marker=dict(color='blue'),
                 orientation='h',
                 visible=(i == idx),
+                texttemplate='FP:%{x}',
+                hovertext=[f'{v} "{classes[c]}"<br>{"where" if v>1 else "was"} misclassified-as<br>"{classes[i]}"' for c,v in zip(fp_classes,fp_values)],
+                hoverinfo='text',
             )
 
             # scatter plot trace for false negatives
-            trace_NP = go.Bar(
+            trace_FN = go.Bar(
                 y=[categories_y[j] for j in fn_classes],
                 x=fn_values,
                 name=f'FN ({cls})',
                 marker=dict(color='green'),
                 orientation='h',
                 visible=(i == idx),
+                texttemplate='FN:%{x}',
+                hovertext=[f'{v} "{classes[i]}"<br>{"where" if v>1 else "was"} misclassified-as<br>"{classes[c]}"' for c, v in zip(fn_classes, fn_values)],
+                hoverinfo='text',
             )
 
             # adding traces to fig
-            fig.add_trace(trace_NP)
+            fig.add_trace(trace_FN)
             fig.add_trace(trace_FP)
 
             # Create visibility list for traces
@@ -291,12 +291,12 @@ class PlotPerclassDropdownAim(pl.callbacks.Callback):
             visible[i * 2 + 1] = True  # Show false negatives for selected class
 
             button = dict(
-                label=f'{categories[i]} (TP: {cm[i][i]:.0f}, FP: {fp_sum:.0f}, FN: {fn_sum:.0f})',
+                label=f'{categories[i]} (TP:{cm[i][i]:.0f} FP:{fp_sum:.0f} FN:{fn_sum:.0f})',
                 method='update',
                 args=[
                     {'visible': visible},
                     {
-                        'title': f'Misclassifications for {categories[i]}<br>True Positives = {cm[i][i]:.0f}, False Positives = {fp_sum:.0f}, False Negatives = {fn_sum:.0f}'}
+                        'title': f'Misclassifications for "{classes[i]}"<br>{cm[i][i]:.0f} True Positives, {fp_sum:.0f} False Positives, {fn_sum:.0f} False Negatives'}
                 ]
             )
             buttons.append(button)
@@ -304,6 +304,7 @@ class PlotPerclassDropdownAim(pl.callbacks.Callback):
         # Update layout with scrollable axes
         fig.update_layout(
             barmode='stack',
+            height=400+len(classes)*2,
             title=dict(
                 text=f'Misclassifications for {categories[idx]}<br>True Positives = {cm[idx][idx]:.0f}, False Positives = {initial_fp_count:.0f}, False Negatives = {initial_fn_count:.0f}',
                 x=0.5,
