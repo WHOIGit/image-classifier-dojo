@@ -100,12 +100,13 @@ class BarPlotMetricAim(pl.callbacks.Callback):
 class PlotConfusionMetricAim(pl.callbacks.Callback):
     def __init__(self, title='Confusion Matrix (ep{EPOCH})',
                  normalize: Optional[Literal[True, "true", "pred", "all", "none", None]] = None,
-                 order_by:str='recall_perclass', best_only=True):
+                 order_by:str='recall_perclass', best_only=True, hide_zeros=True):
         self.metric_key = 'confusion_matrix'
         self.normalize = 'true' if normalize is True else normalize
         self.title = title
         self.best_only = best_only
         self.order_by = order_by or 'classes'
+        self.hide_zeros = hide_zeros
 
     def on_validation_epoch_end(self, trainer, pl_module):
         epoch = pl_module.current_epoch
@@ -143,6 +144,9 @@ class PlotConfusionMetricAim(pl.callbacks.Callback):
 
         ordered_matrix = matrix[reordered_indices, :][:, reordered_indices]
         ordered_matrix_count = matrix_counts[reordered_indices, :][:, reordered_indices]
+
+        if self.hide_zeros:
+            ordered_matrix[ordered_matrix==0] = np.nan
 
         html_cells = []
         recall = metrics['recall_perclass'].compute().cpu()
@@ -184,18 +188,17 @@ class PlotConfusionMetricAim(pl.callbacks.Callback):
 
         # Calculate height based on the number of categories
         title = self.title.format(METRIC=self.metric_key, EPOCH=epoch, ORDER=order_by)
-        height = 400 + len(categories) * 10  # base height + additional height per category
+        height = 400 + len(categories) * 12  # base height + additional height per category
 
         # Customize the layout
         fig.update_layout(
             title=title,
-            yaxis_title='Validation Actuals',
-            xaxis_title='Validation Predicteds',
             height=height,
             width=height,
             font=dict(family='Courier New, monospace', size=10),
             hoverlabel=dict(font_family="Courier New, monospace", font_size=12),
-            yaxis=dict(visible=True, autorange='reversed'),
+            yaxis=dict(title='Validation Actuals', visible=True, autorange='reversed', tickson='boundaries'),
+            xaxis=dict(title='Validation Predicteds', visible=True, tickson='boundaries'),
         )
 
         aim_figure = aim.Figure(fig)
