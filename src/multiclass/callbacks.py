@@ -171,6 +171,7 @@ class PlotConfusionMetricAim(pl.callbacks.Callback):
                 # TODO show images in cells
                 #      or embed links
                 hovertext = '<BR>'.join(lines)  # + f'<extra></extra>'
+                if cell_count==0: hovertext=''
                 rows.append(hovertext)
             html_cells.append(rows)
 
@@ -188,7 +189,7 @@ class PlotConfusionMetricAim(pl.callbacks.Callback):
 
         # Calculate height based on the number of categories
         title = self.title.format(METRIC=self.metric_key, EPOCH=epoch, ORDER=order_by)
-        height = 400 + len(categories) * 12  # base height + additional height per category
+        height = 400 + len(categories) * 14  # base height + additional height per category
 
         # Customize the layout
         fig.update_layout(
