@@ -35,8 +35,8 @@ def argparse_init(parser=None):
 
     # DATASET #
     dataset = parser.add_argument_group(title='Dataset', description=None)
-    dataset.add_argument('--classlist', required=True, help='A text file, each line is a class label (the label order is significant), or a json dict')
-    dataset.add_argument('--trainlist', required=True, help='A text file, one sample per line, with class-index and image path per line, or a json dict')
+    dataset.add_argument('--classlist', required=True, help='A text file, each line is a class label (the label order is significant)')
+    dataset.add_argument('--trainlist', required=True, help='A text file, one sample per line, each sample has a class-index and image path')
     dataset.add_argument('--vallist', required=True, help='Like trainlist, but for validation metrics and early-stopping/overfit-prevention')
     dataset.add_argument('--testlist', help='Like trainlist, but for final test metrics. Optional')
     #dataset.add_argument('--sampler', metavar='MODULE.CLASS', default=None)

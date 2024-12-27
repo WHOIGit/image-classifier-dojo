@@ -4,16 +4,14 @@ import random
 
 import coolname
 import torchvision
+from torchvision.transforms import v2
 from aim.pytorch_lightning import AimLogger
 from dotenv import load_dotenv
 
 import torch
 import lightning.pytorch as pl
-from lightly.transforms import SimCLRTransform
 from lightning.pytorch.callbacks import ModelCheckpoint
 from lightning.pytorch.tuner import Tuner
-from torch.utils.data import DataLoader
-from torch.utils.data.datapipes.iter import Shuffler
 
 # set import paths to project root
 if __name__ == '__main__':
@@ -22,12 +20,10 @@ if __name__ == '__main__':
     if sys.path[0] != str(PROJECT_ROOT): sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.multiclass.models import check_model_name, get_model_base_transforms, get_namebrand_model, get_model_resize
-from src.selfsupervised.datasets import IfcbBinsDataset
+from src.selfsupervised.datasets import IfcbDatamodule
 from src.selfsupervised.models import SimCLR
 from src.multiclass.callbacks import LogNormalizedLoss
 from src.train import setup_aimlogger
-from src.multiclass.datasets import ImageDatasetWithSource, parse_classlist, parse_listfile_with_targets
-from src.tools.dataset_lists_from_folder import balanced_split
 
 
 def argparse_init(parser=None):
@@ -37,8 +33,11 @@ def argparse_init(parser=None):
     # DATASET #
     dataset = parser.add_argument_group(title='Dataset', description=None)
     dataset.add_argument('--trainlist', required=True, help='A text file, one ifcb bin-directory per line.')
-    dataset.add_argument('--vallist', required=True, help='Like trainlist, but for validation metrics and early-stopping/overfit-prevention')
-    dataset.add_argument('--classlist', required=True, help='A text file, each line is a class label (the label order is significant), or a json dict')
+    dataset.add_argument('--classlist', help='A text file, each line is a class label (the label order is significant)')
+    dataset.add_argument('--vallist', help='A text file, one sample per line, each sample has a class-index and image path')
+    dataset.add_argument('--knnlist', help='Embeddings VALLIST samples will be k-nearest-neighbored with')
+    dataset.add_argument('--knn-k', metavar='K', type=int, default=11, help='Number K of nearest-neighbors to check. Default is 11')
+    dataset.add_argument('--shuffle-buffer', type=int, default=1000, help='How many ROIs to gather before shuffling. 1 to disable buffer, 0 to disable shuffling. Default is 1000 ')
 
     # TRACKING #
     aimstack = parser.add_argument_group(title='AimLogger', description=None)
@@ -110,51 +109,30 @@ def argparse_runtime_args(args):
         if os.path.isdir(os.environ['AIM_ARTIFACTS_URI']):
             os.environ['AIM_ARTIFACTS_URI'] = f'file://{os.path.abspath(os.environ["AIM_ARTIFACTS_URI"])}'
 
-    # Trainlist is a list of dirs, special handling
-    if os.path.isfile(args.trainlist):
-        with open(args.trainlist) as f:
-            args.trainlist = f.read().splitlines()
-        assert all([os.path.isdir(d) for d in args.trainlist])
-    elif os.path.isdir(args.trainlist):
-        args.trainlist = [args.trainlist]
-    else:
-        raise ValueError
-
+    if args.vallist or args.knnlist or args.classlist:
+        if not (args.vallist and args.knnlist and args.classlist):
+            raise ValueError('Incomplete Mutually-Inclusive args: --vallist --knnlist --classlist')
 
 def setup_model_and_datamodule(args):
 
-    # TODO make this a lightning datamodule
-
-    # Training Dataloader
+    # Model-dependant Dataset Params
     assert args.model_name=='resnet18'
     args.model = check_model_name(args.model_name)
     resize = get_model_resize(args.model_name)
+    from lightly.transforms import SimCLRTransform
     transform = SimCLRTransform(input_size=resize, vf_prob=0.5, hf_prob=0.5, cj_prob=0.5, cj_strength=0.5)
-    dataset = IfcbBinsDataset(args.trainlist, transform=transform)
-    dataset.calculate_len()
-    shuff = Shuffler(dataset, buffer_size=1000)
-    dataloader = DataLoader(shuff, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers, drop_last=True)
+    eval_transform = None
+    if args.classlist:
+        eval_transforms = get_model_base_transforms(args.model_name)
+        eval_transform = v2.Compose(eval_transforms)
 
-    # Validation Dataloader
-    if args.vallist:
-        assert args.classlist
-        val_transforms = get_model_base_transforms(args.model_name)
-        validation_transform = torchvision.transforms.Compose(val_transforms)
-        classes = parse_classlist(args.classlist)
-        val_data_full, val_ds_errors = parse_listfile_with_targets(args.vallist, len(classes))
-        if val_ds_errors:
-            raise RuntimeError(f'BAD SAMPLES: {len(val_ds_errors)}')
-        val_images_perclass = ImageDatasetWithSource(sources_targets=val_data_full, classes=classes).images_perclass
-        knn_data,val_data = balanced_split(val_images_perclass, ratio=0.5)
-        knn_dataset = ImageDatasetWithSource(knn_data, classes, validation_transform)
-        val_dataset = ImageDatasetWithSource(val_data, classes, validation_transform)
-        knn_dataloader = DataLoader(knn_dataset, batch_size=args.batch_size, num_workers=args.num_workers)
-        val_dataloader = DataLoader(val_dataset, batch_size=args.batch_size, num_workers=args.num_workers)
-
-    else:
-        knn_dataloader = []
-        val_dataloader = []
-
+    # Datamodule
+    datamodule = IfcbDatamodule(args.trainlist, transform,
+                                args.knnlist, args.vallist,
+                                args.classlist, eval_transform,
+                                batch_size=args.batch_size, num_workers=args.num_workers,
+                                shuffler_buffer_size=args.shuffle_buffer, use_len=True)
+    knn_dataloader = datamodule.knn_dataloader()if args.knnlist else []
 
     # todo make a backbone creator
     #get_namebrand_model
@@ -165,8 +143,8 @@ def setup_model_and_datamodule(args):
     backbone_outfeatures = resnet.fc.in_features
 
     # TODO other architectures, like VICReg
-    model = SimCLR(backbone, backbone_outfeatures, 128, knn_dataloader)  # TODO what is mystery number 126
-    return model, dataloader, val_dataloader
+    model = SimCLR(backbone, backbone_outfeatures, 128, knn_dataloader, knn_k=args.knn_k)  # TODO what is mystery number 126
+    return model, datamodule
 
 
 
@@ -174,11 +152,14 @@ def main(args):
     torch.set_float32_matmul_precision('medium')
 
     ## Setup Model & Data Module ##
-    model, dataloader, val_dataloader = setup_model_and_datamodule(args)
+    model, datamodule = setup_model_and_datamodule(args)
 
     ## Setup Epoch Logger ##
     # val_/train_ already handled by default
-    logger = setup_aimlogger(args)
+    contexts = dict(averaging={'macro': '_macro', 'micro': '_micro', 'weighted': '_weighted',
+                               'none': '_perclass'},  # f1, precision, recall
+                    )
+    logger = setup_aimlogger(args, contexts)
 
     ## Setup Callbacks ##
     callbacks=[]
@@ -213,11 +194,11 @@ def main(args):
     # auto-tune batch-size
     if args.autobatch:
         tuner = Tuner(trainer)
-        found_batch_size = tuner.scale_batch_size(model, train_dataloaders=dataloader,
+        found_batch_size = tuner.scale_batch_size(model, datamodule=datamodule,
             mode=args.autobatch, method='fit', max_trials=10, init_val=args.batch_size)
         args.batch_size_init, args.batch_size = args.batch_size, min([found_batch_size, args.autobatch_max or float('inf')])
 
-    trainer.fit(model, train_dataloaders=dataloader, val_dataloaders=val_dataloader)
+    trainer.fit(model, datamodule=datamodule)
 
 
 if __name__ == '__main__':
