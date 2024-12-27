@@ -14,3 +14,6 @@ python-dotenv
 aim<4  # aimstack experiment tracker
 torchensemble
 tqdm
+git+https://github.com/joefutrelle/pyifcb.git
+lightly
+humanize
