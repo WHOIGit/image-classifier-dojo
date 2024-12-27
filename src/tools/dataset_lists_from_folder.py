@@ -69,18 +69,18 @@ def limit_images_perclass(images_perclass, minimum_images_per_class=2, maximum_i
     return images_perclass__final, classes_removed_for_too_few_samples, classes_limited_for_too_many_samples
 
 
-def balanced_split(images_perclass, ratio):
+def balanced_split(images_perclass:dict, ratio:float, seed:int=None):
+    if seed: random.seed(seed)
     classes = list(images_perclass.keys())
     total_image_count = sum(len(vals) for vals in images_perclass.values())
     d1_perclass = {}
     d2_perclass = {}
     for class_label, images in images_perclass.items():
         # 1) determine output lengths
-        d1_len = int(ratio * len(images) / 100 + 0.5)
+        d1_len = int(ratio * len(images) + 0.5)
         if d1_len == len(images):
             # make sure that at least one image gets put in d2
             d1_len -= 1
-
         # 2) split images as per distribution
         d1_images = random.sample(images, d1_len)
         d2_images = sorted(list(set(images) - set(d1_images)))
