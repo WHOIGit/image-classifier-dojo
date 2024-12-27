@@ -11,6 +11,36 @@ import torchvision
 from torchvision import transforms
 
 
+def parse_classlist(classlist):
+    with open(classlist) as f:
+        return f.read().splitlines()
+
+
+def parse_listfile_with_targets(listfile, num_classes: int = None):
+    bad_class = []
+    bad_file = []
+    bad_ext = []
+    sources_targets = []
+    with open(listfile) as f:
+        for line in tqdm(f.read().splitlines(), desc=listfile):
+            if not line: continue
+            trg, src = line.split()
+            trg = int(trg)
+            if num_classes and not trg < num_classes:
+                print(f'BAD TRG: trg > num_classes {trg} < {num_classes} for {src}')
+                bad_class.append(line)
+            elif not torchvision.datasets.folder.is_image_file(src):
+                print(f'BAD EXT: {src}')
+                bad_ext.append(line)
+            elif not os.path.isfile(src):
+                print(f'BAD FILE: {src}')
+                bad_file.append(line)
+            else:
+                sources_targets.append((src, trg))
+    errors = bad_file + bad_ext + bad_class
+    return sources_targets, errors
+
+
 class ImageDatasetWithSource(Dataset):
     """
     Custom dataset that includes source file paths in addition to data and target. Also checks for valid image extention.
@@ -66,7 +96,7 @@ class ImageListsWithLabelIndex(L.LightningDataModule):
         self.training_source = train_src
         self.validation_source = val_src
         self.test_source = test_src
-        self.classes = self.parse_classlist(classlist)
+        self.classes = parse_classlist(classlist)
         self.base_transforms = base_transforms
         self.training_transforms = training_transforms
         self.batch_size = batch_size
@@ -78,41 +108,11 @@ class ImageListsWithLabelIndex(L.LightningDataModule):
 
         assert len(set(self.classes))==len(self.classes), 'Class list has duplicate labels!'
 
-    @staticmethod
-    def parse_classlist(classlist):
-        with open(classlist) as f:
-            return f.read().splitlines()
-
-    def parse_listfile_with_targets(self, listfile):
-        num_classes = len(self.classes)
-        bad_class = []
-        bad_file = []
-        bad_ext = []
-        sources_targets = []
-        with open(listfile) as f:
-            for line in tqdm(f.read().splitlines(), desc=listfile):
-                if not line: continue
-                trg, src = line.split()
-                trg = int(trg)
-                if not trg < num_classes:
-                    print(f'BAD TRG: trg > num_classes {trg} < {num_classes} for {src}')
-                    bad_class.append(line)
-                elif not torchvision.datasets.folder.is_image_file(src):
-                    print(f'BAD EXT: {src}')
-                    bad_ext.append(line)
-                elif not os.path.isfile(src):
-                    print(f'BAD FILE: {src}')
-                    bad_file.append(line)
-                else:
-                    sources_targets.append((src, trg))
-        errors = bad_file + bad_ext + bad_class
-        return sources_targets, errors
-
     def setup(self, stage: str, without_source=False):
         # Assign train/val datasets for use in dataloaders
         if stage == "fit":
-            training_samples, train_ds_errors = self.parse_listfile_with_targets(self.training_source)
-            validation_samples, val_ds_errors = self.parse_listfile_with_targets(self.validation_source)
+            training_samples, train_ds_errors = parse_listfile_with_targets(self.training_source, len(self.classes))
+            validation_samples, val_ds_errors = parse_listfile_with_targets(self.validation_source, len(self.classes))
 
             if train_ds_errors or val_ds_errors:
                 raise RuntimeError(f'BAD SAMPLES: {len(train_ds_errors)+len(val_ds_errors)}')

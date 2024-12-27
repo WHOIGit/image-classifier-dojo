@@ -29,11 +29,14 @@ def check_model_name(model_name):
         print(f'Adjusting Model name from "{model_name}" to "{correct_model_name}"')
     return correct_model_name
 
-
-def get_model_base_transforms(model_name):
+def get_model_resize(model_name:str) -> int:
     Model = tv.models.get_model_builder(model_name.lower())
     weights = tv.models.get_model_weights(Model).DEFAULT
     resize = weights.transforms().crop_size[0]
+    return resize
+
+def get_model_base_transforms(model_name):
+    resize = get_model_resize(model_name)
     return [tv.transforms.Resize((resize,resize)), tv.transforms.ToTensor()]
 
 
@@ -220,9 +223,6 @@ class MulticlassClassifier(L.LightningModule):
         self.best_epoch_val_loss = np.inf
         self.training_loss_by_epoch = {}
         self.validation_loss_by_epoch = {}
-        #self.validation_preds = []
-        #self.validation_targets = []
-        #self.validation_sources = []
 
     def on_train_epoch_start(self) -> None:
         # initializing step loss for epoch
