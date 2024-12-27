@@ -1,5 +1,4 @@
 import os
-import pathlib
 import argparse
 import random
 import warnings
@@ -16,14 +15,14 @@ from lightning.pytorch.loggers.csv_logs import CSVLogger
 from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint, StochasticWeightAveraging
 
 from aim.pytorch_lightning import AimLogger
+from aim.storage.artifacts.s3_storage import S3ArtifactStorage_clientconfig
 
 # if file is called directly, must set import paths to project root
 if __name__ == '__main__':
-    import sys
+    import sys, pathlib
     PROJECT_ROOT = pathlib.Path(__file__).parent.parent.absolute()
     if sys.path[0] != str(PROJECT_ROOT): sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.patches.aim_patches import S3ArtifactStoragePatcher, AimLoggerWithContext
 from src.patches.model_summary_patch import ModelSummaryWithGradCallback
 from src.multiclass.callbacks import BarPlotMetricAim, PlotConfusionMetricAim, PlotPerclassDropdownAim, \
     LogNormalizedLoss
@@ -142,6 +141,9 @@ def argparse_runtime_args(args):
     if args.freeze:
         args.freeze = float(args.freeze) if '.' in args.freeze else int(args.freeze)
 
+    if args.weights.lower() == 'none':
+        args.weights = None
+
     if args.artifacts_location and os.path.isdir(args.artifacts_location):
         args.artifacts_location = f'file://{os.path.abspath(args.artifacts_location)}'
     if 'AIM_ARTIFACTS_URI' in os.environ and os.environ['AIM_ARTIFACTS_URI']:
@@ -193,18 +195,18 @@ def setup_aimlogger(args, context_postfixes:dict=None, context_prefixes:dict=Non
     logger_kwargs['context_prefixes'] = context_prefixes
 
     if 'AIM_ARTIFACTS_S3_ENDPOINT' in os.environ and os.environ['AIM_ARTIFACTS_S3_ENDPOINT']:
-        S3ArtifactStoragePatcher(endpoint_url=os.environ['AIM_ARTIFACTS_S3_ENDPOINT'],
+        S3ArtifactStorage_clientconfig(endpoint_url=os.environ['AIM_ARTIFACTS_S3_ENDPOINT'],
                                  aws_access_key_id=os.environ['AIM_ARTIFACTS_S3_ACCESSKEY'],
                                  aws_secret_access_key=os.environ['AIM_ARTIFACTS_S3_SECRETKEY'])
 
     if 'AIM_REPO' in os.environ and os.environ['AIM_REPO']:
-        env_logger = AimLoggerWithContext(repo=os.environ['AIM_REPO'], **logger_kwargs)
+        env_logger = AimLogger(repo=os.environ['AIM_REPO'], **logger_kwargs)
         if 'AIM_ARTIFACTS_URI' in os.environ and os.environ['AIM_ARTIFACTS_URI']:
             env_logger.experiment.set_artifacts_uri(os.environ['AIM_ARTIFACTS_URI'])
         if args.note: env_logger.experiment.props.description = args.note
 
     if args.repo:
-        args_logger = AimLoggerWithContext(repo=args.repo, **logger_kwargs)
+        args_logger = AimLogger(repo=args.repo, **logger_kwargs)
         if args.artifacts_location:
             args_logger.experiment.set_artifacts_uri(args.artifacts_location)
         if args.note: args_logger.experiment.props.description = args.note
@@ -224,10 +226,6 @@ def setup_aimlogger(args, context_postfixes:dict=None, context_prefixes:dict=Non
 
 def main(args):
     torch.set_float32_matmul_precision('medium')
-
-    if args.env:
-        load_dotenv(override=True) if args.env is True else load_dotenv(args.env, override=True)
-    os.environ['CUDA_VISIBLE_DEVICES'] = ','.join(map(str,args.gpus))
 
     ## Setup Model & Data Module ##
     model, datamodule = setup_model_and_datamodule(args)
