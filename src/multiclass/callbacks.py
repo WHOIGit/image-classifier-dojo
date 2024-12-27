@@ -23,7 +23,7 @@ class LogNormalizedLoss(pl.callbacks.Callback):
             pl_module.log('train_normloss', train_normloss, on_epoch=True)
 
     def on_validation_epoch_end(self, trainer, pl_module):
-        if pl_module.validation_loss_by_epoch and pl_module.validation_loss_by_epoch[0]:
+        if hasattr(pl_module,'validation_loss_by_epoch') and pl_module.validation_loss_by_epoch and pl_module.validation_loss_by_epoch[0]:
             val_normloss = pl_module.validation_loss_by_epoch[pl_module.current_epoch]/pl_module.validation_loss_by_epoch[0]
             pl_module.log('val_normloss', val_normloss, on_epoch=True)
 
