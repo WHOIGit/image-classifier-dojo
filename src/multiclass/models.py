@@ -7,6 +7,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torchvision as tv
+from torchvision.transforms import v2
 from torchvision.models import AlexNet, DenseNet,  ResNet, SqueezeNet, VGG, \
     ConvNeXt, EfficientNet, MNASNet, MobileNetV2, MobileNetV3, RegNet, ShuffleNetV2
 from torchvision.models import Inception3, InceptionOutputs, GoogLeNet, GoogLeNetOutputs
@@ -15,6 +16,7 @@ import torchmetrics as tm
 
 INCEPTION_AUXLOSS_WEIGHT = 0.4
 GOOGLENET_AUXLOSS_WEIGHT = 0.3
+
 
 def check_model_name(model_name):
     correct_model_name = tv.models.list_models(include=model_name.lower())
@@ -29,15 +31,17 @@ def check_model_name(model_name):
         print(f'Adjusting Model name from "{model_name}" to "{correct_model_name}"')
     return correct_model_name
 
+
 def get_model_resize(model_name:str) -> int:
     Model = tv.models.get_model_builder(model_name.lower())
     weights = tv.models.get_model_weights(Model).DEFAULT
     resize = weights.transforms().crop_size[0]
     return resize
 
+
 def get_model_base_transforms(model_name):
     resize = get_model_resize(model_name)
-    return [tv.transforms.Resize((resize,resize)), tv.transforms.ToTensor()]
+    return [v2.Resize((resize,resize)), v2.ToImage(), v2.ToDtype(torch.float32, scale=True)]
 
 
 def get_namebrand_model(model_name, num_classes, pretrained:Union[None,str]=None, freeze=None):
@@ -266,7 +270,6 @@ class MulticlassClassifier(L.LightningModule):
         self.log("val_loss", loss, on_step=False, on_epoch=True, reduce_fx=torch.sum)
 
     def on_validation_epoch_end(self):
-        val_loss = self.validation_loss_by_epoch[self.current_epoch]
         self.validation_targets = np.concatenate(self.validation_targets, axis=0)
         self.validation_preds = np.concatenate(self.validation_preds, axis=0)
         pred_classes = np.argmax(self.validation_preds, axis=1)
@@ -274,6 +277,7 @@ class MulticlassClassifier(L.LightningModule):
             self.validation_sources = [item for sublist in self.validation_sources for item in sublist]
 
         # Is it a best epoch?
+        val_loss = self.validation_loss_by_epoch[self.current_epoch]
         if val_loss < self.best_epoch_val_loss:
             self.best_epoch_val_loss = val_loss
             self.best_epoch = self.current_epoch

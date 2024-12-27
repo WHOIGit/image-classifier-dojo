@@ -6,7 +6,7 @@ import warnings
 import coolname
 from dotenv import load_dotenv
 
-from torchvision import transforms
+from torchvision.transforms import v2
 import torch
 import lightning as L
 import lightning.pytorch as pl
@@ -155,9 +155,9 @@ def parse_training_transforms(args):
     if args.flip:
         flip_tforms = []
         if 'x' in args.flip:
-            flip_tforms.append(transforms.RandomVerticalFlip(p=0.5))
+            flip_tforms.append(v2.RandomVerticalFlip(p=0.5))
         if 'y' in args.flip:
-            flip_tforms.append(transforms.RandomHorizontalFlip(p=0.5))
+            flip_tforms.append(v2.RandomHorizontalFlip(p=0.5))
         training_transforms.extend(flip_tforms)
     return training_transforms
 

@@ -8,10 +8,10 @@ from torch.utils.data import DataLoader
 from torch.utils.data.dataset import Dataset
 
 import torchvision
-from torchvision import transforms
+from torchvision.transforms import v2
 
 
-def parse_classlist(classlist):
+def parse_listfile(classlist):
     with open(classlist) as f:
         return f.read().splitlines()
 
@@ -96,7 +96,7 @@ class ImageListsWithLabelIndex(L.LightningDataModule):
         self.training_source = train_src
         self.validation_source = val_src
         self.test_source = test_src
-        self.classes = parse_classlist(classlist)
+        self.classes = parse_listfile(classlist)
         self.base_transforms = base_transforms
         self.training_transforms = training_transforms
         self.batch_size = batch_size
@@ -117,8 +117,8 @@ class ImageListsWithLabelIndex(L.LightningDataModule):
             if train_ds_errors or val_ds_errors:
                 raise RuntimeError(f'BAD SAMPLES: {len(train_ds_errors)+len(val_ds_errors)}')
 
-            validation_transform = transforms.Compose(self.base_transforms)
-            training_transform = transforms.Compose(self.training_transforms + self.base_transforms)
+            validation_transform = v2.Compose(self.base_transforms)
+            training_transform = v2.Compose(self.training_transforms + self.base_transforms)
 
             self.training_dataset = ImageDatasetWithSource(sources_targets=training_samples, classes=self.classes,
                 transform=training_transform, without_source=without_source)
