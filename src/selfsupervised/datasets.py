@@ -35,7 +35,7 @@ class IfcbBinsDataset(IterableDataset):
                  with_sources=True,
                  shuffle=True,
                  use_len:Union[bool,int]=False):
-        bin_dirs = [ifcb.data.files.list_data_dirs(bin_dir, blacklist=['bad','skip','beads']) for bin_dir in bin_dirs]
+        bin_dirs = [ifcb.data.files.list_data_dirs(bin_dir, blacklist=['bad','skip','beads','temp','data_temp']) for bin_dir in bin_dirs]
         self.bin_dirs = sorted(itertools.chain.from_iterable(bin_dirs), key=lambda p:os.path.basename(p))  # flatten
         self.shuffle = shuffle
         if self.shuffle:
