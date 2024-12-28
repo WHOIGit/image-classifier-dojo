@@ -138,15 +138,14 @@ def get_namebrand_beheaded_model(model_name, pretrained:Union[None,str]=None) ->
 class SSLValidationModule(pl.LightningModule):
     def __init__(
         self,
-        dataloader_kNN: DataLoader[Any],
-        num_classes: int,
+        knn_dataloader: DataLoader[Any],
         knn_k: int = 200,
         knn_t: float = 0.1,
     ):
         super().__init__()
         self.backbone = nn.Module()
-        self.dataloader_kNN = dataloader_kNN
-        self.num_classes = num_classes
+        self.knn_dataloader = knn_dataloader
+        self.num_classes = len(knn_dataloader.dataset.classes) if knn_dataloader else 0
         self.knn_k = knn_k
         self.knn_t = knn_t
 
@@ -220,7 +219,7 @@ class SSLValidationModule(pl.LightningModule):
         train_features = []
         train_targets = []
         with torch.no_grad():
-            for data in self.dataloader_kNN:
+            for data in self.knn_dataloader:
                 img, target, _ = data
                 img = img.to(self.device)
                 target = target.to(self.device)
@@ -287,18 +286,20 @@ class SSLValidationModule(pl.LightningModule):
 from lightly.loss import NTXentLoss
 from lightly.models.modules.heads import SimCLRProjectionHead
 class SimCLR(SSLValidationModule):
-    def __init__(self, backbone, hidden_dim, out_dim,
-                 dataloader_kNN=[], knn_k: int = 200, knn_t: float = 0.1):
+    def __init__(self, backbone_name:str, backbone_weights:Union[str,None],
+                 output_dim:int=128, hidden_dim:Union[int,Literal['input_dim']]='input_dim',
+                 knn_dataloader=[], knn_k: int = 100, knn_t: float = 0.1):
+        super().__init__(knn_dataloader, knn_k, knn_t)
 
-        # todo backbone creation here
-        # todo hparams
-        if isinstance(dataloader_kNN, DataLoader):
-            num_classes = len(dataloader_kNN.dataset.classes)
-        else: num_classes = 0
-        super().__init__(dataloader_kNN, num_classes, knn_k, knn_t)
+        self.save_hyperparameters(ignore='dataloader_kNN')
 
-        self.backbone = backbone
-        self.projection_head = SimCLRProjectionHead(hidden_dim, hidden_dim, out_dim)
+        self.backbone, backbone_features_num = get_namebrand_beheaded_model(backbone_name, backbone_weights)
+        self.projection_head = SimCLRProjectionHead(
+            input_dim = backbone_features_num,
+            hidden_dim = hidden_dim if isinstance(hidden_dim,int) else backbone_features_num,
+            output_dim = output_dim,
+            num_layers = 2,
+        )
         self.criterion = NTXentLoss()
 
     def forward(self, x):
@@ -308,6 +309,41 @@ class SimCLR(SSLValidationModule):
 
     def training_step(self, batch, batch_idx):
         (x0, x1), img_id = batch
+        z0 = self.forward(x0)
+        z1 = self.forward(x1)
+        loss = self.criterion(z0, z1)
+        self.training_loss_by_epoch[self.current_epoch] += loss.item()
+        self.log("train_loss", loss)
+        return loss
+
+
+from lightly.models.modules.heads import VICRegProjectionHead
+from lightly.loss.vicreg_loss import VICRegLoss
+class VICReg(SSLValidationModule):
+    def __init__(self, backbone_name, backbone_weights,
+                 output_dim:int=2048, hidden_dim:Union[int,Literal['input_dim']]='input_dim',
+                 knn_dataloader=[], knn_k:int=100, knn_t:float=0.1):
+        super().__init__(knn_dataloader, knn_k, knn_t)
+
+        self.save_hyperparameters(ignore='dataloader_kNN')
+
+        self.backbone, backbone_features_num = get_namebrand_beheaded_model(backbone_name, backbone_weights)
+
+        self.projection_head = VICRegProjectionHead(
+            input_dim = backbone_features_num,
+            hidden_dim = hidden_dim if isinstance(hidden_dim,int) else backbone_features_num,
+            output_dim = output_dim,
+            num_layers = 2,
+        )
+        self.criterion = VICRegLoss()
+
+    def forward(self, x):
+        h = self.backbone(x).flatten(start_dim=1)
+        z = self.projection_head(h)
+        return z
+
+    def training_step(self, batch, batch_index):
+        (x0, x1) = batch[0]
         z0 = self.forward(x0)
         z1 = self.forward(x1)
         loss = self.criterion(z0, z1)

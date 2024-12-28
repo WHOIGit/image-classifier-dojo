@@ -22,7 +22,7 @@ if __name__ == '__main__':
 
 from src.multiclass.models import check_model_name, get_model_base_transforms, get_namebrand_model, get_model_resize
 from src.selfsupervised.datasets import IfcbDatamodule
-from src.selfsupervised.models import SimCLR, get_namebrand_beheaded_model
+from src.selfsupervised.models import SimCLR, VICReg
 from src.multiclass.callbacks import LogNormalizedLoss, BarPlotMetricAim, PlotConfusionMetricAim, PlotPerclassDropdownAim
 from src.train import setup_aimlogger
 
@@ -53,6 +53,7 @@ def argparse_init(parser=None):
 
     # HYPER PARAMETERS #
     model = parser.add_argument_group(title='Model Parameters')
+    model.add_argument('--method', required=True, choices=('SimCLR','VICReg'), help='Self-supervised Learning methodolgy')
     model.add_argument('--model-name', help='Model Class/Module Name or torch model checkpoint file', required=True)  # TODO checkopint file, also check loading from s3
     model.add_argument('--weights', default='DEFAULT', help='''Specify a model's weights. Either "DEFAULT", some specific identifier, or "None" for no-pretrained-weights''')
     model.add_argument('--seed', type=int, help='Set a specific seed for deterministic output')
@@ -123,8 +124,20 @@ def setup_model_and_datamodule(args):
     # Model-dependant Dataset Params
     args.model_name = check_model_name(args.model_name)
     resize = get_model_resize(args.model_name)
-    from lightly.transforms import SimCLRTransform
-    transform = SimCLRTransform(input_size=resize, vf_prob=0.5, hf_prob=0.5, cj_prob=0.5, cj_strength=0.5)
+    if args.method == 'SimCLR':
+        SSLModule = SimCLR
+        from lightly.transforms import SimCLRTransform
+        transform = SimCLRTransform(input_size=resize, vf_prob=0.5, hf_prob=0.5, cj_prob=0.8, min_scale=0.2,
+                                    gaussian_blur=0, random_gray_scale=0, normalize=None)
+    elif args.method == 'VICReg':
+        SSLModule = VICReg
+        from lightly.transforms import VICRegTransform
+        transform = VICRegTransform(input_size=resize, vf_prob=0.5, hf_prob=0.5, cj_prob=0.8, min_scale=0.2,
+                                    gaussian_blur=0, random_gray_scale=0, normalize=None, solarize_prob=0.2)
+
+    else:
+        raise ValueError(f'SSL Method "{args.method}" UNKNOWN')
+
     eval_transform = None
     if args.classlist:
         eval_transforms = get_model_base_transforms(args.model_name)
@@ -141,14 +154,9 @@ def setup_model_and_datamodule(args):
     if args.knn_k > knn_minclasscount:
         warnings.warn(f'args.knn_k {args.knn_k} > {knn_minclasscount}, the number of class instances of the smallest class. This will impact performance metrics.')
 
-    # todo make a backbone creator
-    #get_namebrand_model
-    #backbone_model, output_feature_num = get_namebrand_model_backbone(model_name, weights)
-    # using a resnet backbone
-    backbone, out_features = get_namebrand_beheaded_model(args.model_name, args.weights)
-
-    # TODO other architectures, like VICReg
-    model = SimCLR(backbone, out_features, 128, knn_dataloader, knn_k=args.knn_k)  # TODO what is mystery number 126
+    model = SSLModule(args.model_name, args.weights,
+                      output_dim=128, hidden_dim='input_dim',
+                      knn_dataloader=knn_dataloader, knn_k=args.knn_k)
     return model, datamodule
 
 
