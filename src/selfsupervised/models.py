@@ -9,6 +9,12 @@ import lightning.pytorch as pl
 from torch import Tensor
 from torch.utils.data import DataLoader
 
+import torchvision as tv
+from torchvision.models import AlexNet, DenseNet,  ResNet, SqueezeNet, VGG, \
+    ConvNeXt, EfficientNet, MNASNet, MobileNetV2, MobileNetV3, RegNet, ShuffleNetV2
+from torchvision.models import Inception3, GoogLeNet
+
+import lightly.models
 from lightly.utils.dist import gather as lightly_gather
 from lightly.utils.debug import std_of_l2_normalized
 import torchmetrics as tm
@@ -87,6 +93,48 @@ def knn_scores(
     return pred_scores
 
 
+def get_namebrand_beheaded_model(model_name, pretrained:Union[None,str]=None) -> (torch.nn.Module,int):
+    Model = tv.models.get_model_builder(model_name.lower())
+    weights_enum = tv.models.get_model_weights(Model)
+    weights = weights_enum.DEFAULT
+    if pretrained and pretrained!='DEFAULT':
+        assert pretrained in weights_enum.__members__, f'args.weights "{pretrained}" not in {weights_enum.__members__}'
+        weights = getattr(weights_enum, pretrained)
+    if isinstance(Model, (Inception3,GoogLeNet)):
+        model = Model(weights=weights if pretrained else None, aux_logits=False)
+    else:
+        model = Model(weights=weights if pretrained else None)
+
+    # chop head of model to make backbone
+    fc_models = (Inception3,ResNet,GoogLeNet,RegNet,ShuffleNetV2)
+    classifierNeg1_models = (AlexNet,VGG,ConvNeXt,EfficientNet,MNASNet,MobileNetV2,MobileNetV3)
+
+    if isinstance(model, fc_models):
+        out_features = model.fc.in_features
+        #backbone = torch.nn.Sequential(*list(model.children())[:-1])
+        model.fc = nn.Identity()
+        backbone = model
+    elif isinstance(model, classifierNeg1_models):
+        out_features = model.classifier[-1].in_features
+        model.classifier[-1] = nn.Identity()
+        backbone = model
+    elif isinstance(model, SqueezeNet):
+        out_features = model.classifier[1].in_channels
+        model.classifier = model.classifier[:1]
+        backbone = model
+    elif isinstance(model, DenseNet):
+        out_features = model.classifier.in_features
+        #backbone = list(model.children())[0]
+        model.classifier = nn.Identity()
+        backbone = model
+    else:
+        # fallback, may or may not work
+        backbone = model
+        out_features = 1000
+
+    return backbone, out_features
+
+
 class SSLValidationModule(pl.LightningModule):
     def __init__(
         self,
@@ -97,7 +145,6 @@ class SSLValidationModule(pl.LightningModule):
     ):
         super().__init__()
         self.backbone = nn.Module()
-        self.max_accuracy = 0.0
         self.dataloader_kNN = dataloader_kNN
         self.num_classes = num_classes
         self.knn_k = knn_k
@@ -222,13 +269,6 @@ class SSLValidationModule(pl.LightningModule):
 
     def on_validation_epoch_end(self) -> None:
         if self._val_predicted_labels and self._val_targets:
-            predicted_labels = torch.cat(self._val_predicted_labels, dim=0)
-            targets = torch.cat(self._val_targets, dim=0)
-            top1 = (predicted_labels[:, 0] == targets).float().sum()
-            acc = top1 / len(targets)
-            if acc > self.max_accuracy:
-                self.max_accuracy = float(acc.item())
-            self.log("val_accuracy_knn", acc, on_epoch=True)
 
             # METRICS & LOGGING
             val_loss = self.validation_loss_by_epoch[self.current_epoch]

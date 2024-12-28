@@ -22,7 +22,7 @@ if __name__ == '__main__':
 
 from src.multiclass.models import check_model_name, get_model_base_transforms, get_namebrand_model, get_model_resize
 from src.selfsupervised.datasets import IfcbDatamodule
-from src.selfsupervised.models import SimCLR
+from src.selfsupervised.models import SimCLR, get_namebrand_beheaded_model
 from src.multiclass.callbacks import LogNormalizedLoss, BarPlotMetricAim, PlotConfusionMetricAim, PlotPerclassDropdownAim
 from src.train import setup_aimlogger
 
@@ -100,6 +100,9 @@ def argparse_runtime_args(args):
         args.seed = random.randint(1,2**32-1)
     args.seed = pl.seed_everything(args.seed)
 
+    if args.weights.lower() == 'none':
+        args.weights = None
+
     if not args.run:
         args.run = coolname.generate_slug(2)
         print(f'RUN: {args.run}')
@@ -118,8 +121,7 @@ def argparse_runtime_args(args):
 def setup_model_and_datamodule(args):
 
     # Model-dependant Dataset Params
-    assert args.model_name=='resnet18'
-    args.model = check_model_name(args.model_name)
+    args.model_name = check_model_name(args.model_name)
     resize = get_model_resize(args.model_name)
     from lightly.transforms import SimCLRTransform
     transform = SimCLRTransform(input_size=resize, vf_prob=0.5, hf_prob=0.5, cj_prob=0.5, cj_strength=0.5)
@@ -143,12 +145,10 @@ def setup_model_and_datamodule(args):
     #get_namebrand_model
     #backbone_model, output_feature_num = get_namebrand_model_backbone(model_name, weights)
     # using a resnet backbone
-    resnet = torchvision.models.resnet18()
-    backbone = torch.nn.Sequential(*list(resnet.children())[:-1])
-    backbone_outfeatures = resnet.fc.in_features
+    backbone, out_features = get_namebrand_beheaded_model(args.model_name, args.weights)
 
     # TODO other architectures, like VICReg
-    model = SimCLR(backbone, backbone_outfeatures, 128, knn_dataloader, knn_k=args.knn_k)  # TODO what is mystery number 126
+    model = SimCLR(backbone, out_features, 128, knn_dataloader, knn_k=args.knn_k)  # TODO what is mystery number 126
     return model, datamodule
 
 
