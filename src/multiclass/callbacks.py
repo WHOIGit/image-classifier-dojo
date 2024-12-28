@@ -61,7 +61,7 @@ class BarPlotMetricAim(pl.callbacks.Callback):
             order_by = metrics[self.order_by].compute().cpu()
 
         sorted_categories,sorted_scores,sorted_counts,sorted_orderby = zip(*sorted(zip(categories, scores, counts, order_by), key=lambda x: x[-1], reverse=self.order_reverse))
-        on_hover = [f' Score: {s}<br>Counts: {c}' for c,s in zip(sorted_counts,sorted_scores)]
+        on_hover = [f' Score: {s:.4f}<br>Counts: {c}' for c,s in zip(sorted_counts,sorted_scores)]
 
         # Create horizontal bar graph
         fig = go.Figure(go.Bar(
