@@ -284,7 +284,7 @@ class MulticlassClassifier(L.LightningModule):
 
         # METRICS & LOGGING
         self.log_metrics(stage='val')
-        self.log_dict(dict(best_epoch=self.best_epoch), on_epoch=True, prog_bar=True)
+        self.log_dict(dict(val_best_epoch=self.best_epoch), on_epoch=True, prog_bar=True)
 
     def test_step(self, batch, batch_idx):
         input_data, input_targets = batch[0],batch[1]
