@@ -23,7 +23,7 @@ if __name__ == '__main__':
 from src.multiclass.models import check_model_name, get_model_base_transforms, get_namebrand_model, get_model_resize
 from src.selfsupervised.datasets import IfcbDatamodule
 from src.selfsupervised.models import SimCLR
-from src.multiclass.callbacks import LogNormalizedLoss
+from src.multiclass.callbacks import LogNormalizedLoss, BarPlotMetricAim, PlotConfusionMetricAim, PlotPerclassDropdownAim
 from src.train import setup_aimlogger
 
 
@@ -161,17 +161,22 @@ def main(args):
     ## Setup Epoch Logger ##
     # val_/train_ already handled by default
     contexts = dict(averaging={'macro': '_macro', 'micro': '_micro', 'weighted': '_weighted',
-                               'none': '_perclass'},  # f1, precision, recall
+                               'none': '_perclass'},  # f1, precision, recall, accuracy
                     )
     logger = setup_aimlogger(args, contexts)
 
     ## Setup Callbacks ##
-    callbacks=[]
+    callbacks = []
 
-    validation_results_callbacks = [
-        LogNormalizedLoss(),
+    plotting_callbacks = [
+        BarPlotMetricAim('f1_perclass', order_by='f1_perclass'),
+
+        PlotConfusionMetricAim(order_by='classes', normalize=True),
+        PlotConfusionMetricAim(order_by='f1_perclass', normalize=True),
+
+        PlotPerclassDropdownAim(),
     ]
-    callbacks.extend(validation_results_callbacks)
+    callbacks.extend(plotting_callbacks)
 
     # Checkpointing
     # https://lightning.ai/docs/pytorch/stable/api/lightning.pytorch.callbacks.ModelCheckpoint.html

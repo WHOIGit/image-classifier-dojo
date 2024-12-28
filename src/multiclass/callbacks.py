@@ -181,7 +181,7 @@ class PlotConfusionMetricAim(pl.callbacks.Callback):
             x=ordered_categories_x,
             y=ordered_categories,
             colorscale='Viridis',
-            colorbar=dict(title='Count'),
+            colorbar=dict(title='Recall' if self.normalize else 'Counts'),
             showscale=True,
             hovertext=html_cells,
             hoverinfo='text'
