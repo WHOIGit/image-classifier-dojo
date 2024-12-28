@@ -95,7 +95,7 @@ def argparse_init(parser=None):
     epochs.add_argument('--epoch-stop', metavar='STOP', default=10, type=int, help='Early Stopping: Number of epochs following a best-epoch after-which to stop training. Set STOP=0 to disable. Default is 10')
 
     # UTILITIES #
-    parser.add_argument('--checkpoints-path', default='/tmp/classifier_checkpoints')
+    parser.add_argument('--checkpoints-path', default='./experiments')
     parser.add_argument('--autobatch', nargs='?', default=False, const='power', choices=['power','binsearch'], help='Auto-Tunes batch_size prior to training/inference.')
     parser.add_argument('--autobatch-max', type=int, help='Disallow autobatch for setting ')
     parser.add_argument('--workers', dest='num_workers', metavar='N', type=int, help='Total number of dataloader worker threads. If set, overrides --workers-per-gpu')
@@ -279,11 +279,12 @@ def main(args):
     # Checkpointing
     # https://lightning.ai/docs/pytorch/stable/api/lightning.pytorch.callbacks.ModelCheckpoint.html
     # https://lightning.ai/docs/pytorch/stable/common/checkpointing_advanced.html
-    hashid = logger.experiment.hash if isinstance(logger,AimLogger) else logger[0].experiment.hash
-    chkpt_path = os.path.join(args.checkpoints_path,hashid)
+    #hashid = logger.experiment.hash if isinstance(logger,AimLogger) else logger[0].experiment.hash
+    chkpt_path = os.path.join(args.checkpoints_path, args.experiment, args.run)
     ckpt_callback = ModelCheckpoint(
-        dirpath=chkpt_path, filename='best.ckpt',
-        monitor='val_loss', mode='min')
+        dirpath=chkpt_path, filename='loss-{val_normloss:3.3f}_ep-{epoch:03.0f}',
+        monitor='val_loss', mode='min', save_last='link', save_top_k=3,
+        auto_insert_metric_name=False)
     callbacks.append(ckpt_callback)
 
     if args.swa:
@@ -310,7 +311,7 @@ def main(args):
         model.save_hyperparameters(just_hparams(args))
 
     # save training artifacts
-    if args.artifacts_location or ( 'AIM_ARTIFACTS_URI' in os.environ and os.environ['AIM_ARTIFACTS_URI'] ):
+    if trainer.logger.experiment.artifacts_uri:
         if os.path.isfile(args.classlist):
             trainer.logger.experiment.log_artifact(args.classlist, name=os.path.basename(args.classlist))
         if os.path.isfile(args.vallist):
@@ -327,7 +328,7 @@ def main(args):
 
     # Copy best model
     # TODO do this as a callback
-    if args.artifacts_location or ( 'AIM_ARTIFACTS_URI' in os.environ and os.environ['AIM_ARTIFACTS_URI'] ):
+    if trainer.logger.experiment.artifacts_uri:
         model_path = trainer.checkpoint_callback.best_model_path
         trainer.logger.experiment.log_artifact(model_path, name=os.path.basename(model_path))
 

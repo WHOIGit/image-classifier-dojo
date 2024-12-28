@@ -204,7 +204,7 @@ def patch_save(trainer: pl.Trainer, lightning_module, datamodule):
         fullpath = os.path.join(save_dir,filename)
         if lightning_module.best_epoch == lightning_module.current_epoch-1:
             if isinstance(lightning_module.logger,AimLogger):
-                if 'AIM_ARTIFACTS_URI' in os.environ and os.environ['AIM_ARTIFACTS_URI']:
+                if lightning_module.logger.experiment.artifacts_uri:
                     logger.info(f'Saving model to {lightning_module.logger.experiment.artifacts_uri}/{filename}')
                     lightning_module.logger.experiment.log_artifact(fullpath, filename)
     def new_save(model, save_dir, logger):
