@@ -133,7 +133,7 @@ def setup_model_and_datamodule(args):
         SSLModule = VICReg
         from lightly.transforms import VICRegTransform
         transform = VICRegTransform(input_size=resize, vf_prob=0.5, hf_prob=0.5, cj_prob=0.8, min_scale=0.2,
-                                    gaussian_blur=0, random_gray_scale=0, normalize=None, solarize_prob=0.2)
+                                    gaussian_blur=0, random_gray_scale=0, normalize=None, solarize_prob=0.1)
 
     else:
         raise ValueError(f'SSL Method "{args.method}" UNKNOWN')
