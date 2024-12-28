@@ -1,6 +1,7 @@
 import os
 import argparse
 import random
+import warnings
 
 import coolname
 import torchvision
@@ -133,7 +134,10 @@ def setup_model_and_datamodule(args):
                                 args.classlist, eval_transform,
                                 batch_size=args.batch_size, num_workers=args.num_workers,
                                 shuffler_buffer_size=args.shuffle_buffer, use_len=True)
-    knn_dataloader = datamodule.knn_dataloader()if args.knnlist else []
+    knn_dataloader = datamodule.knn_dataloader() if args.knnlist else []
+    knn_minclasscount = min(knn_dataloader.dataset.count_perclass.values())
+    if args.knn_k > knn_minclasscount:
+        warnings.warn(f'args.knn_k {args.knn_k} > {knn_minclasscount}, the number of class instances of the smallest class. This will impact performance metrics.')
 
     # todo make a backbone creator
     #get_namebrand_model
