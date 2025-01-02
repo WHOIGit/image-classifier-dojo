@@ -78,10 +78,11 @@ def argparse_init(parser=None):
     model.add_argument('--freeze', metavar='LAYERS', help='Freezes a models leading feature layers. '
         'Positive int freezes the first N layers/features/blocks. A negative int like "-1" freezes all but the last feature/layer/block. '
         'A positive float like "0.8" freezes the leading 80%% of features/layers/blocks. fc or final classifier layers are never frozen.')
-    model.add_argument('--loss-function', default='CrossEntropyLoss', help=argparse.SUPPRESS)
+    model.add_argument('--loss-function', default='CrossEntropyLoss', choices=('CrossEntropyLoss','FocalLoss'), help='Loss Function. ')
     model.add_argument('--loss-weights', default=False, help='If "normalize", rare class instances will be boosted. Else a filepath to a perclass list of loss weights. Default is None')
     model.add_argument('--loss-weights-tensor', help=argparse.SUPPRESS)
     model.add_argument('--loss-smoothing', nargs='?', default=0.0, const=0.1, type=float, help='Label Smoothing Regularization arg. Range is 0-1. Default is 0. Const is 0.1')
+    model.add_argument('--loss-gamma', default=1.0, type=float, help='For FocalLoss, rate at which easy examples are down-weighted')
     #model.add_argument('--ensemble', metavar='MODE', choices=..., help='Model Ensembling')
     #model.add_argument('--optimizer', default='Adam')
     #model.add_argument('--precision', default='32')
@@ -176,7 +177,8 @@ def setup_model_and_datamodule(args):
 
     if 'loss_weights' in args:
         if args.loss_weights == 'normalize':
-            class_counts = torch.bincount(datamodule.training_dataset.targets + datamodule.validation_dataset.targets)
+            datamodule.setup('fit')
+            class_counts = torch.bincount(torch.IntTensor(datamodule.training_dataset.targets + datamodule.validation_dataset.targets))
             class_weights = 1.0 / class_counts.float()
             args.loss_weights_tensor = class_weights / class_weights.sum()
         elif os.path.isfile(args.loss_weights):

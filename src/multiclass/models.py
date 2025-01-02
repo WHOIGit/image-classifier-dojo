@@ -11,8 +11,11 @@ from torchvision.transforms import v2
 from torchvision.models import AlexNet, DenseNet,  ResNet, SqueezeNet, VGG, \
     ConvNeXt, EfficientNet, MNASNet, MobileNetV2, MobileNetV3, RegNet, ShuffleNetV2
 from torchvision.models import Inception3, InceptionOutputs, GoogLeNet, GoogLeNetOutputs
+from torchvision.models import VisionTransformer, MaxVit, SwinTransformer
 import lightning as L
 import torchmetrics as tm
+
+from src.utils.focal_loss import FocalLoss
 
 INCEPTION_AUXLOSS_WEIGHT = 0.4
 GOOGLENET_AUXLOSS_WEIGHT = 0.3
@@ -55,7 +58,7 @@ def get_namebrand_model(model_name, num_classes, pretrained:Union[None,str]=None
 
     # modify for num_classes
     fc_models = (Inception3,ResNet,GoogLeNet,RegNet,ShuffleNetV2)
-    classifierNeg1_models = (AlexNet,VGG,ConvNeXt,EfficientNet,MNASNet,MobileNetV2,MobileNetV3)
+    classifierNeg1_models = (AlexNet,VGG,ConvNeXt,EfficientNet,MNASNet,MobileNetV2,MobileNetV3,MaxVit)
 
     if isinstance(model, fc_models):
         model.fc = nn.Linear(model.fc.in_features, num_classes)
@@ -66,6 +69,12 @@ def get_namebrand_model(model_name, num_classes, pretrained:Union[None,str]=None
         model.num_classes = num_classes
     elif isinstance(model, DenseNet):
         model.classifier = nn.Linear(model.classifier.in_features, num_classes)
+    elif isinstance(model, VisionTransformer):
+        model.heads.head = nn.Linear(model.heads.head.in_features, num_classes)
+    elif isinstance(model, SwinTransformer):
+        model.head = nn.Linear(model.head.in_features, num_classes)
+    else:
+        raise ValueError(f'Model name "{model_name}" UNKNOWN')
 
     # Models with Aux Logits
     if isinstance(model, Inception3):
@@ -136,8 +145,11 @@ class MulticlassClassifier(L.LightningModule):
 
         if args.loss_function == 'CrossEntropyLoss':
             Criterion = nn.CrossEntropyLoss
+            self.criterion = Criterion(weight=args.loss_weights_tensor, label_smoothing=args.loss_smoothing)
+        elif args.loss_function == 'FocalLoss':
+            Criterion = FocalLoss
+            self.criterion = Criterion(alpha=args.loss_weights_tensor, gamma=args.loss_gamma)
         else: raise NotImplemented
-        self.criterion = Criterion(weight=args.loss_weights_tensor, label_smoothing=args.loss_smoothing)
 
         if model is not None:
             self.model = model
