@@ -180,13 +180,13 @@ class SSLValidationModule(pl.LightningModule):
                 self.metrics[key].update(preds,targets)
         self.metrics['confusion_matrix'].update(preds,targets)
 
-    def log_metrics(self, stage:Literal['val','test','train']):
+    def log_metrics(self, stage:Literal['val','test','train'], on_step=False, on_epoch=True):
         for mode in ['weighted','micro','macro']:  # perclass not available to log as metric
             for stat in ['f1','recall','precision','accuracy']:
                 key = f'{stat}_{mode}'
                 datum = self.metrics[key].compute()
                 #if mode=='micro' and stat in ['recall','precision']: continue  # identical to macro
-                self.log(f'{stage}_{stat}_{mode}', datum, on_epoch=True)
+                self.log(f'{stage}_{stat}_{mode}', datum, on_step=on_step, on_epoch=on_epoch)
 
     def reset_metrics(self):
         for mode in ['weighted','micro','macro',None]:
@@ -259,7 +259,7 @@ class SSLValidationModule(pl.LightningModule):
             # METRICS and LOGGING
             val_batchloss = torch.nn.CrossEntropyLoss()(preds, targets)  # sidney secret sauce
             self.validation_loss_by_epoch[self.current_epoch] += val_batchloss.item()
-            self.log('val_loss', val_batchloss, on_step=False, on_epoch=True, reduce_fx=torch.sum)
+            #self.log('val_loss', val_batchloss, on_step=False, on_epoch=False, reduce_fx=torch.sum)
             self.update_metrics(preds, targets)
 
             predicted_labels = predicted_scores.argsort(dim=-1, descending=True)
@@ -274,8 +274,9 @@ class SSLValidationModule(pl.LightningModule):
             if val_loss < self.best_epoch_val_loss:
                 self.best_epoch_val_loss = val_loss
                 self.best_epoch = self.current_epoch
+            self.log('val_loss', val_loss, on_step=True, on_epoch=False)
             self.log_dict(dict(val_best_epoch=self.best_epoch), on_epoch=True, prog_bar=True)
-            self.log_metrics(stage='val')
+            self.log_metrics(stage='val', on_step=True, on_epoch=False)
 
         self._val_predicted_labels.clear()
         self._val_targets.clear()
