@@ -84,7 +84,8 @@ def argparse_init(parser=None):
     model.add_argument('--loss-smoothing', nargs='?', default=0.0, const=0.1, type=float, help='Label Smoothing Regularization arg. Range is 0-1. Default is 0. Const is 0.1')
     model.add_argument('--loss-gamma', default=1.0, type=float, help='For FocalLoss, rate at which easy examples are down-weighted')
     #model.add_argument('--ensemble', metavar='MODE', choices=..., help='Model Ensembling')
-    #model.add_argument('--optimizer', default='Adam')
+    model.add_argument('--optimizer', default='Adam', choices=('Adam','AdamW','SGD'), help='Optimizer. Eg: "AdamW". Default is "Adam"')
+    model.add_argument('--lr', default=0.001, type=float, help='Initial Learning Rate. Default is 0.001')
     #model.add_argument('--precision', default='32')
     model.add_argument('--swa', metavar='START', type=int, help='swa_epoch_start') #TODO const='best_epoch' nargs='?' behavior: reloads best_epoch after early stopping and starts there
     model.add_argument('--swa-lr', type=float, default=0.02)

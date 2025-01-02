@@ -151,6 +151,15 @@ class MulticlassClassifier(L.LightningModule):
             self.criterion = Criterion(alpha=args.loss_weights_tensor, gamma=args.loss_gamma)
         else: raise NotImplemented
 
+        self.lr = args.lr
+        if args.optimizer == 'Adam':
+            self.Optimizer = torch.optim.Adam
+        elif args.optimizer == 'AdamW':
+            self.Optimizer = torch.optim.AdamW
+        elif args.optimizer == 'SGD':
+            self.Optimizer = torch.optim.SGD
+        else: raise NotImplemented
+
         if model is not None:
             self.model = model
             args.model_class = model.__class__.__name__
@@ -209,7 +218,7 @@ class MulticlassClassifier(L.LightningModule):
         self.metrics['confusion_matrix'].reset()
 
     def configure_optimizers(self):
-        return torch.optim.Adam(self.parameters(), lr=0.001)
+        return self.Optimizer(self.parameters(), lr=self.lr)
 
     def forward(self, x):
         return self.model(x)
