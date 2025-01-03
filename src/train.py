@@ -193,7 +193,7 @@ def setup_model_and_datamodule(args):
              loss_kwargs['weights'] = args.loss_weights_tensor
     elif args.loss_function == 'FocalLoss':
         loss_kwargs['gamma'] = args.loss_gamma
-        if any(args.loss_weights_tensor):
+        if args.loss_weights_tensor is not None:
             loss_kwargs['alpha'] = args.loss_weights_tensor
 
     optimizer_kwargs = dict(lr = args.lr)
