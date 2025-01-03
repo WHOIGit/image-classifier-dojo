@@ -1,4 +1,4 @@
-import argparse
+import os
 from typing import Union, Literal
 
 import numpy as np
@@ -47,14 +47,22 @@ def get_model_base_transforms(model_name):
     return [v2.Resize((resize,resize)), v2.ToImage(), v2.ToDtype(torch.float32, scale=True)]
 
 
-def get_namebrand_model(model_name, num_classes, pretrained:Union[None,str]=None, freeze=None):
+def get_namebrand_model(model_name, num_classes, weights:Union[None,str]=None, freeze=None):
     Model = tv.models.get_model_builder(model_name.lower())
     weights_enum = tv.models.get_model_weights(Model)
-    weights = weights_enum.DEFAULT
-    if pretrained and pretrained!='DEFAULT':
-        assert pretrained in weights_enum.__members__, f'args.weights "{pretrained}" not in {weights_enum.__members__}'
-        weights = getattr(weights_enum, pretrained)
-    model = Model(weights=weights if pretrained else None)
+    ckpt_path = None
+    if weights is None:
+        pass
+    elif os.path.isfile(weights):
+        ckpt_path = weights
+        weights = None
+    elif weights == 'DEFAULT':
+        weights = weights_enum.DEFAULT
+    else:
+        assert weights in weights_enum.__members__, f'args.weights "{weights}" not in {weights_enum.__members__}'
+        weights = getattr(weights_enum, weights)
+
+    model = Model(weights=weights if weights else None)
 
     # modify for num_classes
     fc_models = (Inception3,ResNet,GoogLeNet,RegNet,ShuffleNetV2)
@@ -82,6 +90,10 @@ def get_namebrand_model(model_name, num_classes, pretrained:Union[None,str]=None
     elif isinstance(model, GoogLeNet):
         model.aux1.fc1 = nn.Linear(model.aux1.fc1.in_features, num_classes)
         model.aux2.fc2 = nn.Linear(model.aux2.fc2.in_features, num_classes)
+
+    if ckpt_path:
+        weights = torch.load(ckpt_path, weights_only=True)
+        model.load_state_dict(weights)
 
     if freeze:
         freeze_model_features(model, freeze)
@@ -135,40 +147,40 @@ def freeze_model_features(model, freeze):
 
 
 class MulticlassClassifier(L.LightningModule):
-    def __init__(self, args: Union[dict,argparse.Namespace], model=None):
+    def __init__(self,
+                 model_name:str,
+                 num_classes:int,
+                 model_weights:str='DEFAULT',
+                 model_freeze:Union[int,float]=None,
+                 loss_function:str='CrossEntropyLoss',
+                 loss_kwargs:dict={},
+                 optimizer:str='Adam',
+                 optimizer_kwargs:dict={},
+                 model=None):
         super().__init__()
-        if isinstance(args,dict):
-            args = argparse.Namespace(**args)
-        self.save_hyperparameters(args)  # TODO filter out hparams from other args here
+        self.save_hyperparameters(ignore='model')
 
-        args.module_class = self.__class__.__name__
-
-        if args.loss_function == 'CrossEntropyLoss':
-            Criterion = nn.CrossEntropyLoss
-            self.criterion = Criterion(weight=args.loss_weights_tensor, label_smoothing=args.loss_smoothing)
-        elif args.loss_function == 'FocalLoss':
-            Criterion = FocalLoss
-            self.criterion = Criterion(alpha=args.loss_weights_tensor, gamma=args.loss_gamma)
+        if loss_function == 'CrossEntropyLoss':
+            self.criterion = nn.CrossEntropyLoss(**loss_kwargs)
+        elif loss_function == 'FocalLoss':
+            self.criterion = FocalLoss(**loss_kwargs)
         else: raise NotImplemented
 
-        self.lr = args.lr
-        if args.optimizer == 'Adam':
+        if optimizer == 'Adam':
             self.Optimizer = torch.optim.Adam
-        elif args.optimizer == 'AdamW':
+        elif optimizer == 'AdamW':
             self.Optimizer = torch.optim.AdamW
-        elif args.optimizer == 'SGD':
+        elif optimizer == 'SGD':
             self.Optimizer = torch.optim.SGD
         else: raise NotImplemented
+        self.optimizer_kwargs = optimizer_kwargs
 
         if model is not None:
             self.model = model
-            args.model_class = model.__class__.__name__
-        elif isinstance(args.model, str):
-            self.model = get_namebrand_model(args.model, args.num_classes, args.weights, args.freeze)
-            args.model_class = self.model.__class__.__name__
+        elif isinstance(model_name, str):
+            self.model = get_namebrand_model(model_name, num_classes, model_weights, model_freeze)
         else:
             raise ValueError
-        self.save_hyperparameters(args)
 
         # Instance Variables
         self.best_epoch = 0
@@ -218,7 +230,7 @@ class MulticlassClassifier(L.LightningModule):
         self.metrics['confusion_matrix'].reset()
 
     def configure_optimizers(self):
-        return self.Optimizer(self.parameters(), lr=self.lr)
+        return self.Optimizer(self.parameters(), **self.optimizer_kwargs)
 
     def forward(self, x):
         return self.model(x)

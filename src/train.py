@@ -186,8 +186,28 @@ def setup_model_and_datamodule(args):
             with open(args.loss_weight) as f:
                 args.loss_weights_tensor = torch.Tensor([float(line) for line in f.read().splitlines()])
 
-    try: lightning_module = MulticlassClassifier(just_hparams(args))  # TODO this just_hparams thing is clunk.
-    except NameError: lightning_module = MulticlassClassifier(args)
+    loss_kwargs = {}
+    if args.loss_function == 'CrossEntropyLoss':
+         loss_kwargs['label_smoothing'] = args.loss_smoothing
+         if args.loss_weights_tensor:
+             loss_kwargs['weights'] = args.loss_weights_tensor
+    elif args.loss_function == 'FocalLoss':
+        loss_kwargs['gamma'] = args.loss_gamma
+        if any(args.loss_weights_tensor):
+            loss_kwargs['alpha'] = args.loss_weights_tensor
+
+    optimizer_kwargs = dict(lr = args.lr)
+
+    lightning_module = MulticlassClassifier(
+                model_name = args.model,
+                num_classes = args.num_classes,
+                model_weights = args.weights,
+                model_freeze = args.freeze,
+                loss_function = args.loss_function,
+                loss_kwargs = loss_kwargs,
+                optimizer = args.optimizer,
+                optimizer_kwargs = optimizer_kwargs,
+    )
     return lightning_module, datamodule
 
 
@@ -303,6 +323,7 @@ def main(args):
                          log_every_n_steps=-1,
                          callbacks=callbacks,
                          fast_dev_run=args.fast_dev_run,
+                         default_root_dir='/tmp/classifier',
                         )
 
     # auto-tune batch-size
