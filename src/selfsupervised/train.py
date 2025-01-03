@@ -23,7 +23,7 @@ if __name__ == '__main__':
 
 from src.multiclass.models import check_model_name, get_model_base_transforms, get_namebrand_model, get_model_resize
 from src.selfsupervised.datasets import IfcbDatamodule
-from src.selfsupervised.models import SimCLR, VICReg
+from src.selfsupervised.models import SimCLR, VICReg, PMSN
 from src.multiclass.callbacks import LogNormalizedLoss, BarPlotMetricAim, PlotConfusionMetricAim, PlotPerclassDropdownAim
 from src.train import setup_aimlogger
 
@@ -54,7 +54,7 @@ def argparse_init(parser=None):
 
     # HYPER PARAMETERS #
     model = parser.add_argument_group(title='Model Parameters')
-    model.add_argument('--method', required=True, choices=('SimCLR','VICReg'), help='Self-supervised Learning methodolgy')
+    model.add_argument('--method', required=True, choices=('SimCLR','VICReg','PMSN'), help='Self-supervised Learning methodolgy')
     model.add_argument('--model-name', help='Model Class/Module Name or torch model checkpoint file', required=True)  # TODO checkopint file, also check loading from s3
     model.add_argument('--weights', default='DEFAULT', help='''Specify a model's weights. Either "DEFAULT", some specific identifier, or "None" for no-pretrained-weights''')
     model.add_argument('--seed', type=int, help='Set a specific seed for deterministic output')
@@ -74,7 +74,7 @@ def argparse_init(parser=None):
     parser.add_argument('--fast-dev-run', default=False, action='store_true')
     parser.add_argument('--env', metavar='FILE', nargs='?', const=True, help='Environment Variables file. If set but not specified, attempts to find a parent .env file')
     parser.add_argument('--gpus', nargs='+', type=int, help=argparse.SUPPRESS) # CUDA_VISIBLE_DEVICES
-    parser.add_argument('--val-interval', default=1.0, type=Union[float,int], help='How often to check the validation set. A float in the range [0.0, 1.0] checks after a fraction of the training epoch. An int checks after a fixed number of training batches. Default is "1.0"')
+    parser.add_argument('--val-interval', default=1.0, type=float, help='How often to check the validation set. A float in the range [0.0, 1.0] checks after a fraction of the training epoch. An int checks after a fixed number of training batches. Default is "1.0"')
     return parser
 
 
@@ -119,22 +119,32 @@ def argparse_runtime_args(args):
         if not (args.vallist and args.knnlist and args.classlist):
             raise ValueError('Incomplete Mutually-Inclusive args: --vallist --knnlist --classlist')
 
+    if args.val_interval > 1:
+        args.val_interval = int(args.val_interval)
+
 
 def setup_model_and_datamodule(args):
 
     # Model-dependant Dataset Params
     args.model_name = check_model_name(args.model_name)
     resize = get_model_resize(args.model_name)
+    common_tf_args = dict(input_size=resize, vf_prob=0.5, hf_prob=0.5, cj_prob=0.8, min_scale=0.2,
+                          gaussian_blur=0, random_gray_scale=0, normalize=None,)
     if args.method == 'SimCLR':
         SSLModule = SimCLR
         from lightly.transforms import SimCLRTransform
-        transform = SimCLRTransform(input_size=resize, vf_prob=0.5, hf_prob=0.5, cj_prob=0.8, min_scale=0.2,
-                                    gaussian_blur=0, random_gray_scale=0, normalize=None)
+        transform = SimCLRTransform(**common_tf_args)
+
     elif args.method == 'VICReg':
         SSLModule = VICReg
         from lightly.transforms import VICRegTransform
-        transform = VICRegTransform(input_size=resize, vf_prob=0.5, hf_prob=0.5, cj_prob=0.8, min_scale=0.2,
-                                    gaussian_blur=0, random_gray_scale=0, normalize=None, solarize_prob=0.1)
+        transform = VICRegTransform(**common_tf_args, solarize_prob=0.1)
+
+    elif args.method == 'PMSN':
+        SSLModule = PMSN
+        from lightly.transforms import MSNTransform
+        [common_tf_args.pop(key) for key in 'input_size min_scale normalize'.split()]
+        transform = MSNTransform(**common_tf_args)
 
     else:
         raise ValueError(f'SSL Method "{args.method}" UNKNOWN')
@@ -156,7 +166,7 @@ def setup_model_and_datamodule(args):
         warnings.warn(f'args.knn_k {args.knn_k} > {knn_minclasscount}, the number of class instances of the smallest class. This will impact performance metrics.')
 
     model = SSLModule(args.model_name, args.weights,
-                      output_dim=128, hidden_dim='input_dim',
+                      output_dim=256, hidden_dim='input_dim',
                       knn_dataloader=knn_dataloader, knn_k=args.knn_k)
     return model, datamodule
 

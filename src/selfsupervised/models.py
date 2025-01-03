@@ -1,3 +1,5 @@
+import copy
+import os.path
 from typing import Any, List, Optional, Tuple, Literal, Union
 
 import numpy as np
@@ -10,16 +12,19 @@ from torch import Tensor
 from torch.utils.data import DataLoader
 
 import torchvision as tv
-from torchvision.models import AlexNet, DenseNet,  ResNet, SqueezeNet, VGG, \
+from torchvision.models import AlexNet, DenseNet, ResNet, SqueezeNet, VGG, \
     ConvNeXt, EfficientNet, MNASNet, MobileNetV2, MobileNetV3, RegNet, ShuffleNetV2
 from torchvision.models import Inception3, GoogLeNet
+from torchvision.models import MaxVit, VisionTransformer, SwinTransformer
 
 import lightly.models
 from lightly.utils.dist import gather as lightly_gather
 from lightly.utils.debug import std_of_l2_normalized
+from lightly.utils.benchmarking.knn import knn_predict
+
 import torchmetrics as tm
 
-from lightly.utils.benchmarking.knn import knn_predict
+# see lightly.utils.benchmarking.knn.knn_predict
 def knn_scores(
     feature: Tensor,
     feature_bank: Tensor,
@@ -28,43 +33,6 @@ def knn_scores(
     knn_k: int = 200,
     knn_t: float = 0.1,
 ) -> Tensor:
-    """Run kNN predictions on features based on a feature bank
-
-    This method is commonly used to monitor performance of self-supervised
-    learning methods.
-
-    The default parameters are the ones
-    used in https://arxiv.org/pdf/1805.01978v1.pdf.
-
-    Args:
-        feature:
-            Tensor with shape (B, D) for which you want predictions.
-        feature_bank:
-            Tensor of shape (D, N) of a database of features used for kNN.
-        feature_labels:
-            Labels with shape (N,) for the features in the feature_bank.
-        num_classes:
-            Number of classes (e.g. `10` for CIFAR-10).
-        knn_k:
-            Number of k neighbors used for kNN.
-        knn_t:
-            Temperature parameter to reweights similarities for kNN.
-
-    Returns:
-        A tensor containing the kNN prediction scores
-
-    Examples:
-        >>> images, targets, _ = batch
-        >>> feature = backbone(images).squeeze()
-        >>> # we recommend to normalize the features
-        >>> feature = F.normalize(feature, dim=1)
-        >>> pred_labels = knn_predict(
-        >>>     feature,
-        >>>     feature_bank,
-        >>>     targets_bank,
-        >>>     num_classes=10,
-        >>> )
-    """
     # compute cos similarity between each feature vector and feature bank ---> (B, N)
     sim_matrix = torch.mm(feature, feature_bank)
     # (B, K)
@@ -93,21 +61,28 @@ def knn_scores(
     return pred_scores
 
 
-def get_namebrand_beheaded_model(model_name, pretrained:Union[None,str]=None) -> (torch.nn.Module,int):
+def get_namebrand_beheaded_model(model_name, weights:Union[None,str]=None) -> (torch.nn.Module,int):
     Model = tv.models.get_model_builder(model_name.lower())
     weights_enum = tv.models.get_model_weights(Model)
-    weights = weights_enum.DEFAULT
-    if pretrained and pretrained!='DEFAULT':
-        assert pretrained in weights_enum.__members__, f'args.weights "{pretrained}" not in {weights_enum.__members__}'
-        weights = getattr(weights_enum, pretrained)
-    if isinstance(Model, (Inception3,GoogLeNet)):
-        model = Model(weights=weights if pretrained else None, aux_logits=False)
+    ckpt_path = None
+    if weights is None:
+        pass
+    elif os.path.isfile(weights):
+        ckpt_path = weights
+        weights = None
+    elif weights == 'DEFAULT':
+        weights = weights_enum.DEFAULT
     else:
-        model = Model(weights=weights if pretrained else None)
+        assert weights in weights_enum.__members__, f'args.weights "{weights}" not in {weights_enum.__members__}'
+        weights = getattr(weights_enum, weights)
+    if isinstance(Model, (Inception3,GoogLeNet)):
+        model = Model(weights=weights if weights else None, aux_logits=False)
+    else:
+        model = Model(weights=weights if weights else None)
 
     # chop head of model to make backbone
     fc_models = (Inception3,ResNet,GoogLeNet,RegNet,ShuffleNetV2)
-    classifierNeg1_models = (AlexNet,VGG,ConvNeXt,EfficientNet,MNASNet,MobileNetV2,MobileNetV3)
+    classifierNeg1_models = (AlexNet,VGG,ConvNeXt,EfficientNet,MNASNet,MobileNetV2,MobileNetV3,MaxVit)
 
     if isinstance(model, fc_models):
         out_features = model.fc.in_features
@@ -127,10 +102,20 @@ def get_namebrand_beheaded_model(model_name, pretrained:Union[None,str]=None) ->
         #backbone = list(model.children())[0]
         model.classifier = nn.Identity()
         backbone = model
-    else:
-        # fallback, may or may not work
+    elif isinstance(model, VisionTransformer):
+        out_features = model.heads.head.in_features
+        model.heads.head = nn.Identity()
         backbone = model
-        out_features = 1000
+    elif isinstance(model, SwinTransformer):
+        out_features = model.heads.head.in_features
+        model.head = nn.Identity()
+        backbone = model
+    else:
+        raise ValueError(f'Model name "{model_name}" UNKNOWN')
+
+    if ckpt_path:
+        weights = torch.load(ckpt_path, weights_only=True)
+        model.load_state_dict(weights)
 
     return backbone, out_features
 
@@ -350,3 +335,76 @@ class VICReg(SSLValidationModule):
         self.training_loss_by_epoch[self.current_epoch] += loss.item()
         self.log("train_loss", loss)
         return loss
+
+
+from lightly.models import utils
+from lightly.loss import PMSNLoss
+from lightly.models.modules import MAEBackbone
+from lightly.models.modules.heads import MSNProjectionHead
+class PMSN(SSLValidationModule):
+    def __init__(self, backbone_name, backbone_weights,
+                 output_dim:int=256, hidden_dim:Union[int,Literal['input_dim']]='input_dim',
+                 knn_dataloader=[], knn_k:int=100, knn_t:float=0.1):
+        super().__init__(knn_dataloader, knn_k, knn_t)
+
+        # ViT small configuration (ViT-S/16)
+        self.mask_ratio = 0.15
+
+        assert backbone_name.startswith('vit')
+        headless_vit,backbone_features_num = get_namebrand_beheaded_model(backbone_name, weights=backbone_weights)
+        self.backbone = MAEBackbone.from_vit(headless_vit)
+        self.projection_head = MSNProjectionHead(
+            input_dim = backbone_features_num,
+            hidden_dim = hidden_dim if isinstance(hidden_dim,int) else backbone_features_num,
+            output_dim = output_dim)
+
+        self.anchor_backbone = copy.deepcopy(self.backbone)
+        self.anchor_projection_head = copy.deepcopy(self.projection_head)
+
+        utils.deactivate_requires_grad(self.backbone)
+        utils.deactivate_requires_grad(self.projection_head)
+
+        self.prototypes = nn.Linear(output_dim, 1024, bias=False).weight
+        self.criterion = PMSNLoss()
+
+    def training_step(self, batch, batch_idx):
+        utils.update_momentum(self.anchor_backbone, self.backbone, 0.996)
+        utils.update_momentum(self.anchor_projection_head, self.projection_head, 0.996)
+
+        views = batch[0]
+        views = [view.to(self.device, non_blocking=True) for view in views]
+        targets = views[0]
+        anchors = views[1]
+        anchors_focal = torch.concat(views[2:], dim=0)
+
+        targets_out = self.backbone(images=targets)
+        targets_out = self.projection_head(targets_out)
+        anchors_out = self.encode_masked(anchors)
+        anchors_focal_out = self.encode_masked(anchors_focal)
+        anchors_out = torch.cat([anchors_out, anchors_focal_out], dim=0)
+
+        loss = self.criterion(anchors_out, targets_out, self.prototypes.data)
+        return loss
+
+    def encode_masked(self, anchors):
+        batch_size, _, _, width = anchors.shape
+        seq_length = (width // self.anchor_backbone.patch_size) ** 2
+        idx_keep, _ = utils.random_token_mask(
+            size=(batch_size, seq_length),
+            mask_ratio=self.mask_ratio,
+            device=self.device,
+        )
+        out = self.anchor_backbone(images=anchors, idx_keep=idx_keep)
+        return self.anchor_projection_head(out)
+
+    def configure_optimizers(self):
+        params = [
+            *list(self.anchor_backbone.parameters()),
+            *list(self.anchor_projection_head.parameters()),
+            self.prototypes,
+        ]
+        optim = torch.optim.AdamW(params, lr=1.5e-4)
+        return optim
+
+
+
