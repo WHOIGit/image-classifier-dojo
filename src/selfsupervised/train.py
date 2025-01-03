@@ -2,7 +2,6 @@ import os
 import argparse
 import random
 import warnings
-from typing import Union
 
 import coolname
 import torchvision
@@ -74,7 +73,7 @@ def argparse_init(parser=None):
     parser.add_argument('--fast-dev-run', default=False, action='store_true')
     parser.add_argument('--env', metavar='FILE', nargs='?', const=True, help='Environment Variables file. If set but not specified, attempts to find a parent .env file')
     parser.add_argument('--gpus', nargs='+', type=int, help=argparse.SUPPRESS) # CUDA_VISIBLE_DEVICES
-    parser.add_argument('--val-interval', default=1.0, type=Union[float,int], help='How often to check the validation set. A float in the range [0.0, 1.0] checks after a fraction of the training epoch. An int checks after a fixed number of training batches. Default is "1.0"')
+
     return parser
 
 
@@ -197,7 +196,7 @@ def main(args):
         dirpath=chkpt_path, filename='loss-{val_normloss:3.3f}_ep-{epoch:03.0f}',
         monitor='val_loss', mode='min', save_last='link', save_top_k=3,
         auto_insert_metric_name=False)
-    callbacks.append(LogNormalizedLoss(on_step=True, on_epoch=False))
+    callbacks.append(LogNormalizedLoss())
     callbacks.append(ckpt_callback)
 
     ## Setup Trainer  ##
@@ -210,7 +209,6 @@ def main(args):
                          log_every_n_steps=-1,
                          callbacks=callbacks,
                          fast_dev_run=args.fast_dev_run,
-                         val_check_interval=args.val_interval,  # for very large datasets
                         )
 
     # auto-tune batch-size
