@@ -384,6 +384,8 @@ class PMSN(SSLValidationModule):
         anchors_out = torch.cat([anchors_out, anchors_focal_out], dim=0)
 
         loss = self.criterion(anchors_out, targets_out, self.prototypes.data)
+        self.training_loss_by_epoch[self.current_epoch] += loss.item()
+        self.log("train_loss", loss)
         return loss
 
     def encode_masked(self, anchors):
