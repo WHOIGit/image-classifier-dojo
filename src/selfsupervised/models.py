@@ -242,7 +242,7 @@ class SSLValidationModule(pl.LightningModule):
             #    print(f'target={targets[i].item()} score={torch.max(preds[i])} class={torch.argmax(preds[i])}' )
 
             # METRICS and LOGGING
-            val_batchloss = torch.nn.CrossEntropyLoss()(preds, targets)  # sidney secret sauce
+            val_batchloss = torch.nn.CrossEntropyLoss()(preds, targets)
             self.validation_loss_by_epoch[self.current_epoch] += val_batchloss.item()
             self.log('val_loss', val_batchloss, on_step=False, on_epoch=True, reduce_fx=torch.sum)
             self.update_metrics(preds, targets)
@@ -309,7 +309,6 @@ class VICReg(SSLValidationModule):
                  output_dim:int=2048, hidden_dim:Union[int,Literal['input_dim']]='input_dim',
                  knn_dataloader=[], knn_k:int=100, knn_t:float=0.1):
         super().__init__(knn_dataloader, knn_k, knn_t)
-
         self.save_hyperparameters(ignore='dataloader_kNN')
 
         self.backbone, backbone_features_num = get_namebrand_beheaded_model(backbone_name, backbone_weights)
@@ -346,10 +345,9 @@ class PMSN(SSLValidationModule):
                  output_dim:int=256, hidden_dim:Union[int,Literal['input_dim']]='input_dim',
                  knn_dataloader=[], knn_k:int=100, knn_t:float=0.1):
         super().__init__(knn_dataloader, knn_k, knn_t)
+        self.save_hyperparameters(ignore='dataloader_kNN')
 
-        # ViT small configuration (ViT-S/16)
-        self.mask_ratio = 0.15
-
+        # ViT backbones only (ViT-S/16)
         assert backbone_name.startswith('vit')
         headless_vit,backbone_features_num = get_namebrand_beheaded_model(backbone_name, weights=backbone_weights)
         self.backbone = MAEBackbone.from_vit(headless_vit)
@@ -364,6 +362,7 @@ class PMSN(SSLValidationModule):
         utils.deactivate_requires_grad(self.backbone)
         utils.deactivate_requires_grad(self.projection_head)
 
+        self.mask_ratio = 0.15
         self.prototypes = nn.Linear(output_dim, 1024, bias=False).weight
         self.criterion = PMSNLoss()
 
@@ -406,6 +405,72 @@ class PMSN(SSLValidationModule):
             self.prototypes,
         ]
         optim = torch.optim.AdamW(params, lr=1.5e-4)
+        return optim
+
+
+from lightly.loss import DINOLoss
+from lightly.models.modules import DINOProjectionHead
+from lightly.models.utils import deactivate_requires_grad, update_momentum
+from lightly.utils.scheduler import cosine_schedule
+class DINO(SSLValidationModule):
+    def __init__(self, backbone_name, backbone_weights,
+                 output_dim:int=2048, hidden_dim:Union[int,Literal['input_dim']]='input_dim',
+                 knn_dataloader=[], knn_k:int=100, knn_t:float=0.1):
+        super().__init__(knn_dataloader, knn_k, knn_t)
+
+        self.backbone, backbone_features_num = get_namebrand_beheaded_model(backbone_name, backbone_weights)
+        self.teacher_backbone = self.backbone
+        self.student_backbone = copy.deepcopy(self.backbone)
+
+        self.student_head = DINOProjectionHead(
+            input_dim = backbone_features_num,
+            hidden_dim = hidden_dim if isinstance(hidden_dim,int) else backbone_features_num,
+            bottleneck_dim = 64,
+            output_dim = output_dim,
+            freeze_last_layer = 1
+        )
+
+        self.teacher_head = DINOProjectionHead(
+            input_dim=backbone_features_num,
+            hidden_dim=hidden_dim if isinstance(hidden_dim, int) else backbone_features_num,
+            bottleneck_dim=64,
+            output_dim=output_dim,
+        )
+
+        deactivate_requires_grad(self.teacher_backbone)
+        deactivate_requires_grad(self.teacher_head)
+
+        self.criterion = DINOLoss(output_dim=output_dim, warmup_teacher_temp_epochs=5)
+
+    def forward(self, x):
+        y = self.student_backbone(x).flatten(start_dim=1)
+        z = self.student_head(y)
+        return z
+
+    def forward_teacher(self, x):
+        y = self.teacher_backbone(x).flatten(start_dim=1)
+        z = self.teacher_head(y)
+        return z
+
+    def training_step(self, batch, batch_idx):
+        momentum = cosine_schedule(self.current_epoch, 10, 0.996, 1)
+        update_momentum(self.student_backbone, self.teacher_backbone, m=momentum)
+        update_momentum(self.student_head, self.teacher_head, m=momentum)
+        views = batch[0]
+        views = [view.to(self.device) for view in views]
+        global_views = views[:2]
+        teacher_out = [self.forward_teacher(view) for view in global_views]
+        student_out = [self.forward(view) for view in views]
+        loss = self.criterion(teacher_out, student_out, epoch=self.current_epoch)
+        self.training_loss_by_epoch[self.current_epoch] += loss.item()
+        self.log("train_loss", loss)
+        return loss
+
+    def on_after_backward(self):
+        self.student_head.cancel_last_layer_gradients(current_epoch=self.current_epoch)
+
+    def configure_optimizers(self):
+        optim = torch.optim.Adam(self.parameters(), lr=0.001)
         return optim
 
 

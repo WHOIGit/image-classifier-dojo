@@ -332,7 +332,7 @@ def main(args):
         found_batch_size = tuner.scale_batch_size(model, datamodule=datamodule,
             mode=args.autobatch, method='fit', max_trials=10, init_val=args.batch_size)
         args.batch_size_init, args.batch_size = args.batch_size, min([found_batch_size, args.autobatch_max or float('inf')])
-        model.save_hyperparameters(just_hparams(args))
+        model.save_hyperparameters()
 
     # save training artifacts
     if trainer.logger.experiment.artifacts_uri:
@@ -359,26 +359,8 @@ def main(args):
     print('DONE!')
 
 
-def args_subsetter_factory(parser: argparse.ArgumentParser):
-    def args_subset(args, arg_names, group_titles, exclude=[]):
-        arguments = []
-        if arg_names is not None:
-            arguments = arg_names.copy()
-        groups = [group for group in parser._action_groups if group.title in group_titles]
-        group_args = [action.dest for group in groups for action in group._group_actions]
-        arguments.extend(group_args)
-
-        subset = argparse.Namespace(**{k:v for k,v in vars(args).items() if k in arguments and k not in exclude})
-        return subset
-    return args_subset
-
-
 if __name__ == '__main__':
     parser = argparse_init()
-    args_subsetter = args_subsetter_factory(parser)
-    def just_hparams(args_namespace: argparse.Namespace):
-        subparsers = ['Model Parameters', 'Epoch Parameters']
-        return args_subsetter(args_namespace, [], subparsers)
     args = parser.parse_args()
     argparse_runtime_args(args)
     main(args)

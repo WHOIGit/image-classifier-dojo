@@ -23,7 +23,7 @@ if __name__ == '__main__':
 
 from src.multiclass.models import check_model_name, get_model_base_transforms, get_namebrand_model, get_model_resize
 from src.selfsupervised.datasets import IfcbDatamodule
-from src.selfsupervised.models import SimCLR, VICReg, PMSN
+from src.selfsupervised.models import SimCLR, VICReg, PMSN, DINO
 from src.multiclass.callbacks import LogNormalizedLoss, BarPlotMetricAim, PlotConfusionMetricAim, PlotPerclassDropdownAim
 from src.train import setup_aimlogger
 
@@ -54,7 +54,7 @@ def argparse_init(parser=None):
 
     # HYPER PARAMETERS #
     model = parser.add_argument_group(title='Model Parameters')
-    model.add_argument('--method', required=True, choices=('SimCLR','VICReg','PMSN'), help='Self-supervised Learning methodolgy')
+    model.add_argument('--method', required=True, choices=('SimCLR','VICReg','PMSN','DINO'), help='Self-supervised Learning methodolgy')
     model.add_argument('--model-name', help='Model Class/Module Name or torch model checkpoint file', required=True)  # TODO checkopint file, also check loading from s3
     model.add_argument('--weights', default='DEFAULT', help='''Specify a model's weights. Either "DEFAULT", some specific identifier, or "None" for no-pretrained-weights''')
     model.add_argument('--seed', type=int, help='Set a specific seed for deterministic output')
@@ -146,6 +146,19 @@ def setup_model_and_datamodule(args):
         [common_tf_args.pop(key) for key in 'input_size min_scale normalize'.split()]
         transform = MSNTransform(**common_tf_args)
 
+    elif args.method == 'DINO':
+        SSLModule = DINO
+        from lightly.transforms import DINOTransform
+        [common_tf_args.pop(key) for key in 'input_size min_scale normalize gaussian_blur'.split()]
+        transform = DINOTransform( **common_tf_args,
+            global_crop_size = 224,
+            global_crop_scale = (0.4, 1.0),
+            local_crop_size = 96,
+            local_crop_scale = (0.05, 0.4),
+            n_local_views = 6,
+            gaussian_blur=(0,0,0),
+            )
+
     else:
         raise ValueError(f'SSL Method "{args.method}" UNKNOWN')
 
@@ -215,11 +228,12 @@ def main(args):
                          deterministic=True,
                          accelerator='auto', devices='auto', num_nodes=1,
                          max_epochs=args.epoch_max, min_epochs=args.epoch_min,
-                         precision='32',
+                         precision='16',
                          logger=logger,
                          log_every_n_steps=-1,
                          callbacks=callbacks,
                          fast_dev_run=args.fast_dev_run,
+                         default_root_dir='/tmp/classifier',
                          val_check_interval=args.val_interval,  # for very large datasets
                         )
 
