@@ -86,7 +86,7 @@ def argparse_init(parser=None):
     #model.add_argument('--ensemble', metavar='MODE', choices=..., help='Model Ensembling')
     model.add_argument('--optimizer', default='Adam', choices=('Adam','AdamW','SGD'), help='Optimizer. Eg: "AdamW". Default is "Adam"')
     model.add_argument('--lr', default=0.001, type=float, help='Initial Learning Rate. Default is 0.001')
-    #model.add_argument('--precision', default='32')
+    model.add_argument('--precision', default='16', choices=('16','32'), help='Precision. Default is "16" for mized precision')
     model.add_argument('--swa', metavar='START', type=int, help='swa_epoch_start') #TODO const='best_epoch' nargs='?' behavior: reloads best_epoch after early stopping and starts there
     model.add_argument('--swa-lr', type=float, default=0.02)
     model.add_argument('--swa-annealing', type=int, default=10)
@@ -318,7 +318,7 @@ def main(args):
                          deterministic=True,
                          accelerator='auto', devices='auto', num_nodes=1,
                          max_epochs=args.epoch_max, min_epochs=args.epoch_min,
-                         precision='32',
+                         precision=args.precision,
                          logger=logger,
                          log_every_n_steps=-1,
                          callbacks=callbacks,
