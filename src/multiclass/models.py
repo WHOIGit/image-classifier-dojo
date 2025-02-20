@@ -201,8 +201,8 @@ class MulticlassClassifier(L.LightningModule):
     def setup_metrics(self):
         num_classes = self.hparams.num_classes
         for mode in ['weighted','micro','macro',None]:
-            for stat,MetricClass in zip(['f1','recall','accuracy','precision','accuracy'],
-                                        [tm.F1Score,tm.Recall,tm.Accuracy,tm.Precision,tm.Accuracy]):
+            for stat,MetricClass in zip(['f1','recall','accuracy','precision'],
+                                        [tm.F1Score,tm.Recall,tm.Accuracy,tm.Precision]):
                 key = f'{stat}_{mode or "perclass"}'
                 self.metrics[key] = MetricClass(task='multiclass', num_classes=num_classes, average=mode)
         self.metrics['confusion_matrix'] = tm.ConfusionMatrix(task='multiclass', num_classes=num_classes)
