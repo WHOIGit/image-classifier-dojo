@@ -43,24 +43,40 @@ class BarPlotMetricAim(pl.callbacks.Callback):
 
         metrics = pl_module.metrics
         metric_obj = metrics[self.metric_key]
+        scores = metric_obj.compute().cpu().numpy()
         validation_dataset = trainer.datamodule.validation_dataset if trainer.datamodule else trainer.val_dataloaders.dataset
         classes = validation_dataset.classes
-        categories = [f'{c} {i:>03}' for i,c in enumerate(classes)]
-        scores = metric_obj.compute().cpu().numpy()
         counts = validation_dataset.count_perclass.values()
 
-        if self.order_by.lower() in ['class', 'classes', 'classlist']:
-            order_by = [i for i,c in enumerate(classes)]
-        elif self.order_by.lower() == 'alphabetical':
-            order_by = [c for i,c in enumerate(classes)]
-        elif 'count' in self.order_by:
-            order_by = counts
-        elif self.order_by == self.metric_key:
-            order_by = scores
-        else:
+        if self.order_by in metrics:
             order_by = metrics[self.order_by].compute().cpu()
+        else:
+            order_by = self.order_by
 
-        sorted_categories,sorted_scores,sorted_counts,sorted_orderby = zip(*sorted(zip(categories, scores, counts, order_by), key=lambda x: x[-1], reverse=self.order_reverse))
+        title = self.title.format(METRIC=self.metric_key, EPOCH=epoch, ORDER=self.order_by)
+        fig = self.plot(scores, classes, counts, order_by, order_reverse=self.order_reverse,
+                        title=title, xaxis_title=self.metric_key)
+
+        context = dict(figure_order=self.order_by, subset='val')
+        self.fig_log2aim(fig, name=self.metric_key, loggers=trainer.loggers, context=context, epoch=epoch)
+
+    @staticmethod
+    def plot(scores, classes, perclass_count, order_by=None, order_reverse=False, title='TitleHere', xaxis_title='XAxisHere'):
+        categories = [f'{c} {i:>03}' for i,c in enumerate(classes)]
+
+        if order_by is None:
+            order_by = range(len(classes))
+        elif isinstance(order_by,str):
+            if order_by.lower() in ['class', 'classes', 'classlist']:
+                order_by = [i for i, c in enumerate(classes)]
+            elif order_by.lower() == 'alphabetical':
+                order_by = [c for i, c in enumerate(classes)]
+            elif 'count' in order_by:
+                order_by = perclass_count
+            else:
+                order_by = scores
+
+        sorted_categories,sorted_scores,sorted_counts,sorted_orderby = zip(*sorted(zip(categories, scores, perclass_count, order_by), key=lambda x: x[-1], reverse=order_reverse))
         on_hover = [f' Score: {s:.4f}<br>Counts: {c}' for c,s in zip(sorted_counts,sorted_scores)]
 
         # Create horizontal bar graph
@@ -74,25 +90,24 @@ class BarPlotMetricAim(pl.callbacks.Callback):
         ))
 
         # Calculate height based on the number of categories
-        title = self.title.format(METRIC=self.metric_key, EPOCH=epoch, ORDER=self.order_by)
         height = 400 + len(categories) * 12  # base height + additional height per category
 
         # Customize the layout
         fig.update_layout(
             title=title,
-            xaxis_title=self.metric_key,
+            xaxis_title=xaxis_title,
             yaxis_title='Classes',
             height=height,     # Adjust height based on number of categories
             font = dict(family='Courier New, monospace',size=10),
             hoverlabel = dict(font_family="Courier New, monospace", font_size=12),
         )
 
+        return fig
 
+    @staticmethod
+    def fig_log2aim(fig, name, loggers=(), context=None, epoch=0):
         aim_figure = aim.Figure(fig)
-        #name, context = trainer.logger.parse_context(self.metric_key)
-        name = self.metric_key
-        context = dict(figure_order = self.order_by, subset='val')
-        for logger in trainer.loggers:
+        for logger in loggers:
             if isinstance(logger,AimLogger):
                  logger.experiment.track(aim_figure, name=name, epoch=epoch, context=context)
 
@@ -120,38 +135,57 @@ class PlotConfusionMetricAim(pl.callbacks.Callback):
         classes = validation_dataset.classes
         counts = validation_dataset.count_perclass.values()
         matrix_counts = metric_obj.compute().cpu()
+
+        if self.order_by in metrics:
+            order_by = metrics[self.order_by].compute().cpu()
+        else:
+            order_by = self.order_by
+
+        title = self.title.format(METRIC=self.metric_key, EPOCH=epoch, ORDER=order_by)
+        name = self.metric_key
+        context = dict(figure_order = self.order_by, normalize=self.normalize, subset='val')
+        fig = self.plot(matrix_counts, classes, counts, order_by, self.normalize, title=title, metrics=metrics)
+        self.fig_log2aim(fig, name, loggers=trainer.loggers, context=context, epoch=epoch)
+
+
+    @staticmethod
+    def plot(matrix_counts, classes, perclass_count, order_by=None,
+             normalize: Optional[Literal[True, "true", "pred", "all", "none", None]] = None,
+             hide_zeros = True, title='TitleHere', metrics=None):
+        matrix = _confusion_matrix_reduce(matrix_counts, 'true' if normalize is True else normalize)
+
         categories = [f'({int(sum)}) {c} {i:>03}' for i, c, sum in zip(range(len(classes)), classes, matrix_counts.sum(dim=1))]
         categories_x = [f'{i:>03} {c} ({int(sum)})' for i, c, sum in zip(range(len(classes)), classes, matrix_counts.sum(dim=0))]
 
         order_reverse = False
-        if self.order_by.lower() in ['class', 'classes', 'classlist']:
-            order_by = [i for i,c in enumerate(classes)]
-        elif self.order_by.lower() == 'alphabetical':
-            order_by = [c for i,c in enumerate(classes)]
-        elif 'count' in self.order_by:
-            order_by = counts
-            order_reverse = True
+        if order_by is None:
+            order_by = range(len(classes))
+        elif isinstance(order_by,str):
+            if order_by.lower() in ['class', 'classes', 'classlist']:
+                order_by = [i for i,c in enumerate(classes)]
+            elif order_by.lower() == 'alphabetical':
+                order_by = [c for i,c in enumerate(classes)]
+            elif 'count' in order_by:
+                order_by = perclass_count
+                order_reverse = True
         else:
-            order_by = metrics[self.order_by].compute().cpu()
             order_reverse = True
-
-        matrix = _confusion_matrix_reduce(matrix_counts, self.normalize)
 
         ordered_classes, ordered_categories, ordered_categories_x, ordered_counts, ordered_orderby = \
-            zip(*sorted(zip(classes, categories, categories_x, counts, order_by),
+            zip(*sorted(zip(classes, categories, categories_x, perclass_count, order_by),
                         key=lambda x: x[-1], reverse=order_reverse))
         reordered_indices = [categories.index(c) for c in ordered_categories]
 
         ordered_matrix = matrix[reordered_indices, :][:, reordered_indices]
         ordered_matrix_count = matrix_counts[reordered_indices, :][:, reordered_indices]
 
-        if self.hide_zeros:
+        if hide_zeros:
             ordered_matrix[ordered_matrix==0] = np.nan
 
         html_cells = []
-        recall = metrics['recall_perclass'].compute().cpu()
-        precision = metrics['precision_perclass'].compute().cpu()
-        f1score = metrics['f1_perclass'].compute().cpu()
+        recall = metrics['recall_perclass'].compute().cpu() if 'recall_perclass' in metrics else None
+        precision = metrics['precision_perclass'].compute().cpu() if 'precision_perclass' in metrics else None
+        f1score = metrics['f1_perclass'].compute().cpu() if 'f1_perclass' in metrics else None
         for i, class_actual in enumerate(ordered_classes):
             rows = []
             for j, class_predicted in enumerate(ordered_classes):
@@ -162,12 +196,12 @@ class PlotConfusionMetricAim(pl.callbacks.Callback):
                 lines.append(f'<b>    Count:</b> {cell_count}')
                 lines.append(f'<b>   Actual:</b> {classes.index(class_actual):>03} {class_actual}')
                 lines.append(f'<b>Predicted:</b> {classes.index(class_predicted):>03} {class_predicted}')
-                if i==j:
+                if i==j and (recall is not None or precision is not None or f1score is not None):
                     class_idx = classes.index(class_actual)
                     lines.append(' ---------------- ')
-                    lines.append(f'<b>   Recall:</b> {recall[class_idx]:.3f} ({cell_count} of {actuals_count})')
-                    lines.append(f'<b>Precision:</b> {precision[class_idx]:.3f} ({cell_count} of {predicteds_count})')
-                    lines.append(f'<b> F1 Score:</b> {f1score[class_idx]:.3f}')
+                    if recall is not None: lines.append(f'<b>   Recall:</b> {recall[class_idx]:.3f} ({cell_count} of {actuals_count})')
+                    if precision is not None: lines.append(f'<b>Precision:</b> {precision[class_idx]:.3f} ({cell_count} of {predicteds_count})')
+                    if f1score is not None: lines.append(f'<b> F1 Score:</b> {f1score[class_idx]:.3f}')
                 # TODO show images in cells
                 #      or embed links
                 hovertext = '<BR>'.join(lines)  # + f'<extra></extra>'
@@ -181,14 +215,13 @@ class PlotConfusionMetricAim(pl.callbacks.Callback):
             x=ordered_categories_x,
             y=ordered_categories,
             colorscale='Viridis',
-            colorbar=dict(title='Recall' if self.normalize else 'Counts'),
+            colorbar=dict(title='Recall' if normalize else 'Counts'),
             showscale=True,
             hovertext=html_cells,
             hoverinfo='text'
         ))
 
         # Calculate height based on the number of categories
-        title = self.title.format(METRIC=self.metric_key, EPOCH=epoch, ORDER=order_by)
         height = 400 + len(categories) * 14  # base height + additional height per category
 
         # Customize the layout
@@ -202,13 +235,14 @@ class PlotConfusionMetricAim(pl.callbacks.Callback):
             xaxis=dict(title='Validation Predicteds', visible=True, tickson='boundaries'),
         )
 
+        return fig
+
+    @staticmethod
+    def fig_log2aim(fig, name, loggers=(), context=None, epoch=0):
         aim_figure = aim.Figure(fig)
-        #name, context = trainer.logger.parse_context(self.metric_key)
-        name = self.metric_key
-        context = dict(figure_order = self.order_by, normalize=self.normalize, subset='val')
-        for logger in trainer.loggers:
-            if isinstance(logger, AimLogger):
-                logger.experiment.track(aim_figure, name=name, epoch=epoch, context=context)
+        for logger in loggers:
+            if isinstance(logger,AimLogger):
+                 logger.experiment.track(aim_figure, name=name, epoch=epoch, context=context)
 
 
 class PlotPerclassDropdownAim(pl.callbacks.Callback):
