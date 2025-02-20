@@ -108,39 +108,47 @@ class ImageListsWithLabelIndex(L.LightningDataModule):
 
         assert len(set(self.classes))==len(self.classes), 'Class list has duplicate labels!'
 
-    def setup(self, stage: str, without_source=False):
+    def setup(self, stage: str, without_source=False, force=False):
         # Assign train/val datasets for use in dataloaders
-        if stage == "fit":
+        train_ds_errors, val_ds_errors = [], []
+        if (stage == "fit" or stage=='train') and (self.training_dataset is None or force):
             training_samples, train_ds_errors = parse_listfile_with_targets(self.training_source, len(self.classes))
-            validation_samples, val_ds_errors = parse_listfile_with_targets(self.validation_source, len(self.classes))
-
-            if train_ds_errors or val_ds_errors:
-                raise RuntimeError(f'BAD SAMPLES: {len(train_ds_errors)+len(val_ds_errors)}')
-
-            validation_transform = v2.Compose(self.base_transforms)
             training_transform = v2.Compose(self.training_transforms + self.base_transforms)
-
             self.training_dataset = ImageDatasetWithSource(sources_targets=training_samples, classes=self.classes,
                 transform=training_transform, without_source=without_source)
+
+        if (stage == 'fit' or stage == 'validate') and (self.validation_dataset is None or force):
+            validation_samples, val_ds_errors = parse_listfile_with_targets(self.validation_source, len(self.classes))
+            validation_transform = v2.Compose(self.base_transforms)
             self.validation_dataset = ImageDatasetWithSource(sources_targets=validation_samples, classes=self.classes,
                 transform=validation_transform, without_source=without_source)
 
+        if (stage == 'fit' or stage=='train' or stage == 'validate') and (train_ds_errors or val_ds_errors):
+            raise RuntimeError(f'BAD SAMPLES: {len(train_ds_errors)+len(val_ds_errors)}')
 
         # Assign test dataset for use in dataloader(s)
-        if stage == "test":
-            self.testing_dataset = ...
+        if stage == 'test' and (self.test_dataset is None or force):
+            test_samples, test_ds_errors = parse_listfile_with_targets(self.test_source, len(self.classes))
+            if test_ds_errors:
+                raise RuntimeError(f'BAD TEST SAMPLES: {len(test_ds_errors)}')
+            test_transform = v2.Compose(self.base_transforms)
+            self.test_dataset = ImageDatasetWithSource(sources_targets=test_samples, classes=self.classes,
+                transform=test_transform, without_source=without_source)
 
-
-    def train_dataloader(self):
+    def train_dataloader(self, stage='fit'):
+        if self.training_dataset is None:
+            self.setup(stage)
         return DataLoader(self.training_dataset, batch_size=self.batch_size, num_workers=self.num_workers, shuffle=True)
 
     def val_dataloader(self):
+        if self.validation_dataset is None:
+            self.setup('validate')
         return DataLoader(self.validation_dataset, batch_size=self.batch_size, num_workers=self.num_workers)
 
     def test_dataloader(self):
-        if self.testing_dataset is None:
+        if self.test_dataset is None:
             self.setup('test')
-        return DataLoader(self.testing_dataset, batch_size=self.batch_size, num_workers=self.num_workers)
+        return DataLoader(self.test_dataset, batch_size=self.batch_size, num_workers=self.num_workers)
 
     @property
     def count_perclass(self, datasets='fit'):
