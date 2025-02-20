@@ -184,7 +184,7 @@ class IfcbDatamodule(L.LightningDataModule):
                 test_samples, test_ds_errors = parse_listfile_with_targets(self.test_source, len(self.eval_classes))
                 if test_ds_errors:
                     raise RuntimeError(f'BAD TEST SAMPLES: {len(test_ds_errors)}')
-                self.validation_dataset = ImageDatasetWithSource(sources_targets=test_samples,
+                self.test_dataset = ImageDatasetWithSource(sources_targets=test_samples,
                     classes=self.eval_classes, transform=self.eval_transform)
                 self.setup('knn')
 
