@@ -3,6 +3,8 @@ import argparse
 import random
 import warnings
 
+import aim
+import boto3
 from tqdm import tqdm
 import coolname
 from dotenv import load_dotenv
@@ -57,9 +59,10 @@ def argparse_init(parser=None):
     model = parser.add_argument_group(title='Model Parameters')
     model.add_argument('--models', help='Listfile of ckpt paths or aim run hashes', required=True)
     model.add_argument('--seed', type=int, help='Set a specific seed for deterministic output')
+    model.add_argument('--batch', dest='batch_size', metavar='SIZE', default=256, type=int, help='Number of images per batch. Defaults is 256')
 
     # UTILITIES #
-    parser.add_argument('--checkpoints-path', default='./experiments')
+    #parser.add_argument('--checkpoints-path', default='./experiments')
     parser.add_argument('--workers', dest='num_workers', metavar='N', type=int,
                         help='Total number of dataloader worker threads. If set, overrides --workers-per-gpu')
     parser.add_argument('--workers_per_gpu', metavar='N', default=4, type=int,
@@ -102,14 +105,31 @@ def argparse_runtime_args(args):
     with open(args.models) as f:
         args.models = f.read().splitlines()
 
-def load_model(model_designator):
+def load_model(model_designator, aim_repo:aim.Repo=None):
     # get checkpoint file
     print('LOAD MODEL:', model_designator)
     if os.path.isfile(model_designator) and model_designator.endswith('.ckpt'):
         ckpt_path = model_designator
-    else:
-        ...  # download model from Aim or S3 to local
-        ckpt_path = ...
+    elif aim_repo:
+        run:aim.Run = aim_repo.get_run(model_designator)
+        model_artifact = None
+        for key in run.artifacts:
+            if key.endswith('.ckpt'):
+                model_artifact = run.artifacts[key]
+                break
+        if not model_artifact:
+            raise ValueError("No .ckpt artifact found")
+        client_kwargs = dict(endpoint_url=os.environ['AIM_ARTIFACTS_S3_ENDPOINT'],
+                        aws_access_key_id=os.environ['AIM_ARTIFACTS_S3_ACCESSKEY'],
+                        aws_secret_access_key=os.environ['AIM_ARTIFACTS_S3_SECRETKEY'])
+        client = boto3.client('s3', **client_kwargs)
+        bucket = model_artifact.uri.split('/')[2]
+        obj_key = model_artifact.uri.split('/',3)[-1]
+        save_to = f"./experiments/cache/{model_artifact.uri.split('/')[-1]}"
+        #client = aim.storage.artifacts.registry.get_storage(model_artifact.uri)._client
+        client.download_file(Bucket=bucket, Key=obj_key, Filename=save_to)
+        #model_artifact.download('egg.ckpt')
+        ckpt_path = save_to
 
     # load checkpoint file
     try:
@@ -117,7 +137,7 @@ def load_model(model_designator):
     except Exception as e:
         #print(type(e), e)
         checkpoint = torch.load(ckpt_path, map_location='cpu')
-        if 'model_name' not in checkpoint['hyper_parameters']:
+        if 'model_name' not in checkpoint['hyper_parameters'] or model_designator=='861c9e7aa9314534b2ab1fc5':
             checkpoint['hyper_parameters']['model_name'] = checkpoint['hyper_parameters'].pop('model')
             checkpoint['hyper_parameters']['model_weights'] = checkpoint['hyper_parameters'].pop('weights')
             for key in list(checkpoint['hyper_parameters'].keys()):
@@ -127,6 +147,7 @@ def load_model(model_designator):
         checkpoint_module.eval()
         checkpoint_module.load_state_dict(checkpoint['state_dict'])
     model = checkpoint_module.model
+    model.eval().cuda()
 
     # determine base-transforms
     model_name = checkpoint_module.hparams['model_name']
@@ -154,16 +175,16 @@ def main(args):
     datamodule = ImageListsWithLabelIndex(train_src=None,
         val_src=args.vallist, classlist=args.classlist,
         base_transforms=[],
-        batch_size=100, num_workers=args.num_workers)
+        batch_size=args.batch_size, num_workers=args.num_workers)
     for model_designator in tqdm(args.models):
-        model, transforms = load_model(model_designator)
+        model, transforms = load_model(model_designator, logger.experiment.repo)
         datamodule.base_transforms = transforms
         datamodule.setup('validation', force=True)
         model_preds = []
         true_labels = []
         for batch in datamodule.val_dataloader():
             samples, labels = batch[0], batch[1]
-            outputs = model(samples)
+            outputs = model(samples.cuda())
             if isinstance(outputs, (InceptionOutputs, GoogLeNetOutputs)):
                 outputs = outputs.logits
             preds = torch.nn.functional.softmax(outputs, dim=1)
@@ -216,7 +237,8 @@ def main(args):
             else:
                 if stat=='f1':
                     #f1perclass_fig_hard = BarPlotMetricAim.plot(hard, classes, perclass_count, title='F1 Perclass (HARD)')
-                    f1perclass_fig_soft = BarPlotMetricAim.plot(soft, classes, perclass_count, title='F1 Perclass (SOFT)', xaxis_title=stat)
+                    f1perclass_fig_soft = BarPlotMetricAim.plot(soft, classes, perclass_count, order_by='the stat',
+                                                                title='F1 Perclass (SOFT)', xaxis_title=stat)
                     #BarPlotMetricAim.fig_log2aim(f1perclass_fig_hard, 'f1_perclass', [logger],
                     #    context=dict(figure_order='classes', subset='val', voting_ensemble='hard'))
                     BarPlotMetricAim.fig_log2aim(f1perclass_fig_soft, 'f1_perclass', [logger],
@@ -235,6 +257,8 @@ def main(args):
     #    context=dict(figure_order='classes', subset='val', voting_ensemble='hard', normalize='true'))
     PlotConfusionMetricAim.fig_log2aim(matrix_fig_soft, 'confusion_matrix', [logger],
         context=dict(figure_order='classes', subset='val', voting_ensemble='soft', normalize='true'))
+    classdropdown_fig = PlotPerclassDropdownAim.plot(matrix_counts_soft, classes)
+    PlotPerclassDropdownAim.fig_log2aim(classdropdown_fig, 'Misclassifieds Explorer', [logger], context=dict(subset='val', voting_ensemble='soft') )
 
     print('DONE!')
 
