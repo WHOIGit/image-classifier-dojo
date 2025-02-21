@@ -261,12 +261,20 @@ class PlotPerclassDropdownAim(pl.callbacks.Callback):
 
         validation_dataset = trainer.datamodule.validation_dataset if trainer.datamodule else trainer.val_dataloaders.dataset
         classes = validation_dataset.classes
+
+        fig = self.plot(cm, classes)
+
+        name = 'Misclassifieds Explorer'
+        context = dict(subset='val')
+        self.fig_log2aim(fig, name, loggers=trainer.loggers, context=context)
+
+    @staticmethod
+    def plot(cm, classes, initial_class_idx=0):
         categories_y = [f'{c} {i:>03}' for i,c,sum in zip(range(len(classes)), classes, cm.sum(dim=1))]
         categories = [f'{i:>03} {c}' for i,c,sum in zip(range(len(classes)), classes, cm.sum(dim=1))]
 
-
         # Select initial class to show
-        idx = 0
+        idx = initial_class_idx
         initial_fp_count = sum(cm[idx][j] for j, val in enumerate(cm[idx, :]) if j != idx and val > 0)
         initial_fn_count = sum(cm[j][idx] for j, val in enumerate(cm[:, idx]) if j != idx and val > 0)
 
@@ -379,10 +387,11 @@ class PlotPerclassDropdownAim(pl.callbacks.Callback):
                 'y': 1.15,
             }],
         )
+        return fig
 
+    @staticmethod
+    def fig_log2aim(fig, name, loggers=(), context=None, epoch=0):
         aim_figure = aim.Figure(fig)
-        name = 'Misclassifieds Explorer'
-        context = dict(subset='val')
-        for logger in trainer.loggers:
-            if isinstance(logger, AimLogger):
-                logger.experiment.track(aim_figure, name=name, epoch=epoch, context=context)
+        for logger in loggers:
+            if isinstance(logger,AimLogger):
+                 logger.experiment.track(aim_figure, name=name, epoch=epoch, context=context)
