@@ -195,11 +195,12 @@ def patch_save(trainer: pl.Trainer, lightning_module, datamodule):
         trainer.fit_loop.epoch_progress.increment_completed()
         trainer.fit_loop._restarting = False
     def save_bestepoch_ckpt(model, save_dir, logger):
-        # {Ensemble_Model_Name}_{Base_Estimator_Name}_{n_estimators}
-        filename = "{}_{}_{}_ckpt.pth".format(
+        # {Ensemble_Model_Name}_{Base_Estimator_Name}_n{n_estimators}_ep{epoch}
+        filename = "{}_{}_n{}_ep{}_ckpt.pth".format(
             type(model).__name__,
             model.base_estimator_.__class__.__name__,
             model.n_estimators,
+            lightning_module.best_epoch,
         )
         fullpath = os.path.join(save_dir,filename)
         if lightning_module.best_epoch == lightning_module.current_epoch-1:
