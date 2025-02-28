@@ -206,7 +206,7 @@ def patch_save(trainer: pl.Trainer, lightning_module, datamodule):
             if isinstance(lightning_module.logger,AimLogger):
                 if lightning_module.logger.experiment.artifacts_uri:
                     logger.info(f'Saving model to {lightning_module.logger.experiment.artifacts_uri}/{filename}')
-                    lightning_module.logger.experiment.log_artifact(fullpath, filename)
+                    lightning_module.logger.experiment.log_artifact(fullpath, filename, block=True)
     def new_save(model, save_dir, logger):
         torchensemble_save_deepcopy(model, save_dir, logger)
         run_single_lightning_validation_epoch()

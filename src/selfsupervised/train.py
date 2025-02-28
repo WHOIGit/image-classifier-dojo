@@ -247,13 +247,13 @@ def main(args):
     # Saving input artifacts
     if trainer.logger.experiment.artifacts_uri:
         if os.path.isfile(args.trainlist):
-            trainer.logger.experiment.log_artifact(args.trainlist, name=os.path.basename(args.trainlist))
+            trainer.logger.experiment.log_artifact(args.trainlist, name=os.path.basename(args.trainlist), block=True)
         if os.path.isfile(args.classlist):
-            trainer.logger.experiment.log_artifact(args.classlist, name=os.path.basename(args.classlist))
+            trainer.logger.experiment.log_artifact(args.classlist, name=os.path.basename(args.classlist), block=True)
         if os.path.isfile(args.vallist):
-            trainer.logger.experiment.log_artifact(args.vallist, name=os.path.basename(args.vallist))
+            trainer.logger.experiment.log_artifact(args.vallist, name=os.path.basename(args.vallist), block=True)
         if os.path.isfile(args.knnlist):
-            trainer.logger.experiment.log_artifact(args.knnlist, name=os.path.basename(args.knnlist))
+            trainer.logger.experiment.log_artifact(args.knnlist, name=os.path.basename(args.knnlist), block=True)
 
     # DO TRAINING #
     trainer.fit(model, datamodule=datamodule)
@@ -262,7 +262,7 @@ def main(args):
     # TODO do this as a callback
     if trainer.logger.experiment.artifacts_uri:
         model_path = trainer.checkpoint_callback.best_model_path
-        trainer.logger.experiment.log_artifact(model_path, name=os.path.basename(model_path))
+        trainer.logger.experiment.log_artifact(model_path, name=os.path.basename(model_path), block=True)
 
     print('DONE!')
 

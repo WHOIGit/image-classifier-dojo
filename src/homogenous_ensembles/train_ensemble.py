@@ -199,11 +199,11 @@ def main(args):
     # save training artifacts
     if args.artifacts_location or ( 'AIM_ARTIFACTS_URI' in os.environ and os.environ['AIM_ARTIFACTS_URI'] ):
         if os.path.isfile(args.classlist):
-            trainer.logger.experiment.log_artifact(args.classlist, name=os.path.basename(args.classlist))
+            trainer.logger.experiment.log_artifact(args.classlist, name=os.path.basename(args.classlist), block=True)
         if os.path.isfile(args.vallist):
-            trainer.logger.experiment.log_artifact(args.trainlist, name=os.path.basename(args.vallist))
+            trainer.logger.experiment.log_artifact(args.trainlist, name=os.path.basename(args.vallist), block=True)
         if os.path.isfile(args.trainlist):
-            trainer.logger.experiment.log_artifact(args.trainlist, name=os.path.basename(args.trainlist))
+            trainer.logger.experiment.log_artifact(args.trainlist, name=os.path.basename(args.trainlist), block=True)
 
     # Patching torchensemble.utils.io.save such that a lightning validation epoch + callbacks
     # are called whenever the ensemble model decides to save a ckpt (at the end of each epoch)
