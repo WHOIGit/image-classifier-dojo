@@ -194,7 +194,30 @@ def main(args):
                          log_every_n_steps=-1,
                          callbacks=callbacks,
     )
-    lightning_module_with_ensemble = MulticlassClassifier(args, model=ensemble)
+
+    loss_kwargs = {}
+    if args.loss_function == 'CrossEntropyLoss':
+         loss_kwargs['label_smoothing'] = args.loss_smoothing
+         if args.loss_weights_tensor:
+             loss_kwargs['weights'] = args.loss_weights_tensor
+    elif args.loss_function == 'FocalLoss':
+        loss_kwargs['gamma'] = args.loss_gamma
+        if args.loss_weights_tensor is not None:
+            loss_kwargs['alpha'] = args.loss_weights_tensor
+
+    optimizer_kwargs = dict(lr = args.lr)
+
+    lightning_module_with_ensemble = MulticlassClassifier(
+        model_name=args.model,
+        num_classes=len(datamodule.classes),
+        model_weights=args.weights,
+        model_freeze=args.freeze,
+        loss_function=args.loss_function,
+        loss_kwargs=loss_kwargs,
+        optimizer=args.optimizer,
+        optimizer_kwargs=optimizer_kwargs,
+        model=ensemble
+    )
 
     # save training artifacts
     if args.artifacts_location or ( 'AIM_ARTIFACTS_URI' in os.environ and os.environ['AIM_ARTIFACTS_URI'] ):
