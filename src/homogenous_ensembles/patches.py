@@ -1,3 +1,4 @@
+import copy
 import os
 import types
 from typing import Union, Optional
@@ -14,6 +15,8 @@ from aim.pytorch_lightning import AimLogger
 
 from torchvision.models import Inception3, GoogLeNet  # models with Aux Logits
 from torchensemble import GradientBoostingClassifier
+
+from src.multiclass.models import get_model_resize
 
 
 def disable_argument(parser: argparse.ArgumentParser, arg: str, error_msg: str = 'Has been disabled!') -> None:
@@ -194,25 +197,59 @@ def patch_save(trainer: pl.Trainer, lightning_module, datamodule):
         trainer.fit_loop.epoch_loop._batches_that_stepped += 1
         trainer.fit_loop.epoch_progress.increment_completed()
         trainer.fit_loop._restarting = False
-    def save_bestepoch_ckpt(model, save_dir, logger):
+    def save_onnx_copy(model, onnx_filepath: str, batch: int = None):
+        model = copy.deepcopy(model)
+        model.eval()
+        device = next(model.parameters()).device
+        dummy_batch_size = batch or 10
+        input_size = get_model_resize(trainer.lightning_module.hparams['model_name'])
+        dummy_input = torch.randn(dummy_batch_size, 3, input_size, input_size, device=device)
+
+        if batch is None:
+            export_args = dict(
+                input_names=['input'],
+                output_names=['output'],
+                dynamic_axis={'input': {0: 'batch_size'},
+                              'output': {0: 'batch_size'}}
+            )
+        else:
+            export_args = {}
+
+        with torch.no_grad():
+            torch.onnx.export(model, dummy_input, onnx_filepath, **export_args)
+    def save_bestepoch_ckpt(model, save_dir, logger, onnx=True):
         # {Ensemble_Model_Name}_{Base_Estimator_Name}_{n_estimators}
         filename = "{}_{}_{}_ckpt.pth".format(
             type(model).__name__,
             model.base_estimator_.__class__.__name__,
             model.n_estimators,
         )
-        new_filename = "{}_{}_n{}_ep{}_ckpt.pth".format(
+        new_filename = "{}_{}_n{}_ep{:03}_ckpt.pth".format(
             type(model).__name__,
             model.base_estimator_.__class__.__name__,
             model.n_estimators,
             lightning_module.best_epoch,
         )
         fullpath = os.path.join(save_dir,filename)
+        onnx_filename_dynamic = new_filename.replace('_ckpt.pth', '.onnx')
+        onnx_filename_batched = new_filename.replace('_ckpt.pth', f'.b128.onnx')
+        onnx_fullpath_dynamic = os.path.join(save_dir,onnx_filename_dynamic)
+        onnx_fullpath_batched = os.path.join(save_dir,onnx_filename_batched)
         if lightning_module.best_epoch == lightning_module.current_epoch-1:
+            if onnx:
+                logger.info(f'Saving onnx (dynamic): "{onnx_filename_dynamic}"')
+                save_onnx_copy(model, onnx_fullpath_dynamic)
+                logger.info(f'Saving onnx (batched): "{onnx_filename_batched}"')
+                save_onnx_copy(model, onnx_fullpath_batched, batch=128)
             if isinstance(lightning_module.logger,AimLogger):
                 if lightning_module.logger.experiment.artifacts_uri:
                     logger.info(f'Saving model "{fullpath}" to {lightning_module.logger.experiment.artifacts_uri}/{new_filename}')
                     lightning_module.logger.experiment.log_artifact(fullpath, new_filename, block=True)
+                    if onnx:
+                        logger.info(f'Saving onnx "{onnx_fullpath_dynamic}" to {lightning_module.logger.experiment.artifacts_uri}/{onnx_filename_dynamic}')
+                        lightning_module.logger.experiment.log_artifact(onnx_fullpath_dynamic, onnx_filename_dynamic, block=True)
+                        logger.info(f'Saving onnx "{onnx_fullpath_batched}" to {lightning_module.logger.experiment.artifacts_uri}/{onnx_filename_batched}')
+                        lightning_module.logger.experiment.log_artifact(onnx_fullpath_batched, onnx_filename_batched, block=True)
     def new_save(model, save_dir, logger):
         torchensemble_save_deepcopy(model, save_dir, logger)
         run_single_lightning_validation_epoch()
