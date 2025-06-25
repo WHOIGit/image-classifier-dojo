@@ -47,7 +47,7 @@ def get_model_base_transforms(model_name):
     return [v2.Resize((resize,resize)), v2.ToImage(), v2.ToDtype(torch.float32, scale=True)]
 
 
-def get_namebrand_model(model_name, num_classes, weights:Union[None,str]=None, freeze=None):
+def get_namebrand_model(model_name:str, num_classes:int, weights:Union[None,str]=None, freeze:Union[int,float]=None):
     Model = tv.models.get_model_builder(model_name.lower())
     weights_enum = tv.models.get_model_weights(Model)
     ckpt_path = None
@@ -101,7 +101,7 @@ def get_namebrand_model(model_name, num_classes, weights:Union[None,str]=None, f
     return model
 
 
-def freeze_model_features(model, freeze):
+def freeze_model_features(model, freeze:Union[int,float]):
     """
     :param model:
     :param freeze:

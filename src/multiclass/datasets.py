@@ -11,36 +11,6 @@ import torchvision
 from torchvision.transforms import v2
 
 
-def parse_listfile(classlist):
-    with open(classlist) as f:
-        return f.read().splitlines()
-
-
-def parse_listfile_with_targets(listfile, num_classes: int = None):
-    bad_class = []
-    bad_file = []
-    bad_ext = []
-    sources_targets = []
-    with open(listfile) as f:
-        for line in tqdm(f.read().splitlines(), desc=listfile):
-            if not line: continue
-            trg, src = line.split()
-            trg = int(trg)
-            if num_classes and not trg < num_classes:
-                print(f'BAD TRG: trg > num_classes {trg} < {num_classes} for {src}')
-                bad_class.append(line)
-            elif not torchvision.datasets.folder.is_image_file(src):
-                print(f'BAD EXT: {src}')
-                bad_ext.append(line)
-            elif not os.path.isfile(src):
-                print(f'BAD FILE: {src}')
-                bad_file.append(line)
-            else:
-                sources_targets.append((src, trg))
-    errors = bad_file + bad_ext + bad_class
-    return sources_targets, errors
-
-
 class ImageDatasetWithSource(Dataset):
     """
     Custom dataset that includes source file paths in addition to data and target. Also checks for valid image extention.
@@ -56,7 +26,7 @@ class ImageDatasetWithSource(Dataset):
         self.without_source = without_source
 
     @property
-    def labels(self):
+    def targets_as_str(self):
         return [self.classes[idx] for idx in self.targets]
 
     def __getitem__(self, index):
@@ -82,23 +52,23 @@ class ImageDatasetWithSource(Dataset):
     @property
     def count_perclass(self):
         cpc = {c:0 for c in self.classes} # initialize list at 0-counts
-        for class_label in self.labels:
+        for class_label in self.targets_as_str:
             cpc[class_label] += 1
         return cpc
 
 
 class ImageListsWithLabelIndex(L.LightningDataModule):
     def __init__(self, train_src, val_src, classlist,
-                 base_transforms, training_transforms=[],
+                 base_transforms, training_transforms=None,
                  test_src=None, batch_size=108, num_workers=4,
                  ):
         super().__init__()
         self.training_source = train_src
         self.validation_source = val_src
         self.test_source = test_src
-        self.classes = parse_listfile(classlist)
+        self.classes = self.parse_classes_file(classlist)
         self.base_transforms = base_transforms
-        self.training_transforms = training_transforms
+        self.training_transforms = training_transforms or []
         self.batch_size = batch_size
         self.num_workers = num_workers
 
@@ -106,19 +76,47 @@ class ImageListsWithLabelIndex(L.LightningDataModule):
         self.validation_dataset = None
         self.test_dataset = None
 
-        assert len(set(self.classes))==len(self.classes), 'Class list has duplicate labels!'
+    @staticmethod
+    def parse_classes_file(classlist):
+        with open(classlist) as f:
+            return f.read().splitlines()
+
+    def parse_targets_file(self, listfile):
+        bad_class = []
+        bad_file = []
+        bad_ext = []
+        sources_targets = []
+        num_classes = len(self.classes)
+        with open(listfile) as f:
+            for line in tqdm(f.read().splitlines(), desc=listfile):
+                if not line: continue
+                trg, src = line.split()
+                trg = int(trg)
+                if num_classes and not trg < num_classes:
+                    print(f'BAD TRG: trg > num_classes {trg} < {num_classes} for {src}')
+                    bad_class.append(line)
+                elif not torchvision.datasets.folder.is_image_file(src):
+                    print(f'BAD EXT: {src}')
+                    bad_ext.append(line)
+                elif not os.path.isfile(src):
+                    print(f'BAD FILE: {src}')
+                    bad_file.append(line)
+                else:
+                    sources_targets.append((src, trg))
+        errors = bad_file + bad_ext + bad_class
+        return sources_targets, errors
 
     def setup(self, stage: str, without_source=False, force=False):
         # Assign train/val datasets for use in dataloaders
         train_ds_errors, val_ds_errors = [], []
         if (stage == "fit" or stage=='train') and (self.training_dataset is None or force):
-            training_samples, train_ds_errors = parse_listfile_with_targets(self.training_source, len(self.classes))
+            training_samples, train_ds_errors = self.parse_targets_file(self.training_source)
             training_transform = v2.Compose(self.training_transforms + self.base_transforms)
             self.training_dataset = ImageDatasetWithSource(sources_targets=training_samples, classes=self.classes,
                 transform=training_transform, without_source=without_source)
 
         if (stage == 'fit' or stage == 'validate') and (self.validation_dataset is None or force):
-            validation_samples, val_ds_errors = parse_listfile_with_targets(self.validation_source, len(self.classes))
+            validation_samples, val_ds_errors = self.parse_targets_file(self.validation_source)
             validation_transform = v2.Compose(self.base_transforms)
             self.validation_dataset = ImageDatasetWithSource(sources_targets=validation_samples, classes=self.classes,
                 transform=validation_transform, without_source=without_source)
@@ -128,7 +126,7 @@ class ImageListsWithLabelIndex(L.LightningDataModule):
 
         # Assign test dataset for use in dataloader(s)
         if stage == 'test' and (self.test_dataset is None or force):
-            test_samples, test_ds_errors = parse_listfile_with_targets(self.test_source, len(self.classes))
+            test_samples, test_ds_errors = self.parse_targets_file(self.test_source)
             if test_ds_errors:
                 raise RuntimeError(f'BAD TEST SAMPLES: {len(test_ds_errors)}')
             test_transform = v2.Compose(self.base_transforms)

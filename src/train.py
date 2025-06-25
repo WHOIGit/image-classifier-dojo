@@ -13,6 +13,7 @@ import lightning.pytorch as pl
 from lightning.pytorch.tuner import Tuner
 from lightning.pytorch.loggers.csv_logs import CSVLogger
 from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint, StochasticWeightAveraging
+from lightning.fabric.plugins.precision.precision import _PRECISION_INPUT_STR
 
 from aim.pytorch_lightning import AimLogger
 from aim.storage.artifacts.s3_storage import S3ArtifactStorage_clientconfig
@@ -28,6 +29,8 @@ from src.multiclass.callbacks import BarPlotMetricAim, PlotConfusionMetricAim, P
     LogNormalizedLoss
 from src.multiclass.datasets import ImageListsWithLabelIndex
 from src.multiclass.models import MulticlassClassifier, get_model_base_transforms, check_model_name
+from src.utils.onnx_checkpoint import OnnxCheckpoint
+
 
 def argparse_init(parser=None):
     if parser is None:
@@ -86,7 +89,7 @@ def argparse_init(parser=None):
     #model.add_argument('--ensemble', metavar='MODE', choices=..., help='Model Ensembling')
     model.add_argument('--optimizer', default='Adam', choices=('Adam','AdamW','SGD'), help='Optimizer. Eg: "AdamW". Default is "Adam"')
     model.add_argument('--lr', default=0.001, type=float, help='Initial Learning Rate. Default is 0.001')
-    model.add_argument('--precision', default='16', choices=('16','32'), help='Precision. Default is "16" for mized precision')
+    model.add_argument('--precision', default='16-mixed', choices=_PRECISION_INPUT_STR.__args__, help='Precision. Default is "16-mixed" for mixed precision')
     model.add_argument('--swa', metavar='START', type=int, help='swa_epoch_start') #TODO const='best_epoch' nargs='?' behavior: reloads best_epoch after early stopping and starts there
     model.add_argument('--swa-lr', type=float, default=0.02)
     model.add_argument('--swa-annealing', type=int, default=10)
@@ -106,7 +109,7 @@ def argparse_init(parser=None):
     parser.add_argument('--env', metavar='FILE', nargs='?', const=True, help='Environment Variables file. If set but not specified, attempts to find a parent .env file')
     parser.add_argument('--gpus', nargs='+', type=int, help=argparse.SUPPRESS) # CUDA_VISIBLE_DEVICES
     parser.add_argument('--version', help=argparse.SUPPRESS)
-    parser.add_argument('--onnx', help=argparse.SUPPRESS)
+    parser.add_argument('--onnx', action='append', nargs='*', help=argparse.SUPPRESS)
 
     return parser
 
@@ -118,7 +121,8 @@ def argparse_runtime_args(args):
 
     if args.env:
         load_dotenv(override=True) if args.env is True else load_dotenv(args.env, override=True)
-    os.environ['CUDA_VISIBLE_DEVICES'] = ','.join(map(str,args.gpus))  # reset if not included in .env
+    if 'CUDA_VISIBLE_DEVICES' not in os.environ or args.gpus:
+        os.environ['CUDA_VISIBLE_DEVICES'] = ','.join(map(str,args.gpus))  # reset if not included in .env
 
     if not args.num_workers:
         args.num_workers = len(args.gpus)*args.workers_per_gpu
@@ -151,6 +155,7 @@ def argparse_runtime_args(args):
     if 'AIM_ARTIFACTS_URI' in os.environ and os.environ['AIM_ARTIFACTS_URI']:
         if os.path.isdir(os.environ['AIM_ARTIFACTS_URI']):
             os.environ['AIM_ARTIFACTS_URI'] = f'file://{os.path.abspath(os.environ["AIM_ARTIFACTS_URI"])}'
+
 
 def parse_training_transforms(args):
     training_transforms = []
@@ -247,6 +252,30 @@ def setup_aimlogger(args, context_postfixes:dict=None, context_prefixes:dict=Non
         return loggers
 
 
+def make_onnx_callbacks(onnx_flags, chkpt_kwargs):
+    callbacks = []
+
+    for onnx_flag in onnx_flags:
+        onnx_kwargs = chkpt_kwargs.copy()
+        assert not ('cpu' in onnx_flag and 'gpu' in onnx_flag), '"cpu" and "gpu" cannot both be part of --onnx'
+        if 'half' in onnx_flag:
+            onnx_kwargs['filename'] = onnx_kwargs['filename']+'.half'
+            onnx_kwargs['half'] = True
+        if 'batch' in onnx_flag:
+            batch_size = int(onnx_flag[onnx_flag.index('batch')+1])
+            onnx_kwargs['batch_size'] = batch_size
+            onnx_kwargs['filename'] = onnx_kwargs['filename'] + f'.b{batch_size}'
+        if 'cpu' in onnx_flag:
+            onnx_kwargs['device'] = 'cpu'
+            onnx_kwargs['filename'] = onnx_kwargs['filename'] + f'.cpu'
+        if 'gpu' in onnx_flag:
+            onnx_kwargs['device'] = 'cuda'
+            onnx_kwargs['filename'] = onnx_kwargs['filename'] + f'.gpu'
+        onnx_callback = OnnxCheckpoint(**onnx_kwargs)
+        callbacks.append(onnx_callback)
+    return callbacks
+
+
 def main(args):
     torch.set_float32_matmul_precision('medium')
 
@@ -269,7 +298,6 @@ def main(args):
         LogNormalizedLoss(),
     ]
     callbacks.extend(validation_results_callbacks)
-
 
     plotting_callbacks = [
         #BarPlotMetricAim('f1_perclass', order_reverse=True),
@@ -304,11 +332,21 @@ def main(args):
     # https://lightning.ai/docs/pytorch/stable/common/checkpointing_advanced.html
     #hashid = logger.experiment.hash if isinstance(logger,AimLogger) else logger[0].experiment.hash
     chkpt_path = os.path.join(args.checkpoints_path, args.experiment, args.run)
-    ckpt_callback = ModelCheckpoint(
-        dirpath=chkpt_path, filename='loss-{val_normloss:3.3f}_ep-{epoch:03.0f}',
-        monitor='val_loss', mode='min', save_last='link', save_top_k=3,
-        auto_insert_metric_name=False)
+    chkpt_kwargs = dict(
+        dirpath=chkpt_path,
+        filename='loss-{val_normloss:3.3f}_ep-{epoch:03.0f}',
+        monitor='val_loss', mode='min',
+        save_last='link', save_top_k=3,
+        auto_insert_metric_name=False,
+    )
+    ckpt_callback = ModelCheckpoint(**chkpt_kwargs)
     callbacks.append(ckpt_callback)
+
+    if args.onnx:
+        chkpt_kwargs['save_top_k'] = 1
+        chkpt_kwargs['save_last'] = None
+        onnx_callbacks = make_onnx_callbacks(args.onnx, chkpt_kwargs)
+        callbacks.extend(onnx_callbacks)
 
     if args.swa:
         callbacks.append(StochasticWeightAveraging(args.swa_lr, swa_epoch_start=args.swa, annealing_epochs=args.swa_annealing))
@@ -355,6 +393,10 @@ def main(args):
     if trainer.logger.experiment.artifacts_uri:
         model_path = trainer.checkpoint_callback.best_model_path
         trainer.logger.experiment.log_artifact(model_path, name=os.path.basename(model_path), block=True)
+        onnx_files = [c.best_model_path for c in trainer.checkpoint_callbacks if isinstance(c, OnnxCheckpoint)]
+        for onnx_file in onnx_files:
+            trainer.logger.experiment.log_artifact(onnx_file, name=os.path.basename(onnx_file), block=True)
+
 
     print('DONE!')
 
