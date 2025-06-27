@@ -48,12 +48,13 @@ def get_namebrand_model(model_name, num_classes:list[int], weights:Union[None,st
             super().__init__()
             self.in_features = in_features
             self.out_features = num_classes
-            self.pool = nn.AdaptiveAvgPool2d((1,1))
-            self.out_layers = [nn.Linear(self.in_features, out_features, device='cuda')  # TODO device=cuda is hack!
-                                for out_features in num_classes]
+            self.heads = nn.ModuleList(
+                [nn.Linear(self.in_features, out_features, device='cuda')
+                    for out_features in num_classes]
+            )
 
         def forward(self, x: Tensor) -> list[Tensor]:
-            return [out_layer(x) for out_layer in self.out_layers]
+            return [head(x) for head in self.heads]
 
 
     if isinstance(model, fc_models):
