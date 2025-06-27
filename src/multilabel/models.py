@@ -1,5 +1,6 @@
 import os
-from typing import Union
+from collections import defaultdict
+from typing import Union, Literal
 
 import numpy as np
 import torch
@@ -11,6 +12,7 @@ from torchvision.models import AlexNet, DenseNet,  ResNet, SqueezeNet, VGG, \
 from torchvision.models import Inception3, InceptionOutputs, GoogLeNet, GoogLeNetOutputs
 from torchvision.models import VisionTransformer, MaxVit, SwinTransformer
 import lightning as L
+import torchmetrics as tm
 
 from src.utils.focal_loss import FocalLoss
 from src.multiclass.models import freeze_model_features
@@ -145,11 +147,70 @@ class MultilabelClassifier(L.LightningModule):
         self.test_targets = []
         self.test_sources = []
 
-#    def to(self, *args: Any, **kwargs: Any) -> Self:
-#        from lightning_fabric.utilities.device_dtype_mixin import _update_properties
-#        device, dtype = torch._C._nn._parse_to(*args, **kwargs)[:2]
-#        _update_properties(self, device=device, dtype=dtype)
-#        return super().to(*args, **kwargs)
+        self.labels = None
+        self.metrics = None
+        self.metrics_per_head = None
+
+    def setup_metrics(self):
+        # Accuracy is best when the dataset is balanced and the cost of false positives and false negatives is similar.
+        # Precision is prioritized when false positives are more costly.
+        # Recall is prioritized when false negatives are more costly.
+        # F1 score is a harmonic mean of precision and recall
+        metrics = {}
+        for label, label_classes_num in zip(self.labels, self.num_classes):
+            cm = tm.ConfusionMatrix(task='multiclass', num_classes=label_classes_num)
+            label_metrics = [cm]
+            for mode in ['weighted','micro','macro',None]:
+                mode_metrics = []
+                for stat,MetricClass in zip(['f1','precision','recall'],  # accuracy
+                                            [tm.F1Score,tm.Precision,tm.Recall]): # tm.Accuracy
+                    mode_metrics.append(MetricClass('multiclass', num_classes=label_classes_num, average=mode))
+                mode_metrics = tm.MetricCollection(metrics=mode_metrics, postfix='-'+(mode or 'perclass'))
+                label_metrics.append(mode_metrics)
+            label_metrics = tm.MetricCollection(metrics=label_metrics)#, prefix=label+sep)
+            metrics[label] = label_metrics
+        self.metrics_per_head = tm.MultitaskWrapper(metrics).to(self.device)
+        self.metrics = dict()
+
+
+    def update_metrics(self, preds, targets):
+        preds_dict = {label:pred for label,pred in zip(self.labels, preds)}
+        targets_dict = {label:target for label,target in zip(self.labels, targets)}
+        self.metrics_per_head.update(preds_dict,targets_dict)
+
+    def compute_metrics(self):
+        metrics_across_heads = defaultdict(list)
+        computed_metrics_per_head = self.metrics_per_head.compute()
+        for head_label, metrics_dict in computed_metrics_per_head.items():
+            for metric_key,val in metrics_dict.items():
+                #if 'perclass' in metric_key or 'ConfusionMatrix' in metric_key: continue
+                if len(val.shape) != 0: continue  # eg perclass or matrix
+                metrics_across_heads[metric_key].append(val.item())
+        for metric_key, vals in metrics_across_heads.items():
+            self.metrics[metric_key] = dict(min=min(vals), max=max(vals), std=float(np.std(vals)),
+                                     avg=float(np.average(vals)), median=float(np.median(vals)))
+
+        return self.metrics, computed_metrics_per_head
+
+    def log_metrics(self, stage:Literal['val','test','train']):
+        metrics_across_heads, metrics_per_head = self.compute_metrics()
+
+        for head_label, metrics_dict in metrics_per_head.items():
+            for metric_key,val in metrics_dict.items():
+                log_key = f'{stage}_{metric_key}_{head_label}'
+                if len(val.shape) != 0: continue  # eg perclass or matrix
+                self.log(log_key, val, on_epoch=True)
+                #print(log_key)
+
+        #for metric_key, vals in metrics_across_heads.items():
+        #    log_key = f'{stage}_{metric_key}_avg'
+        #    self.log(log_key, vals['avg'], on_epoch=True)
+        #    #print(log_key)
+
+    def reset_metrics(self):
+        self.metrics_per_head.reset()
+        self.metrics = dict()
+
 
     def configure_optimizers(self):
         return self.Optimizer(self.parameters(), **self.optimizer_kwargs)
@@ -189,6 +250,9 @@ class MultilabelClassifier(L.LightningModule):
         self.validation_loss_by_epoch = {}
         self.training_loss_by_epoch_per_head = {}
         self.validation_loss_by_epoch_per_head = {}
+        self.labels = self.trainer.datamodule.labels
+        self.setup_metrics()
+
 
 
     def on_train_epoch_start(self) -> None:
@@ -204,7 +268,7 @@ class MultilabelClassifier(L.LightningModule):
         self.validation_sources = []
         self.validation_loss_by_epoch[self.current_epoch] = 0
         self.validation_loss_by_epoch_per_head[self.current_epoch] = [0]*len(self.num_classes)
-        #self.reset_metrics()
+        self.reset_metrics()
 
 
     def training_step(self, batch, batch_idx):
@@ -244,7 +308,7 @@ class MultilabelClassifier(L.LightningModule):
             self.validation_sources.append(input_srcs)
 
         # METRICS and LOGGING
-        #self.update_metrics(preds,input_targets)
+        self.update_metrics(preds,input_targets)
         self.log("val_loss", loss, on_step=False, on_epoch=True, reduce_fx=torch.sum)
         for i,label in enumerate(self.trainer.datamodule.labels):
             self.log(f"val_loss_{label}", losses[i], on_step=False, on_epoch=True, reduce_fx=torch.sum)
@@ -265,7 +329,7 @@ class MultilabelClassifier(L.LightningModule):
             self.best_epoch = self.current_epoch
 
         # METRICS & LOGGING
-        #self.log_metrics(stage='val')
+        self.log_metrics(stage='val')
         self.log_dict(dict(val_best_epoch=self.best_epoch), on_epoch=True, prog_bar=True)
 
     def test_step(self, batch, batch_idx):
@@ -278,7 +342,7 @@ class MultilabelClassifier(L.LightningModule):
             input_srcs = batch[2]
             self.test_sources.append(input_srcs)
         # METRICS
-        #self.update_metrics(preds,input_targets)
+        self.update_metrics(preds,input_targets)
         return loss
 
     def on_test_epoch_end(self):

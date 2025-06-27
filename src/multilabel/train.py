@@ -88,8 +88,8 @@ def main(args):
     labels = datamodule.labels
     ## Setup Epoch Logger ##
     contexts = dict(heads = {label:f'_{label}' for label in labels},
-                    averaging = {'macro': '_macro', 'micro': '_micro', 'weighted': '_weighted',
-                                 'none': '_perclass'},  # f1, precision, recall
+                    #averaging = {'macro': '_macro', 'micro': '_micro', 'weighted': '_weighted',
+                    #             'none': '_perclass'},  # f1, precision, recall
                     normalized = {'no': '_summed', 'yes': '_normalized'},  # confusion matrix, loss?
                     rebalanced = {'yes': '_rebalanced', 'no': '_unbalanced'})  # lossfunction loss_rebalanced option?
     # val_/train_ already handled by default
