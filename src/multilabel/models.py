@@ -160,10 +160,10 @@ class MultilabelClassifier(L.LightningModule):
         for label, label_classes_num in zip(self.labels, self.num_classes):
             cm = tm.ConfusionMatrix(task='multiclass', num_classes=label_classes_num)
             label_metrics = [cm]
-            for mode in ['weighted','micro','macro',None]:
+            for mode in ['weighted','macro',None]:
                 mode_metrics = []
-                for stat,MetricClass in zip(['f1','precision','recall'],  # accuracy
-                                            [tm.F1Score,tm.Precision,tm.Recall]): # tm.Accuracy
+                for stat,MetricClass in zip(['f1','precision','recall'],
+                                            [tm.F1Score,tm.Precision,tm.Recall]):
                     mode_metrics.append(MetricClass('multiclass', num_classes=label_classes_num, average=mode))
                 mode_metrics = tm.MetricCollection(metrics=mode_metrics, postfix='-'+(mode or 'perclass'))
                 label_metrics.append(mode_metrics)
