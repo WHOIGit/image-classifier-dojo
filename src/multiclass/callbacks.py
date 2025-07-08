@@ -115,8 +115,8 @@ class BarPlotMetricAim(pl.callbacks.Callback):
 class PlotConfusionMetricAim(pl.callbacks.Callback):
     def __init__(self, title='Confusion Matrix (ep{EPOCH})',
                  normalize: Optional[Literal[True, "true", "pred", "all", "none", None]] = None,
-                 order_by:str='recall_perclass', best_only=True, hide_zeros=True):
-        self.metric_key = 'confusion_matrix'
+                 order_by:str='MulticlassRecall-perclass', best_only=True, hide_zeros=True):
+        self.metric_key = 'MulticlassConfusionMatrix-perclass'
         self.normalize = 'true' if normalize is True else normalize
         self.title = title
         self.best_only = best_only
@@ -247,7 +247,7 @@ class PlotConfusionMetricAim(pl.callbacks.Callback):
 
 class PlotPerclassDropdownAim(pl.callbacks.Callback):
     def __init__(self, title='Class Compare (ep{EPOCH})', best_only=True):
-        self.metric_key = 'confusion_matrix'
+        self.metric_key = 'MulticlassConfusionMatrix-perclass'
         self.title = title
         self.best_only = best_only
 
@@ -257,7 +257,7 @@ class PlotPerclassDropdownAim(pl.callbacks.Callback):
             return
 
         metrics = pl_module.metrics
-        cm = metrics['confusion_matrix'].compute().cpu()
+        cm = metrics['MulticlassConfusionMatrix-perclass'].compute().cpu()
 
         validation_dataset = trainer.datamodule.validation_dataset if trainer.datamodule else trainer.val_dataloaders.dataset
         classes = validation_dataset.classes

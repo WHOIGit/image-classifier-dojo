@@ -300,22 +300,22 @@ def main(args):
     callbacks.extend(validation_results_callbacks)
 
     plotting_callbacks = [
-        #BarPlotMetricAim('f1_perclass', order_reverse=True),
-        BarPlotMetricAim('f1_perclass', order_by='f1_perclass'),
-        #BarPlotMetricAim('f1_perclass', title='{METRIC} by {ORDER} (ep{EPOCH})', order_by='class-counts'),
+        #BarPlotMetricAim('F1Score_perclass', order_reverse=True),
+        BarPlotMetricAim('MulticlassF1Score-perclass', order_by='MulticlassF1Score-perclass'),
+        #BarPlotMetricAim('F1Score_perclass', title='{METRIC} by {ORDER} (ep{EPOCH})', order_by='class-counts'),
 
-        #BarPlotMetricAim('recall_perclass', order_reverse=True),
-        #BarPlotMetricAim('recall_perclass', order_by='recall_perclass'),
-        #BarPlotMetricAim('recall_perclass', title='{METRIC} by {ORDER} (ep{EPOCH})', order_by='class-counts'),
+        #BarPlotMetricAim('Recall_perclass', order_reverse=True),
+        #BarPlotMetricAim('Recall_perclass', order_by='Recall_perclass'),
+        #BarPlotMetricAim('Recall_perclass', title='{METRIC} by {ORDER} (ep{EPOCH})', order_by='class-counts'),
 
-        #BarPlotMetricAim('precision_perclass', order_reverse=True),
-        #BarPlotMetricAim('precision_perclass', order_by='precision_perclass'),
-        #BarPlotMetricAim('precision_perclass', title='{METRIC} by {ORDER} (ep{EPOCH})', order_by='class-counts'),
+        #BarPlotMetricAim('Precision_perclass', order_reverse=True),
+        #BarPlotMetricAim('Precision_perclass', order_by='Precision_perclass'),
+        #BarPlotMetricAim('Precision_perclass', title='{METRIC} by {ORDER} (ep{EPOCH})', order_by='class-counts'),
 
         #PlotConfusionMetricAim(order_by='classes'),
         PlotConfusionMetricAim(order_by='classes', normalize=True),
-        PlotConfusionMetricAim(order_by='f1_perclass', normalize=True),
-        #PlotConfusionMetricAim(order_by='recall_perclass', normalize=True),
+        PlotConfusionMetricAim(order_by='MulticlassF1Score-perclass', normalize=True),
+        #PlotConfusionMetricAim(order_by='Recall_perclass', normalize=True),
 
         PlotPerclassDropdownAim(),
     ]

@@ -195,39 +195,30 @@ class MulticlassClassifier(L.LightningModule):
         self.test_sources = []
 
         # Metrics
-        self.metrics = nn.ModuleDict()
+        self.metrics = None
         self.setup_metrics()
 
     def setup_metrics(self):
+        metrics = []
         num_classes = self.hparams.num_classes
         for mode in ['weighted','micro','macro',None]:
-            for stat,MetricClass in zip(['f1','recall','accuracy','precision'],
-                                        [tm.F1Score,tm.Recall,tm.Accuracy,tm.Precision]):
-                key = f'{stat}_{mode or "perclass"}'
-                self.metrics[key] = MetricClass(task='multiclass', num_classes=num_classes, average=mode)
-        self.metrics['confusion_matrix'] = tm.ConfusionMatrix(task='multiclass', num_classes=num_classes)
-
-    def update_metrics(self, preds, targets):
-        for mode in ['weighted','micro','macro',None]:
-            for stat in ['f1','recall','precision','accuracy']:
-                key = f'{stat}_{mode or "perclass"}'
-                self.metrics[key].update(preds,targets)
-        self.metrics['confusion_matrix'].update(preds,targets)
+            mode_metrics = [tm.ConfusionMatrix(task='multiclass', num_classes=num_classes)]
+            for stat,MetricClass in zip(['f1','precision','recall'],
+                                        [tm.F1Score,tm.Precision,tm.Recall]):
+                mode_metrics.append( MetricClass(task='multiclass', num_classes=num_classes, average=mode) )
+            metrics.append( tm.MetricCollection(mode_metrics, postfix='-'+(mode or 'perclass')) )
+        self.metrics = tm.MetricCollection(metrics).to(self.device)
 
     def log_metrics(self, stage:Literal['val','test','train']):
-        for mode in ['weighted','micro','macro']:  # perclass not available to log as metric
-            for stat in ['f1','recall','precision','accuracy']:
-                key = f'{stat}_{mode}'
-                datum = self.metrics[key].compute()
-                #if mode=='micro' and stat in ['recall','precision']: continue  # identical to macro
-                self.log(f'{stage}_{stat}_{mode}', datum, on_epoch=True)
+        metrics = self.metrics.compute().copy()
+        key_mapper = {}
+        for key,val in metrics.items():
+            stat,mode = key.split('-')
+            stat = stat.replace('Multiclass','')
+            key_mapper[key] = f'{stage}_{stat}_{mode}'
+        metrics = {key_mapper[key]:val for key,val in metrics.items() if len(val.shape) == 0}
+        self.log_dict(metrics, on_epoch=True)
 
-    def reset_metrics(self):
-        for mode in ['weighted','micro','macro',None]:
-            for stat in ['f1','recall','precision','accuracy']:
-                key = f'{stat}_{mode or "perclass"}'
-                self.metrics[key].reset()
-        self.metrics['confusion_matrix'].reset()
 
     def configure_optimizers(self):
         return self.Optimizer(self.parameters(), **self.optimizer_kwargs)
@@ -271,7 +262,7 @@ class MulticlassClassifier(L.LightningModule):
         self.validation_targets = []
         self.validation_sources = []
         self.validation_loss_by_epoch[self.current_epoch] = 0
-        self.reset_metrics()
+        self.metrics.reset()
 
     def training_step(self, batch, batch_idx):
         input_data, input_targets = batch[0], batch[1]
@@ -299,7 +290,7 @@ class MulticlassClassifier(L.LightningModule):
             self.validation_sources.append(input_srcs)
 
         # METRICS and LOGGING
-        self.update_metrics(preds,input_targets)
+        self.metrics.update(preds,input_targets)
         self.log("val_loss", loss, on_step=False, on_epoch=True, reduce_fx=torch.sum)
 
     def on_validation_epoch_end(self):
@@ -328,7 +319,7 @@ class MulticlassClassifier(L.LightningModule):
             input_srcs = batch[2]
             self.test_sources.append(input_srcs)
         # METRICS
-        self.update_metrics(preds,input_targets)
+        self.metrics.update(preds,input_targets)
         return loss
 
     def on_test_epoch_end(self):

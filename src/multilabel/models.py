@@ -172,7 +172,6 @@ class MultilabelClassifier(L.LightningModule):
         self.metrics_per_head = tm.MultitaskWrapper(metrics).to(self.device)
         self.metrics = dict()
 
-
     def update_metrics(self, preds, targets):
         preds_dict = {label:pred for label,pred in zip(self.labels, preds)}
         targets_dict = {label:target for label,target in zip(self.labels, targets)}
