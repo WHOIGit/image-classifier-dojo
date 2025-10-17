@@ -11,7 +11,7 @@ if __name__ == '__main__':
     PROJECT_ROOT = pathlib.Path(__file__).parent.parent.parent.absolute()
     if sys.path[0] != str(PROJECT_ROOT): sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.train import argparse_init, argparse_runtime_args, parse_training_transforms, setup_aimlogger, \
+from src.multiclass.train import argparse_init, argparse_runtime_args, parse_training_transforms, setup_aimlogger, \
     make_onnx_callbacks
 from src.multiclass.models import get_model_base_transforms, check_model_name
 from src.multilabel.models import MultilabelClassifier

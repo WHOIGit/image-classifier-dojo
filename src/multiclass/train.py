@@ -21,7 +21,7 @@ from aim.storage.artifacts.s3_storage import S3ArtifactStorage_clientconfig
 # if file is called directly, must set import paths to project root
 if __name__ == '__main__':
     import sys, pathlib
-    PROJECT_ROOT = pathlib.Path(__file__).parent.parent.absolute()
+    PROJECT_ROOT = pathlib.Path(__file__).parent.parent.parent.absolute()
     if sys.path[0] != str(PROJECT_ROOT): sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.patches.model_summary_patch import ModelSummaryWithGradCallback

@@ -1,7 +1,7 @@
 import os, pathlib
 
-import src.train
-from src.train import argparse_init, args_subsetter_factory, argparse_runtime_args, main
+import src.multiclass.train
+from src.multiclass.train import argparse_init, args_subsetter_factory, argparse_runtime_args, main
 
 if __name__ == '__main__':
     import sys
@@ -12,7 +12,7 @@ if __name__ == '__main__':
     def just_hparams(args_namespace):
         subparsers = ['Model Parameters', 'Epoch Parameters']
         return args_subsetter(args_namespace, [], subparsers)
-    src.train.just_hparams = just_hparams
+    src.multiclass.train.just_hparams = just_hparams
     args = parser.parse_args()
     argparse_runtime_args(args)
     main(args)

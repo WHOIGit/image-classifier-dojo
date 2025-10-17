@@ -28,7 +28,7 @@ if __name__ == '__main__':
     PROJECT_ROOT = pathlib.Path(__file__).parent.parent.parent.absolute()
     if sys.path[0] != str(PROJECT_ROOT): sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.train import setup_aimlogger
+from src.multiclass.train import setup_aimlogger
 from src.multiclass.callbacks import BarPlotMetricAim, PlotConfusionMetricAim, PlotPerclassDropdownAim
 from src.multiclass.datasets import ImageListsWithLabelIndex, parse_listfile
 from src.multiclass.models import MulticlassClassifier, get_model_base_transforms, check_model_name, get_model_resize

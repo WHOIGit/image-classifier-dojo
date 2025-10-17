@@ -25,7 +25,7 @@ from src.multiclass.models import check_model_name, get_model_base_transforms, g
 from src.selfsupervised.datasets import IfcbDatamodule
 from src.selfsupervised.models import SimCLR, VICReg, PMSN, DINO
 from src.multiclass.callbacks import LogNormalizedLoss, BarPlotMetricAim, PlotConfusionMetricAim, PlotPerclassDropdownAim
-from src.train import setup_aimlogger
+from src.multiclass.train import setup_aimlogger
 
 
 def argparse_init(parser=None):

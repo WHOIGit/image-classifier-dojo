@@ -14,7 +14,7 @@ if __name__ == '__main__':
     if sys.path[0] != str(PROJECT_ROOT): sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.multiclass.models import check_model_name, MulticlassClassifier
-import src.train
+import src.multiclass.train
 from src.multiclass.callbacks import BarPlotMetricAim, PlotPerclassDropdownAim, PlotConfusionMetricAim
 
 from src.homogenous_ensembles.patches import patch_iv3, patch_goog, CleverCrossEntropyLoss, patch_save, \
@@ -104,7 +104,7 @@ def main(args):
     os.chdir(cwd)
 
     # Setup Model & Data Module
-    lightning_module, datamodule = src.train.setup_model_and_datamodule(args)
+    lightning_module, datamodule = src.multiclass.train.setup_model_and_datamodule(args)
     basemodel_args = {k: getattr(args, k) for k in 'model batch_size num_classes freeze weights'.split()}
     logger.info(f'base_model: {basemodel_args}')
     base_model = lightning_module.model
@@ -177,7 +177,7 @@ def main(args):
     contexts = dict(averaging={'macro': '_macro', 'micro': '_micro', 'weighted': '_weighted',
                                'none': '_perclass'},  # f1, precision, recall
                    normalized={'no': '_summed', 'yes': '_normalized'})  # confusion matrix
-    aim_logger = src.train.setup_aimlogger(args, context_postfixes=contexts)
+    aim_logger = src.multiclass.train.setup_aimlogger(args, context_postfixes=contexts)
 
     # Plotting Callbacks
     callbacks = [
@@ -247,11 +247,11 @@ def main(args):
 
 
 if __name__ == '__main__':
-    parser = src.train.argparse_init()
+    parser = src.multiclass.train.argparse_init()
     parser = argparse_init(parser)
     argparse_disable_arguments(parser)
     args = parser.parse_args()
-    src.train.argparse_runtime_args(args)
+    src.multiclass.train.argparse_runtime_args(args)
     argparse_runtime_args(args)
     main(args)
 
