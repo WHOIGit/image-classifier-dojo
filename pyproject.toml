@@ -16,6 +16,7 @@ dependencies = [
   "humanize~=4.11.0",
   "coolname~=2.2.0",
   "tqdm~=4.67.0",
+  "hydra-zen~=0.15.0",
 ]
 
 # Optional dev and examples extras
@@ -30,7 +31,6 @@ train = [
   "plotly~=5.24.1",
   "aim~=3.27.0",
   "h5py~=3.10",
-  "dotenv~=0.9.9",
 ]
 ssl = [
   "lightly~=1.5.15",
@@ -51,12 +51,12 @@ source = "vcs"
 
 # Build only our 'src' code path
 [tool.hatch.build.targets.wheel]
-packages = ["src"]
+packages = ["src/dojo", "src/image_classifier_dojo"]
 
 # Ensure Hydra example configs are included in the wheel
 # force-include maps on-disk paths to locations inside the wheel
-[tool.hatch.build.targets.wheel.force-include]
-"configs" = "image_classifier_dojo/configs"
+#[tool.hatch.build.targets.wheel.force-include]
+#"configs" = "image_classifier_dojo/configs"
 
 # Keep sdist lean but include configs and scripts if you want them in source tarballs
 [tool.hatch.build.targets.sdist]

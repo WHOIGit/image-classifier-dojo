@@ -8,16 +8,11 @@ import lightning.pytorch as pl
 #https://ensemble-pytorch.readthedocs.io/en/latest/
 from torchensemble import VotingClassifier, BaggingClassifier, GradientBoostingClassifier, FusionClassifier, SnapshotEnsembleClassifier, FastGeometricClassifier, AdversarialTrainingClassifier
 
-if __name__ == '__main__':
-    import sys, pathlib
-    PROJECT_ROOT = pathlib.Path(__file__).parent.parent.parent.absolute()
-    if sys.path[0] != str(PROJECT_ROOT): sys.path.insert(0, str(PROJECT_ROOT))
+from multiclass.models import check_model_name, MulticlassClassifier
+import multiclass.train
+from multiclass.callbacks import BarPlotMetricAim, PlotPerclassDropdownAim, PlotConfusionMetricAim
 
-from src.multiclass.models import check_model_name, MulticlassClassifier
-import src.multiclass.train
-from src.multiclass.callbacks import BarPlotMetricAim, PlotPerclassDropdownAim, PlotConfusionMetricAim
-
-from src.homogenous_ensembles.patches import patch_iv3, patch_goog, CleverCrossEntropyLoss, patch_save, \
+from .patches import patch_iv3, patch_goog, CleverCrossEntropyLoss, patch_save, \
     patch_boosting_earlystopping, disable_argument
 
 ENSEMBLE_CHOICES = (

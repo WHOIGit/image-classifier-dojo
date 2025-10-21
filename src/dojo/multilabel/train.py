@@ -5,19 +5,14 @@ import lightning.pytorch as pl
 from lightning.pytorch.tuner import Tuner
 from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint
 
-# if file is called directly, must set import paths to project root
-if __name__ == '__main__':
-    import sys, pathlib
-    PROJECT_ROOT = pathlib.Path(__file__).parent.parent.parent.absolute()
-    if sys.path[0] != str(PROJECT_ROOT): sys.path.insert(0, str(PROJECT_ROOT))
-
-from src.multiclass.train import argparse_init, argparse_runtime_args, parse_training_transforms, setup_aimlogger, \
+from multiclass.train import argparse_init, argparse_runtime_args, parse_training_transforms, setup_aimlogger, \
     make_onnx_callbacks
-from src.multiclass.models import get_model_base_transforms, check_model_name
-from src.multilabel.models import MultilabelClassifier
-from src.multilabel.datasets import MultilabelDataModule
-from src.multiclass.callbacks import LogNormalizedLoss
-from src.patches.model_summary_patch import ModelSummaryWithGradCallback
+from multiclass.models import get_model_base_transforms, check_model_name
+
+from multilabel.models import MultilabelClassifier
+from multilabel.datasets import MultilabelDataModule
+from multiclass.callbacks import LogNormalizedLoss
+from patches.model_summary_patch import ModelSummaryWithGradCallback
 
 
 def setup_model_and_datamodule(args):

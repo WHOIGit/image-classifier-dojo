@@ -21,12 +21,12 @@ if __name__ == '__main__':
     PROJECT_ROOT = pathlib.Path(__file__).parent.parent.parent.absolute()
     if sys.path[0] != str(PROJECT_ROOT): sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.multiclass.models import check_model_name, get_model_base_transforms, get_namebrand_model, get_model_resize
-from src.selfsupervised.datasets import IfcbDatamodule
-from src.selfsupervised.models import SimCLR, VICReg, PMSN, DINO
-from src.multiclass.callbacks import LogNormalizedLoss, BarPlotMetricAim, PlotConfusionMetricAim, PlotPerclassDropdownAim
-from src.multiclass.train import setup_aimlogger
+from multiclass.models import check_model_name, get_model_base_transforms, get_namebrand_model, get_model_resize
+from multiclass.callbacks import LogNormalizedLoss, BarPlotMetricAim, PlotConfusionMetricAim, PlotPerclassDropdownAim
+from multiclass.train import setup_aimlogger
 
+from selfsupervised.datasets import IfcbDatamodule
+from selfsupervised.models import SimCLR, VICReg, PMSN, DINO
 
 def argparse_init(parser=None):
     if parser is None:

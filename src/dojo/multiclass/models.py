@@ -15,7 +15,7 @@ from torchvision.models import VisionTransformer, MaxVit, SwinTransformer
 import lightning as L
 import torchmetrics as tm
 
-from src.utils.focal_loss import FocalLoss
+from dojo.utils.focal_loss import FocalLoss
 
 INCEPTION_AUXLOSS_WEIGHT = 0.4
 GOOGLENET_AUXLOSS_WEIGHT = 0.3

@@ -18,18 +18,13 @@ from lightning.fabric.plugins.precision.precision import _PRECISION_INPUT_STR
 from aim.pytorch_lightning import AimLogger
 from aim.storage.artifacts.s3_storage import S3ArtifactStorage_clientconfig
 
-# if file is called directly, must set import paths to project root
-if __name__ == '__main__':
-    import sys, pathlib
-    PROJECT_ROOT = pathlib.Path(__file__).parent.parent.parent.absolute()
-    if sys.path[0] != str(PROJECT_ROOT): sys.path.insert(0, str(PROJECT_ROOT))
+from dojo.patches.model_summary_patch import ModelSummaryWithGradCallback
+from dojo.utils.onnx_checkpoint import OnnxCheckpoint
 
-from src.patches.model_summary_patch import ModelSummaryWithGradCallback
-from src.multiclass.callbacks import BarPlotMetricAim, PlotConfusionMetricAim, PlotPerclassDropdownAim, \
+from dojo.multiclass.callbacks import BarPlotMetricAim, PlotConfusionMetricAim, PlotPerclassDropdownAim, \
     LogNormalizedLoss
-from src.multiclass.datasets import ImageListsWithLabelIndex
-from src.multiclass.models import MulticlassClassifier, get_model_base_transforms, check_model_name
-from src.utils.onnx_checkpoint import OnnxCheckpoint
+from dojo.multiclass.datasets import ImageListsWithLabelIndex
+from dojo.multiclass.models import MulticlassClassifier, get_model_base_transforms, check_model_name
 
 
 def argparse_init(parser=None):

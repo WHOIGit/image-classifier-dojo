@@ -4,7 +4,7 @@ import torch
 from lightning.pytorch.callbacks.model_checkpoint import ModelCheckpoint
 from typing_extensions import override
 
-from src.multiclass.models import get_model_resize
+from dojo.multiclass.models import get_model_resize
 
 
 class OnnxCheckpoint(ModelCheckpoint):
