@@ -1,5 +1,5 @@
 [build-system]
-requires = ["hatchling>=1.25", "hatch-vcs>=0.4"]
+requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [project]
@@ -10,40 +10,38 @@ readme = "README.md"
 requires-python = ">=3.11"
 authors = [{ name = "Sidney Batchelder", email = "sbatchelder@whoi.edu" }]
 
-# --- Runtime deps ---
+# --- Base dependencies ---
 dependencies = [
-  # for schemas, MUST REMEMBER TO BUMP VERSION NUMBER WHEN UPDATING
-  "schemas @ git+https://github.com/WHOIGit/image_classifier_dojo.git@v0.2.0#subdirectory=packages/schemas",
-  "numpy~=1.26.4",
-  "torch~=2.7.1",
-  "torchvision~=0.22.1",
-  "pytorch-lightning~=2.4.0",
-  "torchmetrics[visual]~=1.6.0",
-  "plotly~=5.24.1",
+  "pydantic~=2.11",
   "humanize~=4.11.0",
   "coolname~=2.2.0",
   "tqdm~=4.67.0",
-  "aim~=3.27.0",
 ]
 
 # Optional dev and examples extras
 [project.optional-dependencies]
-dev = [
-  "pip-tools",
+train = [
+  "numpy~=2.2.0",
+  "torch~=2.9.0",
+  "torchvision~=0.24.0",
+  "lightning~=2.5.5",
+  "torchmetrics[visual]~=1.6.0",
+  "onnx~=1.17.0",
+  "plotly~=5.24.1",
+  "aim~=3.27.0",
+  "h5py~=3.10",
+  "dotenv~=0.9.9",
 ]
 ssl = [
   "lightly~=1.5.15",
-  "git+https://github.com/joefutrelle/pyifcb.git@v1.2.1",
+  "pyifcb @ git+https://github.com/joefutrelle/pyifcb.git@v1.2.1",
 ]
-homoensemble = [
-  "torchensembles~=0.2.0",
+homo = [
+  "torchensemble~=0.2.0",
 ]
-all = [
-  "pip-tools",
-  "lightly~=1.5.15",
-  "git+https://github.com/joefutrelle/pyifcb.git@v1.2.1",
-  "torchensembles~=0.2.0",
-]
+
+[tool.hatch.metadata]
+allow-direct-references = true
 
 [project.urls]
 Homepage = "https://github.com/WHOIGit/image_classifier_dojo"
@@ -51,20 +49,20 @@ Homepage = "https://github.com/WHOIGit/image_classifier_dojo"
 [tool.hatch.version]
 source = "vcs"
 
-# Build only our 'dojo' code path
+# Build only our 'src' code path
 [tool.hatch.build.targets.wheel]
-packages = ["src/image_classifier_dojo"]
+packages = ["src"]
 
 # Ensure Hydra example configs are included in the wheel
 # force-include maps on-disk paths to locations inside the wheel
 [tool.hatch.build.targets.wheel.force-include]
-"src/image_classifier_dojo/configs" = "image_classifier_dojo/configs"
+"configs" = "image_classifier_dojo/configs"
 
 # Keep sdist lean but include configs and scripts if you want them in source tarballs
 [tool.hatch.build.targets.sdist]
 include = [
   "pyproject.toml",
   "README.md",
-  "src/image_classifier_dojo/**",
+  "src/**",
 ]
 
