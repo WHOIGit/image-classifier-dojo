@@ -1,37 +1,43 @@
 import copy
+from typing import Sequence, Optional, Literal
 
 import torch
+import lightning.pytorch as pl
 from lightning.pytorch.callbacks.model_checkpoint import ModelCheckpoint
 from typing_extensions import override
 
 from dojo.multiclass.models import get_model_resize
+from dojo.schemas import OnnxCheckpointConfig, ModelCheckpointConfig
 
 
 class OnnxCheckpoint(ModelCheckpoint):
     FILE_EXTENSION = ".onnx"
 
-    def __init__(self, *args, batch_size:int=None, half:bool=False, device:str=None, export_args:dict=None, dynamo=False, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, dirpath, filename, monitor,
+                    half: bool,
+                    batch_size: Optional[int],
+                    device: Literal["cpu", "cuda"] = None,
+                    opset: Optional[int] = None,
+                    input_names: Sequence[str] = ('input',),
+                    output_names: Sequence[str] = ('output',),
+                 **kwargs):
+
+        super().__init__(dirpath, filename, monitor, **kwargs)
+
         self.batch_size = batch_size
         self.half = half
-        self.export_args = export_args if export_args else {}
-        if batch_size is None:
-            if dynamo or ('dynamo' in export_args and export_args['dynamo']):
-                if 'dynamic_shapes' not in export_args:
-                    export_args['dynamic_shapes'] = {'x': {0: 'batch_size'}}
-            else:
-                if 'dynamic_axes' not in self.export_args:
-                    self.export_args['dynamic_axes'] = {}
-                if 'input_names' not in self.export_args:
-                    self.export_args['input_names'] = ['input']
-                if 'output_names' not in self.export_args:
-                    self.export_args['output_names'] = ['output']
-                for input_name in self.export_args['input_names']:
-                    self.export_args['dynamic_axes'][input_name] = {0: 'batch_size'}
-                for output_name in self.export_args['output_names']:
-                    self.export_args['dynamic_axes'][output_name] = {0: 'batch_size'}
-
         self.device = device
+        self.export_args = dict(input_names = input_names,
+                                output_names = output_names)
+        if batch_size is None:
+            # if dynamo:
+            #     if 'dynamic_shapes' not in export_args:
+            #         export_args['dynamic_shapes'] = {'x': {0: 'batch_size'}}
+            self.export_args['dynamic_axes'] = {}
+            for input_name in self.export_args['input_names']:
+                self.export_args['dynamic_axes'][input_name] = {0: 'batch_size'}
+            for output_name in self.export_args['output_names']:
+                self.export_args['dynamic_axes'][output_name] = {0: 'batch_size'}
 
     @property
     @override
@@ -48,7 +54,7 @@ class OnnxCheckpoint(ModelCheckpoint):
             device = self.device
         )
 
-    def _save_checkpoint(self, trainer: "pl.Trainer", filepath: str) -> None:
+    def _save_checkpoint(self, trainer: pl.Trainer, filepath: str) -> None:
         model = copy.deepcopy(trainer.lightning_module.model)
         model.eval()
 

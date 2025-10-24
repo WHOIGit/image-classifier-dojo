@@ -15,6 +15,8 @@ from torchvision.models import VisionTransformer, MaxVit, SwinTransformer
 import lightning as L
 import torchmetrics as tm
 
+from dojo.schemas import ImageNormalizationConfig, ModelConfig, TrainingOptimizationConfig, \
+    CrossEntropyLossConfig, FocalLossConfig, AdamConfig, AdamWConfig, SGDConfig  # , BaseAugmentationConfig
 from dojo.utils.focal_loss import FocalLoss
 
 INCEPTION_AUXLOSS_WEIGHT = 0.4
@@ -42,9 +44,14 @@ def get_model_resize(model_name:str) -> int:
     return resize
 
 
-def get_model_base_transforms(model_name):
+def get_model_base_transforms(model_name: str, img_norm: ImageNormalizationConfig = None):
     resize = get_model_resize(model_name)
-    return [v2.Resize((resize,resize)), v2.ToImage(), v2.ToDtype(torch.float32, scale=True)]
+    transforms = [v2.Resize((resize,resize)),
+                  v2.ToImage(),
+                  v2.ToDtype(torch.float32, scale=True)]
+    if img_norm:
+        transforms.append(v2.Normalize(mean=img_norm.mean, std=img_norm.std))
+    return transforms
 
 
 def get_namebrand_model(model_name:str, num_classes:int, weights:Union[None,str]=None, freeze:Union[int,float]=None):
@@ -148,39 +155,36 @@ def freeze_model_features(model, freeze:Union[int,float]):
 
 class MulticlassClassifier(L.LightningModule):
     def __init__(self,
-                 model_name:str,
-                 num_classes:int,
-                 model_weights:str='DEFAULT',
-                 model_freeze:Union[int,float]=None,
-                 loss_function:str='CrossEntropyLoss',
-                 loss_kwargs:dict={},
-                 optimizer:str='Adam',
-                 optimizer_kwargs:dict={},
-                 model=None):
+                 model_config: ModelConfig,
+                 training_optim: TrainingOptimizationConfig):
         super().__init__()
         self.save_hyperparameters(ignore='model')
-
-        if loss_function == 'CrossEntropyLoss':
+        loss_kwargs = training_optim.loss_config.dict()
+        loss_kwargs.pop('loss_function')
+        if isinstance(training_optim.loss_config, CrossEntropyLossConfig):
             self.criterion = nn.CrossEntropyLoss(**loss_kwargs)
-        elif loss_function == 'FocalLoss':
+        elif isinstance(training_optim.loss_config, FocalLossConfig):
             self.criterion = FocalLoss(**loss_kwargs)
         else: raise NotImplemented
 
-        if optimizer == 'Adam':
+        self.optimizer_kwargs = training_optim.optimizer_config.dict()
+        self.optimizer_kwargs.pop('optimizer')
+        if isinstance(training_optim.optimizer_config, AdamConfig):
             self.Optimizer = torch.optim.Adam
-        elif optimizer == 'AdamW':
+        elif isinstance(training_optim.optimizer_config, AdamWConfig):
             self.Optimizer = torch.optim.AdamW
-        elif optimizer == 'SGD':
+        elif isinstance(training_optim.optimizer_config, SGDConfig):
             self.Optimizer = torch.optim.SGD
         else: raise NotImplemented
-        self.optimizer_kwargs = optimizer_kwargs
 
-        if model is not None:
-            self.model = model
-        elif isinstance(model_name, str):
-            self.model = get_namebrand_model(model_name, num_classes, model_weights, model_freeze)
-        else:
-            raise ValueError
+        # BUILD MODEL
+        model_builder_kwargs = dict(
+            model_name = model_config.backbone.model_name,
+            num_classes = model_config.head.num_classes,
+            weights = model_config.backbone.pretrained_weights,
+            freeze = training_optim.freeze,
+        )
+        self.model = get_namebrand_model(**model_builder_kwargs)
 
         # Instance Variables
         self.best_epoch = 0
@@ -200,7 +204,7 @@ class MulticlassClassifier(L.LightningModule):
 
     def setup_metrics(self):
         metrics = []
-        num_classes = self.hparams.num_classes
+        num_classes = self.hparams.model_config.head.num_classes
         for mode in ['weighted','macro',None]:
             mode_metrics = [tm.ConfusionMatrix(task='multiclass', num_classes=num_classes)]
             for stat,MetricClass in zip(['f1','precision','recall'],

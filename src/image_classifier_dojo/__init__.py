@@ -5,7 +5,7 @@ import sys
 import dojo as _dojo
 __all__ = getattr(_dojo, "__all__", [])
 
-SUBMODULES = ("multiclass", "utils", "patches")
+SUBMODULES = ("schemas", "multiclass", "utils", "patches")
 
 for submodule in SUBMODULES:
     m = importlib.import_module(f"dojo.{submodule}")
