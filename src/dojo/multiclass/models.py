@@ -15,7 +15,7 @@ from torchvision.models import VisionTransformer, MaxVit, SwinTransformer
 import lightning as L
 import torchmetrics as tm
 
-from dojo.schemas import ImageNormalizationConfig, ModelConfig, TrainingOptimizationConfig, \
+from dojo.schemas import ImageNormalizationConfig, ModelConfig, ModelTrainingOptimizationConfig, \
     CrossEntropyLossConfig, FocalLossConfig, AdamConfig, AdamWConfig, SGDConfig  # , BaseAugmentationConfig
 from dojo.utils.focal_loss import FocalLoss
 
@@ -156,24 +156,24 @@ def freeze_model_features(model, freeze:Union[int,float]):
 class MulticlassClassifier(L.LightningModule):
     def __init__(self,
                  model_config: ModelConfig,
-                 training_optim: TrainingOptimizationConfig):
+                 model_optims: ModelTrainingOptimizationConfig):
         super().__init__()
         self.save_hyperparameters(ignore='model')
-        loss_kwargs = training_optim.loss_config.dict()
+        loss_kwargs = model_optims.loss_config.dict()
         loss_kwargs.pop('loss_function')
-        if isinstance(training_optim.loss_config, CrossEntropyLossConfig):
+        if isinstance(model_optims.loss_config, CrossEntropyLossConfig):
             self.criterion = nn.CrossEntropyLoss(**loss_kwargs)
-        elif isinstance(training_optim.loss_config, FocalLossConfig):
+        elif isinstance(model_optims.loss_config, FocalLossConfig):
             self.criterion = FocalLoss(**loss_kwargs)
         else: raise NotImplemented
 
-        self.optimizer_kwargs = training_optim.optimizer_config.dict()
+        self.optimizer_kwargs = model_optims.optimizer_config.dict()
         self.optimizer_kwargs.pop('optimizer')
-        if isinstance(training_optim.optimizer_config, AdamConfig):
+        if isinstance(model_optims.optimizer_config, AdamConfig):
             self.Optimizer = torch.optim.Adam
-        elif isinstance(training_optim.optimizer_config, AdamWConfig):
+        elif isinstance(model_optims.optimizer_config, AdamWConfig):
             self.Optimizer = torch.optim.AdamW
-        elif isinstance(training_optim.optimizer_config, SGDConfig):
+        elif isinstance(model_optims.optimizer_config, SGDConfig):
             self.Optimizer = torch.optim.SGD
         else: raise NotImplemented
 
@@ -182,7 +182,7 @@ class MulticlassClassifier(L.LightningModule):
             model_name = model_config.backbone.model_name,
             num_classes = model_config.head.num_classes,
             weights = model_config.backbone.pretrained_weights,
-            freeze = training_optim.freeze,
+            freeze = model_optims.freeze,
         )
         self.model = get_namebrand_model(**model_builder_kwargs)
 

@@ -4,7 +4,7 @@ import random
 
 import coolname
 from pydantic import BaseModel, Field, field_validator, model_validator
-
+from pydantic_settings import CliImplicitFlag
 
 # Custom Hydra Yaml #
 class HydraYamlConfig(BaseModel):
@@ -104,7 +104,8 @@ class AimLoggerConfig(BaseModel):
         examples=[dict(subset = dict(train='train_', val='val_', test='test_'))])
     context_postfixes: Optional[Dict[str, Dict[str, str]]] = Field(None, description=
         "Sets a metric's context based on the logged metric's name's postfix",
-        examples=[])
+        examples=[dict( averaging={'macro': '_macro', 'weighted': '_weighted',
+                                   'micro': '_micro', 'none': '_perclass'})])
     # todo RUN HASH
     # todo plot / callback / metric
 
@@ -227,11 +228,11 @@ OptimConfig = Annotated[
     Field(discriminator="optimizer"),
 ]
 
-class TrainingOptimizationConfig(BaseModel):
+class ModelTrainingOptimizationConfig(BaseModel):
     loss_config: LossConfig = Field(default_factory=CrossEntropyLossConfig,
         description="Loss Function.")
 
-    optimizer_config: Union[OptimConfig, HydraYamlConfig] = Field(default_factory=AdamConfig,
+    optimizer_config: OptimConfig = Field(default_factory=AdamConfig,
         description="Optimizer configuration. Defaults to Adam with lr=0.001", )
     # todo learning rate scheduler config
 
@@ -282,15 +283,15 @@ _PRECISION_INPUT_STR = Literal[
     "64-true",
 ]
 class TrainingConfig(BaseModel):
-    epochs_config: EpochConfig = Field(default_factory=EpochConfig, description='Epoch configuration')
+    epochs: EpochConfig = Field(default_factory=EpochConfig, description='Epoch configuration')
     batch_size: int = Field(256, description="Number of images per batch. Defaults is 256")
 
-    training_optim: TrainingOptimizationConfig = Field(..., description='loss, optimizer, and freeze configs')
+    model_optims: ModelTrainingOptimizationConfig = Field(default_factory=ModelTrainingOptimizationConfig, description='loss, optimizer, and freeze configs')
 
     precision: _PRECISION_INPUT_STR = Field("16-mixed",
         description='dtype Precision')
 
-    swa_config: Optional[Union[SWACallbackConfig,SWAPolishConfig]] = Field(None,
+    swa: Optional[Union[SWACallbackConfig, SWAPolishConfig]] = Field(None,
         description="Stochastic Weight Averaging (SWA) configuration. If provided, enables SWA training or SWA best-epoch polishing.")
 
     # ensemble: Optional[str] = Field(None, description="Model Ensembling mode")
@@ -299,7 +300,7 @@ class TrainingConfig(BaseModel):
 
     @model_validator(mode='after')
     def validate_swa_and_early_stopping(self):
-        if isinstance(self.swa_config,SWACallbackConfig) and self.epochs_config.patience:
+        if isinstance(self.swa, SWACallbackConfig) and self.epochs.patience:
             raise ValueError("SWACallbackConfig swa_config cannot be used with Early Stopping from epoch_config.patience"
                              "Either renounce Early Stopping, or switch to SWAPolishConfig")
         return self
@@ -325,7 +326,7 @@ class ModelCheckpointConfig(BaseModel):
 class OnnxCheckpointConfig(BaseModel):
     half: Optional[bool] = Field(False, description="Export the model with half-precision (float16)")
     batch_size: Optional[int] = Field(None, description="Batch size to use for the export. If not set, 'dynamic' batch sizing is used")
-    device: Literal["cpu", "cuda"] = Field("cuda", description="Device to use for the export")
+    device: Literal["cuda", "cpu"] = Field("cuda", description="Device to use for the export")
     opset: Optional[int] = Field(None, description="Force ONNX opset version to export the model with.", examples=[20,22])
     input_names: Sequence[str] = Field(["input"], description="Names to assign to the input nodes of the graph.")
     output_names: Sequence[str] = Field(["output"], description="Names to assign to the output nodes of the graph.")
@@ -357,7 +358,7 @@ class RuntimeConfig(BaseModel):
         description="Set a specific seed for deterministic output")
     num_workers: int = Field(4, description="Number of data-loading threads. 4 per GPU is typical")
     autobatch: Optional[AutoBatchConfig] = Field(None, description="Auto-Tunes batch_size prior to training/inference.")
-    fast_dev_run: Optional[bool] = Field(False, description="Runs a single batch of train, val, and test to find any bugs. Default is False")
+    fast_dev_run: CliImplicitFlag[bool] = Field(False, description="Runs a single batch of train, val, and test to find any bugs. Default is False")
     # device: Union[Literal['cpu','cuda','CUDA_VISIBLE_DEVICES'], List[int]] = Field('cuda',
     #     description='Which GPU(s) to use, by ID. Default is "cuda" (equivalent to "CUDA_VISIBLE_DEVICES"). Use "cpu" for CPU only.')
     onnx_callback_configs: Optional[List[OnnxCheckpointConfig]] = Field([], description="If provided, exports the trained model to ONNX")
@@ -384,10 +385,11 @@ class RuntimeConfig(BaseModel):
 # COMPOSED TASK CONFIG (handy for end-to-end configs)
 # =========================
 class TrainingRunConfig(BaseModel):
-    logger_configs: Iterable[AimLoggerConfig]
+    logger: AimLoggerConfig
     dataset_config: DatasetRuntimeConfig
-    classifier_config: ModelConfig
-    training_config: TrainingConfig
-    runtime_config: RuntimeConfig
+    model: ModelConfig
+    training: TrainingConfig = Field(default_factory=TrainingConfig,
+        description='Training configuration')
+    runtime: RuntimeConfig
     # plotting callbacks
 

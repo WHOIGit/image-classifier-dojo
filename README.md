@@ -1,7 +1,7 @@
 # image-classifier-dojo
 Great for training computer vision classifier models!
 
-## installation
+## Installation
 
 ### Development
 ```bash
@@ -23,5 +23,15 @@ pip install 'image_classifier_dojo[train] @ git+https://github.com/WHOIGit/image
 ```bash
 pip install 'image_classifier_dojo @ git+https://github.com/WHOIGit/image_classifier_dojo.git@<tag>'
 ```
+
+## Docker Commands
+```bash
+REPO=harbor-registry.whoi.edu/amplify
+IMAGE=image_classifier_dojo
+TAG=latest
+docker build . -t $REPO/$IMAGE:$TAG
+docker push $REPO/$IMAGE:$TAG
+```
+
 
 

@@ -46,7 +46,7 @@ def setup_model_and_datamodule(cfg: TrainingRunConfig):
     training_transforms = parse_training_transforms(cfg.dataset_config.training_transforms)
 
     # Model and Datamodule
-    model_name = cfg.classifier_config.backbone.model_name = check_model_name(cfg.classifier_config.backbone.model_name)
+    model_name = cfg.model.backbone.model_name = check_model_name(cfg.model.backbone.model_name)
 
     model_base_transforms = get_model_base_transforms(model_name, cfg.dataset_config.img_norm)
     dataset = cfg.dataset_config.dataset
@@ -56,11 +56,11 @@ def setup_model_and_datamodule(cfg: TrainingRunConfig):
         dataset.classlist,
         base_transforms=model_base_transforms,
         training_transforms=training_transforms,
-        batch_size=cfg.training_config.batch_size,
-        num_workers=cfg.runtime_config.num_workers)
-    cfg.classifier_config.head.num_classes = len(datamodule.classes)
+        batch_size=cfg.training.batch_size,
+        num_workers=cfg.runtime.num_workers)
+    cfg.model.head.num_classes = len(datamodule.classes)
 
-    if isinstance(lc:=cfg.training_config.training_optim.loss_config, CrossEntropyLossConfig):
+    if isinstance(lc:=cfg.training.model_optims.loss_config, CrossEntropyLossConfig):
         if lc.weight == 'normalize':
             datamodule.setup('fit')
             class_counts = torch.bincount(torch.IntTensor(datamodule.training_dataset.targets + datamodule.validation_dataset.targets))
@@ -71,7 +71,7 @@ def setup_model_and_datamodule(cfg: TrainingRunConfig):
         #         loss_weights_tensor = torch.Tensor([float(line) for line in f.read().splitlines()])
 
     lightning_module = MulticlassClassifier(
-        cfg.classifier_config, cfg.training_config.training_optim
+        cfg.model, cfg.training.model_optims
     )
     return lightning_module, datamodule
 
@@ -107,20 +107,16 @@ def main(cfg: TrainingRunConfig):
     # if torch.cuda.is_available():
     #     print(torch.cuda.get_device_name(0))
     #     print("capability:", torch.cuda.get_device_capability(0))
-
-    torch.set_float32_matmul_precision('medium')
-    pl.seed_everything(cfg.runtime_config.seed)
+    pl.seed_everything(cfg.runtime.seed)
 
     ## Setup Model & Data Module ##
     model, datamodule = setup_model_and_datamodule(cfg)
 
-    ## Setup Epoch Logger(s) ##
-    loggers = []
-    for logger_cfg in cfg.logger_configs:
-        if isinstance(logger_cfg, AimLoggerConfig):
-            logger = setup_aimlogger(logger_cfg)
-        loggers.append(logger)
-    assert loggers is not None, 'Must have at least one logger defined'
+    ## Setup Epoch Logger ##
+    if isinstance(cfg.logger, AimLoggerConfig):
+        logger = setup_aimlogger(cfg.logger)
+    else:
+        raise ValueError("Unsupported logger configuration")
 
     ## Setup Callbacks ##
     callbacks=[]
@@ -152,57 +148,57 @@ def main(cfg: TrainingRunConfig):
     ]
     callbacks.extend(plotting_callbacks)
 
-    if patience:=cfg.training_config.epochs_config.patience:  # Early Stopping
+    if patience:=cfg.training.epochs.patience:  # Early Stopping
         callbacks.append( EarlyStopping('val_loss', mode='min', patience=patience))
 
-    if cfg.training_config.training_optim.freeze:  # custom show-grad model summary callback, overwrites default
+    if cfg.training.model_optims.freeze:  # custom show-grad model summary callback, overwrites default
         callbacks.append( ModelSummaryWithGradCallback(max_depth=2) )
 
     # Checkpointing
     # https://lightning.ai/docs/pytorch/stable/api/lightning.pytorch.callbacks.ModelCheckpoint.html
     # https://lightning.ai/docs/pytorch/stable/common/checkpointing_advanced.html
     #hashid = logger.experiment.hash if isinstance(logger,AimLogger) else logger[0].experiment.hash
-    ckpt_kwargs = cfg.runtime_config.checkpoint_callback_config.model_dump()
+    ckpt_kwargs = cfg.runtime.checkpoint_callback_config.model_dump()
     ckpt_callback = ModelCheckpoint(**ckpt_kwargs)
     callbacks.append(ckpt_callback)
 
     # ONNX checkpointing
-    if cfg.runtime_config.onnx_callback_configs:
+    if cfg.runtime.onnx_callback_configs:
         ckpt_kwargs_onnx = ckpt_kwargs.copy()
         ckpt_kwargs_onnx['save_top_k'] = 1
         ckpt_kwargs_onnx['save_last'] = None
-        for onnx_callback_config in cfg.runtime_config.onnx_callback_configs:
+        for onnx_callback_config in cfg.runtime.onnx_callback_configs:
             ckpt_kwargs_onnx.update(onnx_callback_config.model_dump())
             onnx_callback = OnnxCheckpoint(**ckpt_kwargs_onnx)
             callbacks.append(onnx_callback)
 
 
-    if isinstance(cfg.training_config.swa_config,SWACallbackConfig):
-        swa_callback_kwargs = cfg.training_params.swa_config.model_dump()
+    if isinstance(cfg.training.swa, SWACallbackConfig):
+        swa_callback_kwargs = cfg.training_params.swa.model_dump()
         callbacks.append(StochasticWeightAveraging(**swa_callback_kwargs))
 
     ## Setup Trainer  ##
-    epochs_cfg = cfg.training_config.epochs_config
+    epochs_cfg = cfg.training.epochs
     trainer = pl.Trainer(num_sanity_val_steps = 0,
                          deterministic = True,
                          accelerator = 'auto', devices = 'auto', num_nodes = 1,
                          max_epochs = epochs_cfg.max_epochs,
                          min_epochs = epochs_cfg.min_epochs,
-                         precision = cfg.training_config.precision,
+                         precision = cfg.training.precision,
                          logger = logger,
                          log_every_n_steps=-1,
                          callbacks = callbacks,
-                         fast_dev_run = cfg.runtime_config.fast_dev_run,
+                         fast_dev_run = cfg.runtime.fast_dev_run,
                          default_root_dir = '/tmp/classifier',
-                        )
+                         )
 
     # auto-tune batch-size
-    if cfg.runtime_config.autobatch:
-        autobatch = cfg.runtime_config.autobatch
+    if cfg.runtime.autobatch:
+        autobatch = cfg.runtime.autobatch
         tuner = Tuner(trainer)
         found_batch_size = tuner.scale_batch_size(model, datamodule=datamodule,
-            mode=autobatch.mode, method='fit', max_trials=10, init_val=cfg.training_config.batch_size)
-        batch_size_init, batch_size = cfg.training_config.batch_size, min([found_batch_size, autobatch.max_size or float('inf')])
+                                                  mode=autobatch.mode, method='fit', max_trials=10, init_val=cfg.training.batch_size)
+        batch_size_init, batch_size = cfg.training.batch_size, min([found_batch_size, autobatch.max_size or float('inf')])
         model.save_hyperparameters()  # TODO Confirm this works?
 
     # save training artifacts
@@ -236,80 +232,13 @@ def main(cfg: TrainingRunConfig):
 
     # TODO DO SWA Polish
     # see https://chatgpt.com/c/68f138d0-7fec-8327-8124-f30c9abbc297
-    if isinstance(cfg.training_config.swa_config,SWAPolishConfig):
-        ...
+    if isinstance(cfg.training.swa, SWAPolishConfig):
+        raise NotImplementedError("SWAPolish is not yet implemented")
 
     print('DONE!')
 
 
 if __name__ == '__main__':
-    # do hydra stuff
-    from hydra_zen import make_config, builds, zen, instantiate, just, store, launch
-    from hydra_zen.third_party.pydantic import pydantic_parser
-
-    CfgNode = builds(
-        TrainingRunConfig,
-        logger_configs = [builds(AimLoggerConfig,
-            repo = '.aim',
-            artifacts_location = '.aim/artifacts',
-            context_postfixes = dict(
-                averaging={'macro': '_macro', 'weighted': '_weighted',
-                           'micro': '_micro', 'none': '_perclass'})  # lossfunction loss_rebalanced option?,
-            )],
-        dataset_config = builds(DatasetRuntimeConfig,
-            dataset = builds(ListfileDatasetConfig,
-                # classlist = ...,
-                # trainlist = ...,
-                # vallist = ...
-                             ),
-            training_transforms = builds(TrainingAugmentationConfig,
-                flip='xy')),
-        classifier_config = builds(ModelConfig,
-            backbone = builds(ModelBackboneConfig,
-                model_name = "efficientnet_b0",
-                pretrained_weights = "DEFAULT"),
-            head = builds(MulticlassHeadConfig),
-            weights = None),
-        training_config = builds(TrainingConfig,
-            epochs_config = builds(EpochConfig), # max_epochs, min_epochs, patience
-            batch_size = 256,
-            training_optim = builds(TrainingOptimizationConfig,
-                loss_config = builds(CrossEntropyLossConfig,
-                    label_smoothing = 0.1),
-                optimizer_config = builds(AdamConfig),
-                freeze = None)),
-        runtime_config=builds(RuntimeConfig,
-            onnx_callback_configs = [builds(OnnxCheckpointConfig, monitor='val_loss')]
-            ),
-        populate_full_signature=True,  # exposes all fields for CLI overrides
-    )
-
-    AppConfig = make_config(cfg=CfgNode)
-    store(AppConfig, name="main")
-    store.add_to_hydra_store()
-
-    zen(main, instantiation_wrapper=pydantic_parser).hydra_main(
-        config_name="main",
-        config_path=None,
-        version_base=None,
-    )
-
-    # usage
-    # python src/dojo/multiclass/train.py +cfg.dataset_config.dataset.classlist=datasets/miniset_labels.list +cfg.dataset_config.dataset.trainlist=datasets/miniset_training.list +cfg.dataset_config.dataset.vallist=datasets/miniset_validation.list +cfg.runtime_config.fast_dev_run=True
-
-    # # uncomment for debug or cli run
-    # overrides = ['+cfg.dataset_config.dataset.classlist=datasets/miniset_labels.list',
-    #              '+cfg.dataset_config.dataset.trainlist=datasets/miniset_training.list',
-    #              '+cfg.dataset_config.dataset.vallist=datasets/miniset_validation.list']
-    #
-    # os.chdir('/home/sbatchelder/Projects/ifcbNN')
-    #
-    # job = launch(
-    #     AppConfig,
-    #     zen(main, instantiation_wrapper=pydantic_parser),
-    #     overrides=overrides,  # <- programmatic overrides go here
-    #     version_base=None,
-    # )
-    # print(job)
+    ...
 
 
