@@ -33,11 +33,22 @@ docker build . -t $REPO/$IMAGE:$TAG
 docker push $REPO/$IMAGE:$TAG
 ```
 
+### Usage
 ```bash
 docker run -it --rm --gpus all --shm-size 8G $REPO/$IMAGE:$TAG TRAIN MULTICLASS --help
 # -->
 docker run -it --rm --gpus all --shm-size 8G $REPO/$IMAGE:$TAG TRAIN MULTICLASS --logger '{...}' --dataset_config '{...}' --model '{...}' --training '{...}' --runtime '{...}'
 ```
 
+## Usage
+```bash
+python -m image_classifier_dojo TRAIN MULTICLASS --help
+# or
+python -m dojo TRAIN MULTICLASS --help
+```
+For schemas:
+```python
+from image_classifier_dojo.schemas import TrainingRunConfig
 
+```
 
