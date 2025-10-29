@@ -33,5 +33,11 @@ docker build . -t $REPO/$IMAGE:$TAG
 docker push $REPO/$IMAGE:$TAG
 ```
 
+```bash
+docker run -it --rm --gpus all --shm-size 8G $REPO/$IMAGE:$TAG TRAIN MULTICLASS --help
+# -->
+docker run -it --rm --gpus all --shm-size 8G $REPO/$IMAGE:$TAG TRAIN MULTICLASS --logger '{...}' --dataset_config '{...}' --model '{...}' --training '{...}' --runtime '{...}'
+```
+
 
 
