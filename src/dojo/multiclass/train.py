@@ -100,7 +100,7 @@ def setup_aimlogger(cfg: AimLoggerConfig):
 
 
 def main(cfg: TrainingRunConfig):
-
+    torch.set_float32_matmul_precision('medium')
     # print(torch.__version__, torch.version.cuda)
     # print("is_available:", torch.cuda.is_available(), "count:", torch.cuda.device_count())
     # print("CUDA_VISIBLE_DEVICES:", os.environ.get("CUDA_VISIBLE_DEVICES"))

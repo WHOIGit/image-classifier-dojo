@@ -109,11 +109,6 @@ def get_namebrand_model(model_name:str, num_classes:int, weights:Union[None,str]
 
 
 def freeze_model_features(model, freeze:Union[int,float]):
-    """
-    :param model:
-    :param freeze:
-    :return:
-    """
     features_models = (AlexNet, VGG, ConvNeXt, EfficientNet, MobileNetV2, MobileNetV3, SqueezeNet, DenseNet)
     fc_models = (Inception3, ResNet, GoogLeNet, RegNet, ShuffleNetV2)
     def freeze_float2int(freeze, feature_count):
@@ -160,7 +155,6 @@ class MulticlassClassifier(L.LightningModule):
         super().__init__()
         self.save_hyperparameters(ignore='model')
         loss_kwargs = model_optims.loss_config.dict()
-        loss_kwargs.pop('loss_function')
         if isinstance(model_optims.loss_config, CrossEntropyLossConfig):
             self.criterion = nn.CrossEntropyLoss(**loss_kwargs)
         elif isinstance(model_optims.loss_config, FocalLossConfig):
@@ -168,7 +162,6 @@ class MulticlassClassifier(L.LightningModule):
         else: raise NotImplemented
 
         self.optimizer_kwargs = model_optims.optimizer_config.dict()
-        self.optimizer_kwargs.pop('optimizer')
         if isinstance(model_optims.optimizer_config, AdamConfig):
             self.Optimizer = torch.optim.Adam
         elif isinstance(model_optims.optimizer_config, AdamWConfig):

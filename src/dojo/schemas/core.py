@@ -6,12 +6,6 @@ import coolname
 from pydantic import BaseModel, Field, field_validator, model_validator
 from pydantic_settings import CliImplicitFlag
 
-# Custom Hydra Yaml #
-class HydraYamlConfig(BaseModel):
-    content: str = Field(..., description="Raw YAML content as a string")
-    filename: Optional[str] = Field(None, description="Optional filename for the saved YAML content")
-    save_path: Optional[str] = Field(None, description="Optional path to save the YAML content")
-
 
 # =========================
 # TRAINING AUGMENTATION
@@ -31,11 +25,6 @@ class ImageNormalizationConfig(BaseModel):
             return val,val,val
         return val
 
-# class BaseTransformConfig(BaseModel):
-#     resize: Optional[int] = Field(None,
-#         description="Resize images to (size,size). If left blank, gets auto-calculated.")
-#     normalize: Optional[NormalizeConfig] = Field(None,
-#         description="If True, normalizes images to ImageNet standards")
 
 class TrainingAugmentationConfig(BaseModel):
     # Accepts 'x', 'y', 'xy'
@@ -125,38 +114,33 @@ class ModelBackboneConfig(BaseModel):
     # model is required
     model_name: str = Field(..., description="Model Class/Module Name")
 
-    pretrained_weights: Optional[str] = Field(None, examples=["DEFAULT"],
+    pretrained_weights: Union[Literal['DEFAULT',None],str] = Field(None, examples=["DEFAULT"],
         description='''Specify a model's downloadable pretrained weights. 
 Either "DEFAULT", some specific identifier, or "None" for no-pretrained-weights''')
 
 class ModelHeadConfig(BaseModel):
-    head_type: str = Field(..., description='The type of model output. May be "multiclass", "regression", "embedding"')
     name: Optional[str] = Field('head', description='An optional name for this head, if multiple heads are used')
 
 class MulticlassHeadConfig(ModelHeadConfig):
-    head_type: Literal['multiclass'] = 'multiclass'
     num_classes: Optional[int] = Field(None, description='The number of classes to predict')
 
 class EmbeddingsHeadConfig(ModelHeadConfig):
-    head_type: Literal['embeddings'] = 'embeddings'
     embedding_size: list[int] = Field(..., description='The size of the output embedding vector')
 
 class RegressionHeadConfig(ModelHeadConfig):
-    head_type: Literal['regression'] = 'regression'
     range_min: Optional[float] = Field(None, description='The minimum possible value of the output')
     range_max: Optional[float] = Field(None, description='The maximum possible value of the output')
 
-ModelHeadConfigType = Annotated[Union[MulticlassHeadConfig, EmbeddingsHeadConfig, RegressionHeadConfig],
-                                Field(discriminator='head_type')]
+ModelHeadConfigTypes = Union[MulticlassHeadConfig, EmbeddingsHeadConfig, RegressionHeadConfig]
 
 class ModelConfig(BaseModel):
     backbone: ModelBackboneConfig = Field(..., description='The model backbone configuration')
-    head: ModelHeadConfigType = Field(..., description='The model head (output) configuration')
+    head: ModelHeadConfigTypes = Field(..., description='The model head (output) configuration')
     weights: Optional[str] = Field(None, description='Path to model weights/checkpoint to load')
 
 class MultiheadModelConfig(BaseModel):
     backbone: ModelBackboneConfig = Field(..., description='The model backbone configuration')
-    heads: List[ModelHeadConfigType] = Field(..., description='A list of model heads (outputs). At least one head is required.')
+    heads: List[ModelHeadConfigTypes] = Field(..., description='A list of model heads (outputs). At least one head is required.')
 
 # =========================
 # TRAINING CONFIG
@@ -164,18 +148,13 @@ class MultiheadModelConfig(BaseModel):
 
 ## Loss Functions ##
 
-class LossFunctionConfig(BaseModel):
-    loss_function: str = Field(..., description='The Loss Function')
-
-class MulticlassLossFunctionConfig(LossFunctionConfig):
-    loss_function: Literal['CrossEntropyLoss', 'FocalLoss']
+class MulticlassLossFunctionConfig(BaseModel):
     # ignore_index: Optional[int] = Field(-100,
     #     description='Specifies a target value that is ignored and does not contribute to the loss / input gradient')
     reduction: Literal['sum','mean','none'] = Field('sum',
         description='How loss for each input gets aggregated.')
 
 class CrossEntropyLossConfig(MulticlassLossFunctionConfig):
-    loss_function: Literal['CrossEntropyLoss'] = 'CrossEntropyLoss'
     label_smoothing: float = Field(0.0, examples=[0.1, 0.2],
         description='Label Smoothing Regularization arg. Range is 0-1. Default is 0')
     weight: Optional[Union[Literal['normalize'], list[float]]] = Field(None,
@@ -183,24 +162,21 @@ class CrossEntropyLossConfig(MulticlassLossFunctionConfig):
                     'Otherwise accepts a list of per-class weights. Length must match number of classes')
 
 class FocalLossConfig(MulticlassLossFunctionConfig):
-    loss_function: Literal['FocalLoss'] = 'FocalLoss'
     gamma: float = Field(1.0, examples=[1.0,2.0,5.0],
         description='Rate at which easy examples are down-weighted')
     alpha: Optional[list[float]] = Field(None,
         description='A list of per-class weights. Length must match number of classes')
 
-LossConfig = Annotated[Union[CrossEntropyLossConfig, FocalLossConfig], Field(discriminator='loss_function')]
+LossConfigs = Union[CrossEntropyLossConfig, FocalLossConfig]
 
 ## Optimizers ##
 
 class OptimizerConfig(BaseModel):
     # Discriminator field used to pick the concrete config
-    optimizer: str = Field(..., description='Optimizer. Eg: "AdamW". Default is "Adam"')
     lr: float = Field(0.001, description="Initial Learning Rate. Default is 0.001")
 
 
 class AdamConfig(OptimizerConfig):
-    optimizer: Literal["Adam"] = "Adam"
     amsgrad: bool = Field(False, description="Use the AMSGrad variant of Adam")
     #betas: tuple[float, float] = Field((0.9, 0.999), description="Adam beta coefficients (beta1, beta2)")
     #eps: float = Field(1e-8, description="Term added to the denominator for numerical stability")
@@ -213,34 +189,31 @@ class AdamConfig(OptimizerConfig):
     # decoupled_weight_decay: bool = False,
 
 class AdamWConfig(OptimizerConfig):
-    optimizer: Literal["AdamW"] = "AdamW"
     amsgrad: bool = Field(False, description="Use the AMSGrad variant of AdamW")
+    weight_decay: float = Field(0.01, description="L2 penalty (weight decay)")
 
 class SGDConfig(OptimizerConfig):
-    optimizer: Literal["SGD"] = "SGD"
     momentum: float = Field(0.0, description="SGD momentum factor")
     dampening: float = Field(0.0, description="SGD dampening for momentum")
     weight_decay: float = Field(0.0, description="L2 penalty (weight decay)")
     nesterov: bool = Field(False, description="Enable Nesterov momentum")
 
-OptimConfig = Annotated[
-    Union[AdamConfig, AdamWConfig, SGDConfig],
-    Field(discriminator="optimizer"),
-]
+OptimConfig = Union[AdamConfig, AdamWConfig, SGDConfig]
 
 class ModelTrainingOptimizationConfig(BaseModel):
-    loss_config: LossConfig = Field(default_factory=CrossEntropyLossConfig,
-        description="Loss Function.")
+    loss_config: LossConfigs = Field(..., description="Loss Function.")
 
-    optimizer_config: OptimConfig = Field(default_factory=AdamConfig,
-        description="Optimizer configuration. Defaults to Adam with lr=0.001", )
+    optimizer_config: OptimConfig = Field(...,
+        description="Optimizer configuration. Defaults to Adam with lr=0.001")
     # todo learning rate scheduler config
 
-    freeze: Optional[Union[int,float]] = Field(None,
+    freeze: Union[None,int,float] = Field(None,
         description=
             "Freezes a models leading feature layers. "
-            "Positive int freezes the first N layers/features/blocks. A negative int like '-1' freezes all but the last N feature/layer/block. "
-            "A positive float like '0.8' freezes the leading 80% of features/layers/blocks. fc or final_classifier layers are never frozen."
+            "Positive int freezes the first N layers/features/blocks. "
+            "A negative int like '-1' freezes all but the last N feature/layer/block. "
+            "A positive float like '0.8' freezes the leading 80% of features/layers/blocks. "
+            "fc or final_classifier layers are never frozen."
         ) # todo everything prior-to a NAMED layer
 
 ## SWA ##
@@ -324,17 +297,17 @@ class ModelCheckpointConfig(BaseModel):
     auto_insert_metric_name: bool = False
 
 class OnnxCheckpointConfig(BaseModel):
-    half: Optional[bool] = Field(False, description="Export the model with half-precision (float16)")
+    filename: str = Field("{CHECKPOINT}{HALF}{BATCH}{DEVICE}",
+                          description='Recognizes same formatting rules as ModelCheckpoint.filename, plus {CHECKPOINT} {HALF} {BATCH} {DEVICE}.'
+                                      "CHECKPOINT inherits from run's ModelCheckpointConfig.filename")
+    monitor: Optional[str] = Field(None, description='If None, will use ModelCheckpointConfig.monitor')
+    half: bool = Field(False, description="Export the model with half-precision (float16)")
     batch_size: Optional[int] = Field(None, description="Batch size to use for the export. If not set, 'dynamic' batch sizing is used")
     device: Literal["cuda", "cpu"] = Field("cuda", description="Device to use for the export")
     opset: Optional[int] = Field(None, description="Force ONNX opset version to export the model with.", examples=[20,22])
     input_names: Sequence[str] = Field(["input"], description="Names to assign to the input nodes of the graph.")
     output_names: Sequence[str] = Field(["output"], description="Names to assign to the output nodes of the graph.")
     dirpath: Optional[str] = Field(None, description='If None, will use ModelCheckpointConfig.dirpath')
-    filename: str = Field("{CHECKPOINT}{HALF}{BATCH}{DEVICE}",
-        description='Recognizes same formatting rules as ModelCheckpoint.filename, plus {CHECKPOINT} {HALF} {BATCH} {DEVICE}.'
-                    "CHECKPOINT inherits from run's ModelCheckpointConfig.filename")
-    monitor: Optional[str] = Field(None, description='If None, will use ModelCheckpointConfig.monitor')
 
     @model_validator(mode='after')
     def format_filename(self):
