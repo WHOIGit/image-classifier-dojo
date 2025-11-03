@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "image_classifier_dojo"
-version = "0.2.1"
+version = "0.2.2"
 description = "Image-Classifier-Dojo model training package"
 readme = "README.md"
 requires-python = ">=3.11"

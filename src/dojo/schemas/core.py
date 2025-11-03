@@ -118,29 +118,28 @@ class ModelBackboneConfig(BaseModel):
         description='''Specify a model's downloadable pretrained weights. 
 Either "DEFAULT", some specific identifier, or "None" for no-pretrained-weights''')
 
-class ModelHeadConfig(BaseModel):
+
+class MulticlassHeadConfig(BaseModel):
     name: Optional[str] = Field('head', description='An optional name for this head, if multiple heads are used')
+    num_classes: Union[None,int] = Field(None, description='The number of classes to predict')
 
-class MulticlassHeadConfig(ModelHeadConfig):
-    num_classes: Optional[int] = Field(None, description='The number of classes to predict')
-
-class EmbeddingsHeadConfig(ModelHeadConfig):
+class EmbeddingsHeadConfig(BaseModel):
+    name: Optional[str] = Field('head', description='An optional name for this head, if multiple heads are used')
     embedding_size: list[int] = Field(..., description='The size of the output embedding vector')
 
-class RegressionHeadConfig(ModelHeadConfig):
-    range_min: Optional[float] = Field(None, description='The minimum possible value of the output')
-    range_max: Optional[float] = Field(None, description='The maximum possible value of the output')
-
-ModelHeadConfigTypes = Union[MulticlassHeadConfig, EmbeddingsHeadConfig, RegressionHeadConfig]
+class RegressionHeadConfig(BaseModel):
+    name: Optional[str] = Field('head', description='An optional name for this head, if multiple heads are used')
+    range_min: float = Field(0.0, description='The minimum possible value of the output')
+    range_max: float = Field(1.0, description='The maximum possible value of the output')
 
 class ModelConfig(BaseModel):
     backbone: ModelBackboneConfig = Field(..., description='The model backbone configuration')
-    head: ModelHeadConfigTypes = Field(..., description='The model head (output) configuration')
+    head: Union[MulticlassHeadConfig, RegressionHeadConfig] = Field(..., description='The model head (output) configuration')
     weights: Optional[str] = Field(None, description='Path to model weights/checkpoint to load')
 
 class MultiheadModelConfig(BaseModel):
     backbone: ModelBackboneConfig = Field(..., description='The model backbone configuration')
-    heads: List[ModelHeadConfigTypes] = Field(..., description='A list of model heads (outputs). At least one head is required.')
+    heads: List[Union[MulticlassHeadConfig, RegressionHeadConfig]] = Field(..., description='A list of model heads (outputs). At least one head is required.')
 
 # =========================
 # TRAINING CONFIG
@@ -167,16 +166,10 @@ class FocalLossConfig(MulticlassLossFunctionConfig):
     alpha: Optional[list[float]] = Field(None,
         description='A list of per-class weights. Length must match number of classes')
 
-LossConfigs = Union[CrossEntropyLossConfig, FocalLossConfig]
-
 ## Optimizers ##
 
-class OptimizerConfig(BaseModel):
-    # Discriminator field used to pick the concrete config
+class AdamConfig(BaseModel):
     lr: float = Field(0.001, description="Initial Learning Rate. Default is 0.001")
-
-
-class AdamConfig(OptimizerConfig):
     amsgrad: bool = Field(False, description="Use the AMSGrad variant of Adam")
     #betas: tuple[float, float] = Field((0.9, 0.999), description="Adam beta coefficients (beta1, beta2)")
     #eps: float = Field(1e-8, description="Term added to the denominator for numerical stability")
@@ -188,22 +181,22 @@ class AdamConfig(OptimizerConfig):
     # fused: Optional[bool] = None,
     # decoupled_weight_decay: bool = False,
 
-class AdamWConfig(OptimizerConfig):
+class AdamWConfig(BaseModel):
+    lr: float = Field(0.001, description="Initial Learning Rate. Default is 0.001")
     amsgrad: bool = Field(False, description="Use the AMSGrad variant of AdamW")
     weight_decay: float = Field(0.01, description="L2 penalty (weight decay)")
 
-class SGDConfig(OptimizerConfig):
+class SGDConfig(BaseModel):
+    lr: float = Field(0.001, description="Initial Learning Rate. Default is 0.001")
     momentum: float = Field(0.0, description="SGD momentum factor")
     dampening: float = Field(0.0, description="SGD dampening for momentum")
     weight_decay: float = Field(0.0, description="L2 penalty (weight decay)")
     nesterov: bool = Field(False, description="Enable Nesterov momentum")
 
-OptimConfig = Union[AdamConfig, AdamWConfig, SGDConfig]
-
 class ModelTrainingOptimizationConfig(BaseModel):
-    loss_config: LossConfigs = Field(..., description="Loss Function.")
+    loss_config: Union[CrossEntropyLossConfig, FocalLossConfig] = Field(..., description="Loss Function.")
 
-    optimizer_config: OptimConfig = Field(...,
+    optimizer_config: Union[AdamConfig, AdamWConfig, SGDConfig] = Field(...,
         description="Optimizer configuration. Defaults to Adam with lr=0.001")
     # todo learning rate scheduler config
 
@@ -264,7 +257,7 @@ class TrainingConfig(BaseModel):
     precision: _PRECISION_INPUT_STR = Field("16-mixed",
         description='dtype Precision')
 
-    swa: Optional[Union[SWACallbackConfig, SWAPolishConfig]] = Field(None,
+    swa: Union[None,SWACallbackConfig, SWAPolishConfig] = Field(None,
         description="Stochastic Weight Averaging (SWA) configuration. If provided, enables SWA training or SWA best-epoch polishing.")
 
     # ensemble: Optional[str] = Field(None, description="Model Ensembling mode")
