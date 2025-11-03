@@ -28,9 +28,9 @@ pip install 'image_classifier_dojo @ git+https://github.com/WHOIGit/image_classi
 ```bash
 REPO=harbor-registry.whoi.edu/amplify
 IMAGE=image_classifier_dojo
-TAG=latest
-docker build . -t $REPO/$IMAGE:$TAG
-docker push $REPO/$IMAGE:$TAG
+TAG=v0.M.n
+docker build . -t $REPO/$IMAGE:latest -t $REPO/$IMAGE:$TAG
+docker push $REPO/$IMAGE --all-tags
 ```
 
 ### Usage

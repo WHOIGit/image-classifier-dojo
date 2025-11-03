@@ -269,8 +269,6 @@ class TrainingConfig(BaseModel):
 
     # ensemble: Optional[str] = Field(None, description="Model Ensembling mode")
 
-
-
     @model_validator(mode='after')
     def validate_swa_and_early_stopping(self):
         if isinstance(self.swa, SWACallbackConfig) and self.epochs.patience:
@@ -361,8 +359,7 @@ class TrainingRunConfig(BaseModel):
     logger: AimLoggerConfig
     dataset_config: DatasetRuntimeConfig
     model: ModelConfig
-    training: TrainingConfig = Field(default_factory=TrainingConfig,
-        description='Training configuration')
+    training: TrainingConfig
     runtime: RuntimeConfig
     # plotting callbacks
 
