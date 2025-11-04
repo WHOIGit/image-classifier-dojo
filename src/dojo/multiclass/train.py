@@ -92,7 +92,10 @@ def setup_aimlogger(cfg: AimLoggerConfig):
     )
 
     if cfg.artifacts_location:
-        logger.experiment.set_artifacts_uri(cfg.artifacts_location)
+        if isinstance(cfg.artifacts_location, S3Config):
+            logger.experiment.set_artifacts_uri(cfg.artifacts_location.uri)
+        else:
+            logger.experiment.set_artifacts_uri(cfg.artifacts_location)
     if cfg.note:
         logger.experiment.props.description = cfg.note
 
