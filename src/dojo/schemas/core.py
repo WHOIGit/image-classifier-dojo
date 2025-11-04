@@ -114,7 +114,7 @@ class ModelBackboneConfig(BaseModel):
     # model is required
     model_name: str = Field(..., description="Model Class/Module Name")
 
-    pretrained_weights: Union[Literal['DEFAULT',None],str] = Field(None, examples=["DEFAULT"],
+    pretrained_weights: Union[Literal['DEFAULT'],str,None] = Field(None, examples=["DEFAULT"],
         description='''Specify a model's downloadable pretrained weights. 
 Either "DEFAULT", some specific identifier, or "None" for no-pretrained-weights''')
 
