@@ -10,13 +10,15 @@ This design is intended for a major breaking refactor of `WHOIGit/image-classifi
 
 The refactor prioritizes:
 
-- a clean supervised + self-supervised training architecture
-- strong Pydantic config validation
+- supervised image modeling with one or more heads
+- self-supervised learning using Lightly, initially focused on DINOv2-style workflows
+- strong Pydantic schemas as the source of truth
 - Hydra-based config composition and CLI overrides
-- single-head and multi-head supervised learning
-- Lightly-based self-supervised learning, starting with DINOv2-style training
-- snapshot ensemble training and bundling
-- local-first artifact persistence with optional Aim or MLflow logging
+- configurable experiment logging and artifact output
+- snapshot/checkpoint ensembling workflows
+- local/S3-capable storage using `amplify-storage-utils`
+- columnar, improv-compatible result output
+- future Prefect orchestration without adding Prefect to the core project
 
 ---
 
@@ -27,40 +29,49 @@ The refactor prioritizes:
 The refactored project should support:
 
 1. Supervised image classification, regression, and ordinal regression.
-2. Multi-head models with one or more output heads.
+2. Multi-head supervised models with one or more output heads.
 3. Transfer learning from:
    - torchvision pretrained backbones
    - timm pretrained backbones
    - non-pretrained torchvision/timm backbones
    - local or remote checkpoints
-4. Self-supervised learning using Lightly, initially focused on DINOv2-style workflows.
-5. SSL evaluation during training using supervised-style labeled datasets.
-6. Snapshot ensemble training for supervised models.
-7. Bundling snapshot ensembles into a single `.pt` artifact containing multiple snapshot `state_dict`s.
-8. Optional export to ONNX, including preprocessing metadata.
-9. Dataset loading from:
-   - CSV manifests
-   - Parquet manifests or Parquet image datasets
-   - IFCB bins dataset or equivalent current Dojo dataset support
-10. S3 path support for CSV-defined image paths.
-11. Potential use of `amplify-storage-utils` for S3 access and local caching.
-12. Hyperparameter search through Hydra multirun.
-13. Experiment logging through:
-   - local files
-   - Aim
-   - MLflow
+4. Self-supervised learning using Lightly, initially focused on DINOv2-style training.
+5. SSL evaluation during training using labeled and/or unlabeled evaluation datasets.
+6. Supervised model holdout evaluation for one or more checkpoints/models.
+7. Snapshot and checkpoint ensembling workflows.
+8. Bundling snapshot/checkpoint ensembles into a single `.pt` artifact containing multiple snapshot `state_dict`s.
+9. Optional export to ONNX, including preprocessing and result metadata.
+10. Dataset loading from:
+    - CSV manifests
+    - Parquet manifests
+    - Parquet image datasets
+    - IFCB bins dataset or equivalent current Dojo support
+11. S3 path support for CSV/Parquet-defined image paths.
+12. Use of `amplify-storage-utils` for local storage, object storage abstraction, caching, and optional S3 support.
+13. Hyperparameter search through Hydra multirun.
+14. Experiment logging through:
+    - local files
+    - Aim
+    - MLflow
+    - optionally more than one sink if configured
+15. Configurable result outputs:
+    - canonical tall Parquet
+    - wide CSV summaries
+    - embeddings CSV
+    - confusion matrix CSV
+    - HDF/HDF5 export
 
 ## 1.2 Non-goals for this refactor phase
 
 The following are intentionally deferred:
 
 1. Full WebDataset support.
-2. Full streaming training from remote object storage.
+2. Full production model serving framework.
 3. Prefect flows inside the Dojo package.
-4. Support for multiple experiment trackers simultaneously.
-5. Production model serving framework.
-6. Full AutoML or Bayesian optimization.
-7. Direct dependency on Meta DINOv2 repositories.
+4. Full AutoML or Bayesian optimization.
+5. Direct dependency on Meta DINOv2 repositories.
+6. Exhaustive support for every possible timm architecture edge case.
+7. Specialized Inception auxiliary-logit handling in the initial generic path.
 
 ---
 
@@ -74,20 +85,28 @@ Use:
 Hydra + Pydantic
 ```
 
-Hydra is responsible for config composition and CLI overrides.
+Hydra is responsible for:
 
-Pydantic is the source of truth for:
+- config group composition
+- experiment config selection
+- CLI overrides
+- multirun sweeps
+
+Pydantic is responsible for:
 
 - schema structure
 - validation
-- default values
+- defaults
 - field constraints
 - runtime config objects
+- Prefect-compatible config contracts
 
-The flow is:
+Flow:
 
 ```text
 Hydra config groups
+        ↓
+experiment config
         ↓
 CLI overrides
         ↓
@@ -102,78 +121,191 @@ validated ExperimentConfig
 training / evaluation / export code
 ```
 
-Core training code should depend on Pydantic config objects, not Hydra objects.
+Core training code should receive Pydantic objects, not raw Hydra `DictConfig`s.
+
+```python
+def train_supervised(cfg: ExperimentConfig) -> RunResult:
+    ...
+```
 
 ## 2.2 CLI style
 
-Use one package CLI with subcommands:
+Use one package CLI with subcommands.
+
+Primary commands:
 
 ```bash
 dojo train supervised
 dojo train ssl
+
+dojo eval holdout
 dojo eval knn
 dojo eval linear-probe
 dojo eval embeddings
+
 dojo infer
+
+dojo ensemble
+dojo ensemble snapshot
+
 dojo export pt
 dojo export onnx
-dojo bundle snapshot-ensemble
+
+dojo inspect backbone
+dojo inspect checkpoint
+
+dojo validate-config
 ```
 
-All commands should accept Hydra overrides.
+### Command intent
 
-Examples:
+#### `dojo train supervised`
+
+Train supervised single-head or multi-head models.
+
+#### `dojo train ssl`
+
+Train self-supervised models using Lightly.
+
+#### `dojo eval holdout`
+
+Evaluate one or more supervised models/checkpoints against a holdout dataset.
+
+This should accept multiple checkpoints/models so users can compare:
+
+```text
+best-k checkpoints
+last checkpoint
+snapshot checkpoints
+exported models
+candidate soups/ensembles
+```
+
+#### `dojo eval knn`
+
+Run k-NN representation evaluation over checkpoint-derived or precomputed embeddings.
+
+#### `dojo eval linear-probe`
+
+Train/evaluate a frozen-backbone linear probe.
+
+#### `dojo eval embeddings`
+
+Extract and persist embeddings from a model/encoder checkpoint.
+
+#### `dojo infer`
+
+Run inference and write configured result artifacts.
+
+This replaces `dojo predict`.
+
+#### `dojo ensemble`
+
+Evaluate many possible checkpoint/model combinations and select ensemble candidates based on validation performance and computational tradeoff.
+
+This is the generic ensemble search/selection command.
+
+#### `dojo ensemble snapshot`
+
+Specialized subcommand for snapshot ensembles from a training run or snapshot checkpoint collection.
+
+#### `dojo export pt`
+
+Serialize a selected model or ensemble into a portable `.pt` artifact.
+
+#### `dojo export onnx`
+
+Serialize a selected model or ensemble wrapper into ONNX, when supported.
+
+#### `dojo inspect backbone`
+
+List module names, parameter counts, output dimensions, and freeze-policy effects for a backbone.
+
+#### `dojo inspect checkpoint`
+
+Inspect model/checkpoint structure and available module names.
+
+### Config-first usage
+
+Hydra usage should be config-file based.
+
+Most real usage should look like:
+
+```bash
+dojo train supervised experiment=ifcb/experimentA
+```
+
+or:
+
+```bash
+dojo train ssl experiment=ifcb/dino_v2_ssl
+```
+
+Where:
+
+```text
+configs/example_experiments/ifcb/experimentA.yaml
+```
+
+composes lower-level config groups.
+
+CLI overrides are for small modifications, debugging, and sweeps:
 
 ```bash
 dojo train supervised \
-  task=supervised \
-  backbone=resnet50 \
-  data=csv_local \
-  training.max_epochs=50
+  experiment=ifcb/experimentA \
+  optimizer.lr=3e-4
 ```
 
-```bash
-dojo train ssl \
-  task=ssl \
-  ssl=dino_v2 \
-  backbone=vit_small \
-  data=parquet_plankton \
-  ssl_eval.knn.enabled=true
-```
+Hydra multirun:
 
 ```bash
 dojo train supervised -m \
-  backbone=resnet50,efficientnet_b0,vit_b_16 \
-  optimizer.lr=1e-4,3e-4 \
-  data.batch_size=32,64
+  experiment=ifcb/experimentA \
+  backbone=torchvision/resnet50,timm/convnext_tiny \
+  optimizer.lr=1e-4,3e-4
 ```
 
-## 2.3 Local-first artifacts
+## 2.3 Logging and artifacts
 
-All metrics and artifacts should always be saved locally.
-
-Experiment trackers are optional sinks.
+Logging should support:
 
 ```text
-training run
-   ↓
-local run directory
-   ↓
-optional Aim OR MLflow logging
+local only
+Aim only
+MLflow only
+local + Aim
+local + MLflow
+local + Aim + MLflow, if not burdensome
 ```
 
-The logger choice is mutually exclusive:
+Local artifacts should generally be produced for reproducibility, but the logger config should not prohibit tracker-only workflows if a user explicitly configures them.
+
+Recommended default:
+
+```text
+local artifacts enabled
+one experiment tracker optional
+multiple trackers allowed if implementation remains simple
+```
+
+Logging config should be explicit:
 
 ```yaml
 logging:
-  tracker: local_only  # local_only | aim | mlflow
+  sinks:
+    - type: local
+      run_root: ./runs
+
+    - type: mlflow
+      tracking_uri: http://localhost:5000
+      experiment_name: ifcb
+
+    # optionally:
+    # - type: aim
+    #   repo: ./aim
+    #   experiment_name: ifcb
 ```
-
-## 2.4 Backward compatibility
-
-Major breaking changes are allowed.
-
-The refactor should preserve useful ideas from the current project but should not be constrained by current schemas, module names, or command signatures.
 
 ---
 
@@ -187,13 +319,22 @@ image-classifier-dojo/
   configs/
     config.yaml
 
+    example_experiments/
+      ifcb/
+        baseline_resnet50.yaml
+        experimentA.yaml
+        dino_v2_ssl.yaml
+        convnext_snapshot.yaml
+        transfer_from_ssl.yaml
+
     task/
       supervised.yaml
       ssl.yaml
       linear_probe.yaml
       knn_eval.yaml
       embedding_export.yaml
-      predict.yaml
+      inference.yaml
+      holdout_eval.yaml
       export.yaml
 
     data/
@@ -230,8 +371,8 @@ image-classifier-dojo/
     transforms/
       supervised_default.yaml
       microscopy_letterbox.yaml
-      microscopy_bucketed.yaml
-      ssl_dino_v2_microscopy.yaml
+      bucketed_aspect_size.yaml
+      ssl_dino_v2_plankton.yaml
 
     optimizer/
       adamw.yaml
@@ -252,14 +393,23 @@ image-classifier-dojo/
       regression_huber.yaml
       ordinal_coral.yaml
 
+    results/
+      canonical_parquet.yaml
+      csv_exports.yaml
+      hdf_exports.yaml
+
     logging/
-      local_only.yaml
+      local.yaml
       aim.yaml
       mlflow.yaml
+      local_and_mlflow.yaml
+      local_and_aim.yaml
 
-    snapshot_ensemble/
+    ensemble/
       disabled.yaml
       cosine_snapshots.yaml
+      greedy_soup.yaml
+      top_k.yaml
 
     export/
       pt_single_model.yaml
@@ -276,23 +426,26 @@ image-classifier-dojo/
         main.py
         train.py
         eval.py
-        predict.py
+        infer.py
         export.py
-        bundle.py
+        ensemble.py
+        inspect.py
 
-      config/
+      config_schemas/
         __init__.py
         root.py
         data.py
         backbones.py
         heads.py
+        objectives.py
         losses.py
         optimizers.py
         schedulers.py
         transforms.py
         ssl.py
         logging.py
-        snapshot.py
+        ensemble.py
+        results.py
         export.py
         validation.py
         hydra.py
@@ -313,11 +466,13 @@ image-classifier-dojo/
           parquet_image_dataset.py
           ifcb_bins_dataset.py
 
-        records/
+        record_schemas/
           __init__.py
           sample.py
           target.py
-          prediction.py
+          result.py
+          embedding.py
+          batch.py
 
         storage/
           __init__.py
@@ -329,17 +484,23 @@ image-classifier-dojo/
 
         transforms/
           __init__.py
-          build.py
-          base.py
-          microscopy.py
-          letterbox.py
-          aspect_bucket.py
-          foreground_crop.py
-          normalization.py
-          ssl_dino.py
+          builder.py
+          primitives/
+            __init__.py
+            letterbox.py
+            aspect_bucket.py
+            size_bucket.py
+            foreground_crop.py
+            grayscale.py
+            normalization.py
+            crop.py
+            blur.py
+            noise.py
+            rotation.py
 
         samplers/
           __init__.py
+          factory.py
           class_balanced.py
           aspect_bucket.py
           weighted.py
@@ -365,7 +526,12 @@ image-classifier-dojo/
           multihead.py
           projection.py
 
-        wrappers/
+        tabular/
+          __init__.py
+          encoders.py
+          normalization.py
+
+        compositors/
           __init__.py
           supervised.py
           ssl.py
@@ -377,7 +543,7 @@ image-classifier-dojo/
         supervised/
           __init__.py
           module.py
-          loss.py
+          objectives.py
           metrics.py
           step_outputs.py
 
@@ -391,10 +557,13 @@ image-classifier-dojo/
 
         eval/
           __init__.py
+          holdout.py
           knn.py
           linear_probe.py
           embeddings.py
-          predictions.py
+          diagnostics.py
+          clustering.py
+          projections.py
 
       losses/
         __init__.py
@@ -431,10 +600,11 @@ image-classifier-dojo/
         predict.py
         bundle.py
         artifact.py
+        selection.py
 
       inference/
         __init__.py
-        predictor.py
+        inferencer.py
         outputs.py
         preprocessing.py
         batch_writer.py
@@ -445,13 +615,21 @@ image-classifier-dojo/
         onnx.py
         metadata.py
 
+      results/
+        __init__.py
+        schemas.py
+        writers.py
+        parquet.py
+        csv.py
+        hdf.py
+        confusion.py
+        improv.py
+
       artifacts/
         __init__.py
         paths.py
         manifest.py
         metrics.py
-        predictions.py
-        embeddings.py
         checkpoints.py
 
       logging/
@@ -480,24 +658,76 @@ image-classifier-dojo/
       ifcb_bins/
 
     unit/
-      config/
+      config_schemas/
       data/
       transforms/
       models/
       heads/
+      objectives/
       losses/
       metrics/
       logging/
+      results/
       export/
 
     integration/
       test_train_supervised.py
       test_train_ssl_dino_v2.py
       test_ssl_eval_callbacks.py
+      test_supervised_holdout_eval.py
       test_snapshot_ensemble.py
       test_export_pt.py
       test_export_onnx.py
       test_hydra_multirun_config.py
+```
+
+## 3.1 Config folders vs experiment configs
+
+Most files under `configs/` are reusable config groups.
+
+Users should usually create or modify files under:
+
+```text
+configs/example_experiments/
+```
+
+A runnable experiment config composes reusable config groups.
+
+Example:
+
+```yaml
+# configs/example_experiments/ifcb/experimentA.yaml
+defaults:
+  - /task: supervised
+  - /data: csv_s3
+  - /transforms: bucketed_aspect_size
+  - /backbone: torchvision/resnet50
+  - /optimizer: adamw
+  - /scheduler: cosine
+  - /logging: local
+  - /results: canonical_parquet
+  - /ensemble: disabled
+  - _self_
+
+experiment:
+  name: ifcb_experimentA
+
+data:
+  manifest_uri: s3://bucket/ifcb/train.csv
+  image_uri_column: filename
+  sample_id_column: sample_id
+  split_column: split
+
+  targets:
+    species:
+      column: class_idx
+      type: multiclass
+```
+
+Then run:
+
+```bash
+dojo train supervised experiment=ifcb/experimentA
 ```
 
 ---
@@ -505,8 +735,6 @@ image-classifier-dojo/
 # 4. Dependency plan
 
 ## 4.1 Core dependencies
-
-Core dependencies should support supervised training, configuration, CSV/Parquet datasets, local artifact writing, and PyTorch Lightning training.
 
 Recommended core dependencies:
 
@@ -523,13 +751,12 @@ pyarrow
 numpy
 pillow
 scikit-learn
+amplify-storage-utils
 ```
 
+`amplify-storage-utils` should be a core dependency because it provides local/object-store abstractions beyond S3.
+
 ## 4.2 Optional extras
-
-The proposed optional extras are reasonable.
-
-Recommended extras:
 
 ```toml
 [project.optional-dependencies]
@@ -555,16 +782,21 @@ mlflow = [
   "mlflow",
 ]
 
+s3 = [
+  "amplify-storage-utils[s3]",
+]
+
+hdf = [
+  "h5py",
+  "tables",
+]
+
 dev = [
   "pytest",
   "pytest-cov",
   "ruff",
   "mypy",
   "pre-commit",
-]
-
-storage = [
-  "amplify-storage-utils",
 ]
 ```
 
@@ -573,8 +805,9 @@ Notes:
 - `ssl` contains Lightly.
 - `timm` keeps timm optional.
 - `onnx` keeps export dependencies optional.
-- `aim` and `mlflow` are mutually exclusive at runtime but can both be installed.
-- `storage` is recommended in addition to the requested extras because S3/caching is a distinct capability.
+- `aim` and `mlflow` are optional logger dependencies.
+- `s3` enables S3-compatible storage through `amplify-storage-utils`.
+- `hdf` enables HDF/HDF5 result exports.
 
 ---
 
@@ -582,21 +815,14 @@ Notes:
 
 ## 5.1 Pydantic is the schema source of truth
 
-Hydra config files should be treated as inputs.
+Hydra config files are inputs.
 
 Pydantic models define the valid contract.
 
-Core code should receive Pydantic objects.
+Core modules receive validated Pydantic configs.
 
 ```python
 def train_supervised(cfg: ExperimentConfig) -> RunResult:
-    ...
-```
-
-not:
-
-```python
-def train_supervised(cfg: DictConfig) -> RunResult:
     ...
 ```
 
@@ -611,40 +837,42 @@ class ExperimentConfig(BaseModel):
     data: DataConfig
     transforms: TransformConfig
     backbone: BackboneConfig
+    embedding_adapter: EmbeddingAdapterConfig | None = None
     heads: dict[str, HeadConfig] | None = None
+    objectives: dict[str, ObjectiveConfig] | None = None
     ssl: SSLConfig | None = None
-    losses: dict[str, LossConfig] | None = None
     optimizer: OptimizerConfig
     scheduler: SchedulerConfig | None = None
     training: TrainingConfig
     logging: LoggingConfig
     artifacts: ArtifactConfig
-    snapshot_ensemble: SnapshotEnsembleConfig | None = None
+    results: ResultsConfig
+    ensemble: EnsembleConfig | None = None
     export: ExportConfig | None = None
     seed: int = 13
 ```
 
-## 5.3 Hydra composition
+## 5.3 Experiment config composition
 
-Example root config:
+Example root experiment config:
 
 ```yaml
 defaults:
-  - task: supervised
-  - data: csv_local
-  - transforms: microscopy_letterbox
-  - backbone: torchvision/resnet50
-  - head: single_classification
-  - optimizer: adamw
-  - scheduler: cosine
-  - logging: local_only
-  - snapshot_ensemble: disabled
+  - /task: supervised
+  - /data: csv_s3
+  - /transforms: bucketed_aspect_size
+  - /backbone: torchvision/resnet50
+  - /optimizer: adamw
+  - /scheduler: cosine
+  - /logging: local
+  - /results: canonical_parquet
+  - /ensemble: disabled
   - _self_
 
 experiment:
-  name: plankton_resnet50_baseline
+  name: ifcb_resnet50_baseline
   tags:
-    - plankton
+    - ifcb
     - supervised
 
 seed: 13
@@ -652,25 +880,22 @@ seed: 13
 
 ## 5.4 CLI overrides
 
-Hydra CLI overrides should be the standard override mechanism.
-
-Examples:
+Examples should use `experiment=...` style.
 
 ```bash
-dojo train supervised backbone=torchvision/efficientnet_b0
+dojo train supervised experiment=ifcb/experimentA
 ```
 
 ```bash
 dojo train supervised \
-  data.manifest_uri=s3://bucket/train.csv \
-  training.max_epochs=100 \
+  experiment=ifcb/experimentA \
   optimizer.lr=3e-4
 ```
 
 ```bash
 dojo train ssl \
-  ssl=dino_v2 \
-  ssl_eval.knn.every_fractional_epoch=0.1
+  experiment=ifcb/dino_v2_ssl \
+  ssl_eval.unlabeled.embedding_diagnostics.schedule.every_fractional_epoch=0.10
 ```
 
 ## 5.5 Resolved config artifact
@@ -710,15 +935,16 @@ webdataset
 All datasets should return a common record shape.
 
 ```python
-class SampleRecord(TypedDict):
-    image: Tensor
-    targets: dict[str, Tensor]
+class SampleRecord(BaseModel):
     sample_id: str
-    uri: str | None
-    metadata: dict[str, Any]
+    uri: str | None = None
+    image: Any
+    targets: dict[str, Any] = {}
+    tabular: dict[str, Any] = {}
+    source_extra: dict[str, Any] = {}
 ```
 
-This allows the same training modules to work across CSV, Parquet, and IFCB datasets.
+Hot-path DataLoader batches may use lightweight dictionaries/dataclasses rather than Pydantic validation on every batch.
 
 ## 6.3 CSV datasets
 
@@ -728,15 +954,16 @@ CSV manifests should support:
 filename
 sample_id
 one or more target columns
-optional metadata columns
+optional tabular feature columns
+optional source/context columns
 ```
 
 Example:
 
 ```csv
-sample_id,filename,species_idx,quality_idx,biomass,split
-abc123,s3://bucket/images/abc123.png,42,0,1.25,train
-abc124,/data/images/abc124.png,7,1,0.80,train
+sample_id,filename,species_idx,quality_idx,biomass,equivalent_diameter_um,split
+abc123,s3://bucket/images/abc123.png,42,0,1.25,18.2,train
+abc124,/data/images/abc124.png,7,1,0.80,12.9,train
 ```
 
 Config example:
@@ -762,12 +989,9 @@ data:
       column: biomass
       type: regression
 
-  storage:
-    allow_s3: true
-    cache:
-      enabled: true
-      cache_dir: /tmp/dojo-cache
-      backend: amplify_storage_utils
+  tabular_features:
+    numeric:
+      - equivalent_diameter_um
 ```
 
 ## 6.4 Parquet datasets
@@ -783,7 +1007,7 @@ sample_id
 image_uri
 species_idx
 quality_idx
-metadata...
+tabular features...
 ```
 
 ### Mode B: Parquet images
@@ -796,34 +1020,21 @@ image_bytes
 image_format
 species_idx
 quality_idx
-metadata...
-```
-
-Config example:
-
-```yaml
-data:
-  backend: parquet_images
-  uri: s3://bucket/datasets/plankton_v1/train/*.parquet
-  image_bytes_column: image_bytes
-  image_format_column: image_format
-  sample_id_column: sample_id
+tabular features...
 ```
 
 ## 6.5 IFCB bins dataset
 
-The refactor should preserve the current Dojo IFCB bins functionality through a new dataset/datamodule equivalent.
-
-Suggested modules:
+The refactor should preserve current Dojo IFCB bins functionality through a new dataset/datamodule equivalent:
 
 ```text
 src/dojo/data/datasets/ifcb_bins_dataset.py
 src/dojo/data/datamodules/ifcb_bins.py
 ```
 
-The dataset should conform to the common `SampleRecord` contract.
+The dataset should conform to the shared sample contract.
 
-Config example:
+Example:
 
 ```yaml
 data:
@@ -832,203 +1043,233 @@ data:
   manifest_uri: s3://bucket/ifcb_bins/manifest.csv
   image_uri_column: roi_uri
   sample_id_column: roi_id
+
   targets:
     species:
       column: class_idx
       type: multiclass
 ```
 
-## 6.6 S3 and caching
+## 6.6 Storage using `amplify-storage-utils`
 
-S3 access should be abstracted behind a storage resolver.
+Use `amplify-storage-utils` as a core dependency for local storage abstraction.
 
-Suggested API:
+S3 support should be optional through `[s3]`.
+
+Dojo should still define a Dojo-specific storage-facing interface:
 
 ```python
 class StorageResolver:
-    def open(self, uri: str) -> BinaryIO: ...
+    def open_bytes(self, uri: str) -> bytes: ...
     def localize(self, uri: str) -> Path: ...
+    def write_bytes(self, uri: str, data: bytes) -> None: ...
     def exists(self, uri: str) -> bool: ...
 ```
 
-Implementations:
+Implementation relationship:
 
 ```text
-LocalStorageResolver
-S3StorageResolver
-CachedStorageResolver
-AmplifyStorageResolver
+Dojo datasets / training / export code
+        ↓
+Dojo StorageResolver
+        ↓
+amplify-storage-utils ObjectStore
+        ↓
+filesystem / cache / zip / sqlite / optional S3
 ```
 
-`amplify-storage-utils` should be used through an adapter, not imported throughout the codebase.
+Config example:
 
-```text
-data/storage/amplify.py
+```yaml
+storage:
+  backend: amplify
+
+  cache:
+    enabled: true
+    location: /tmp/dojo-cache
+
+  stores:
+    default:
+      type: filesystem
+      root: ./data
+
+    remote:
+      type: s3
+      bucket: whoi-bucket
 ```
 
-This keeps S3 and cache behavior isolated from datasets.
+Datasets should depend only on `StorageResolver`, not directly on `amplify-storage-utils`.
 
 ---
 
 # 7. Transform and preprocessing architecture
 
-## 7.1 Transform goals
+## 7.1 Transform philosophy
 
-Transforms must support both generic image classification and microscopy-specific preprocessing.
+Avoid hard-coding domain-specific transform modules where YAML composition can express the behavior.
 
-Required policies:
+Python should provide reusable transform primitives.
+
+YAML should compose those primitives into experiment-specific transform pipelines.
 
 ```text
-resize
-center crop
-random crop
-letterbox / pad
-aspect-ratio buckets
-foreground-aware crop
-grayscale repeat-to-3-channel
-domain mean/std normalization
-ImageNet-style normalization
-DINOv2-style multi-crop transforms
+Python primitives = reusable operations
+YAML configs       = experiment/domain-specific recipes
 ```
 
-## 7.2 Transform stages
+## 7.2 Transform primitives
 
-Transforms should be organized by stage:
+Initial primitives:
 
 ```text
-decode
-base preprocessing
-augmentation
-tensor conversion
+letterbox
+aspect_bucket
+size_bucket
+foreground_crop
+grayscale_repeat
 normalization
+random_crop
+random_rotation
+random_flip
+brightness_contrast
+gaussian_blur
+gaussian_noise
+to_tensor
 ```
 
-Example:
+## 7.3 Transform pipeline example
+
+```yaml
+transforms:
+  image_mode: grayscale_repeat3
+
+  pipeline:
+    - name: foreground_crop
+      enabled: true
+      method: threshold_bbox
+      expand_margin_fraction: 0.15
+
+    - name: bucketed_resize
+      bucket_by:
+        - aspect_ratio
+        - native_long_side
+      buckets:
+        - name: small_square
+          min_aspect: 0.75
+          max_aspect: 1.33
+          max_native_long_side: 96
+          canvas_size: [96, 96]
+
+        - name: standard_square
+          min_aspect: 0.75
+          max_aspect: 1.33
+          min_native_long_side: 97
+          canvas_size: [224, 224]
+
+        - name: wide
+          min_aspect: 1.33
+          max_aspect: 3.0
+          canvas_size: [224, 448]
+
+    - name: random_rotation
+      mode: multiples_of_90
+      p: 0.5
+
+    - name: horizontal_flip
+      p: 0.5
+
+    - name: normalize
+      mode: dataset
+      mean: [0.42, 0.42, 0.42]
+      std: [0.18, 0.18, 0.18]
+```
+
+## 7.4 Aspect and size buckets
+
+Bucketing should support both:
 
 ```text
-load image
-  ↓
-decode grayscale/RGB
-  ↓
-foreground-aware crop or full frame
-  ↓
-resize / letterbox / aspect bucket
-  ↓
-augment
-  ↓
-to tensor
-  ↓
-normalize
+aspect-ratio buckets
+size-aware buckets
 ```
 
-## 7.3 Letterbox config
+Rationale:
+
+- aspect buckets preserve morphology for long/thin organisms
+- size buckets help avoid artificially resizing very small plankton to appear as large as larger organisms
+
+Config should support:
 
 ```yaml
 transforms:
-  preset: microscopy_letterbox
-  image_mode: grayscale_repeat3
-
   resize:
-    policy: letterbox
-    canvas_size: [224, 224]
-    preserve_aspect_ratio: true
-    pad_mode: background_median
-    pad_value: null
-
-  normalization:
-    mode: dataset
-    mean: [0.42, 0.42, 0.42]
-    std: [0.18, 0.18, 0.18]
+    policy: bucketed
+    bucket_by:
+      - aspect_ratio
+      - native_long_side
 ```
 
-## 7.4 Aspect bucket config
+Important scale-related columns should be recordable as explicit result columns when relevant:
+
+```text
+native_width_px
+native_height_px
+input_width_px
+input_height_px
+resize_bucket
+microns_per_pixel
+```
+
+## 7.5 Tabular metadata as model input
+
+Some size/shape/acquisition features may be useful model inputs.
+
+Examples:
+
+```text
+equivalent_diameter_um
+major_axis_um
+minor_axis_um
+bbox_area_px
+microns_per_pixel
+native_width_px
+native_height_px
+```
+
+These should be provided as tabular features to heads/compositors.
+
+Config example:
 
 ```yaml
-transforms:
-  preset: microscopy_bucketed
-  image_mode: grayscale_repeat3
-
-  resize:
-    policy: aspect_bucket
-    buckets:
-      - size: [224, 224]
-        min_aspect: 0.75
-        max_aspect: 1.33
-
-      - size: [224, 448]
-        min_aspect: 1.33
-        max_aspect: 3.0
-
-      - size: [224, 672]
-        min_aspect: 3.0
-        max_aspect: 99.0
-
-      - size: [448, 224]
-        min_aspect: 0.33
-        max_aspect: 0.75
-
-      - size: [672, 224]
-        min_aspect: 0.0
-        max_aspect: 0.33
+heads:
+  species:
+    type: multiclass_classification
+    target_column: species_idx
+    num_classes: 120
+    inputs:
+      image_embedding: true
+      tabular_features:
+        enabled: true
+        numeric:
+          - equivalent_diameter_um
+          - major_axis_um
+          - minor_axis_um
+        encoder:
+          type: mlp
+          hidden_dims: [32]
+          output_dim: 32
+          normalization: standard
 ```
 
-## 7.5 Foreground-aware crop
+Model flow:
 
-For centered plankton imagery, foreground-aware crops should prevent DINO local crops from becoming mostly padding/background.
-
-```yaml
-transforms:
-  foreground_crop:
-    enabled: true
-    method: threshold_bbox
-    threshold_mode: otsu
-    expand_margin_fraction: 0.15
-    min_foreground_fraction: 0.10
-    max_resample_attempts: 10
+```text
+image → backbone → image embedding
+tabular columns → tabular encoder → tabular embedding
+image embedding + tabular embedding → fused embedding → head
 ```
 
-## 7.6 SSL DINOv2 microscopy transform
-
-```yaml
-transforms:
-  preset: ssl_dino_v2_microscopy
-
-  image_mode: grayscale_repeat3
-
-  dino:
-    global_crops:
-      count: 2
-      size: [224, 224]
-      scale: [0.75, 1.0]
-
-    local_crops:
-      count: 4
-      size: [96, 96]
-      scale: [0.20, 0.60]
-
-  augment:
-    horizontal_flip: true
-    vertical_flip: true
-    rotation:
-      mode: multiples_of_90
-      enabled: true
-
-    brightness:
-      enabled: true
-      max_delta: 0.20
-
-    contrast:
-      enabled: true
-      max_delta: 0.20
-
-    gaussian_blur:
-      enabled: true
-      p: 0.25
-
-    gaussian_noise:
-      enabled: true
-      std: 0.01
-```
+Exported model artifacts must include tabular feature names, ordering, encodings, and normalization statistics.
 
 ---
 
@@ -1046,13 +1287,11 @@ class Backbone(nn.Module):
         ...
 ```
 
-The returned tensor should be a 2D embedding:
+The returned tensor should usually be:
 
 ```text
 batch_size x embedding_dim
 ```
-
-Backbone adapters are responsible for converting model-specific outputs into this contract.
 
 ## 8.2 Supported backbone sources
 
@@ -1084,6 +1323,7 @@ backbone:
   pretrained: true
   weights: DEFAULT
   output_dim: auto
+
   freeze:
     policy: none
 ```
@@ -1097,16 +1337,49 @@ backbone:
   source: timm
   name: vit_small_patch16_224
   pretrained: true
-  features_only: false
   output_dim: auto
+
   freeze:
-    policy: last_n_blocks
-    trainable_blocks: 2
+    policy: last_n_blocks_trainable
+    n: 2
 ```
 
-## 8.5 Checkpoint transfer learning
+## 8.5 `output_dim: auto`
 
-Transfer learning should allow loading a checkpoint from local or remote storage.
+`backbone.output_dim: auto` should be the default and should usually not be manually changed.
+
+It means Dojo infers the backbone’s native feature dimension from the selected architecture.
+
+Examples:
+
+```text
+resnet50          → 2048
+resnet18          → 512
+efficientnet_b0   → 1280
+vit_b_16          → 768
+vit_s             → 384
+convnext_tiny     → 768
+```
+
+If users want a different downstream embedding size, that should be modeled as an explicit embedding adapter/projection layer after the backbone, not as an override of the backbone’s native output dimension.
+
+```yaml
+backbone:
+  source: timm
+  name: vit_small_patch16_224
+  pretrained: true
+  output_dim: auto
+
+embedding_adapter:
+  enabled: true
+  type: mlp
+  hidden_dims: [512]
+  output_dim: 256
+  activation: gelu
+  dropout: 0.1
+```
+
+## 8.6 Checkpoint transfer learning
 
 Config:
 
@@ -1118,52 +1391,150 @@ backbone:
     name: vit_small_patch16_224
     pretrained: false
 
-  checkpoint_uri: s3://bucket/runs/ssl_dino_v2/model/encoder.pt
+  checkpoint_uri: s3://bucket/runs/ssl_dino_v2/exports/encoder.pt
   checkpoint_key: encoder_state_dict
   strict: false
 
   freeze:
-    policy: none
+    policy: last_n_blocks_trainable
+    n: 4
 ```
 
-Freeze policies:
+## 8.7 Freeze policies
+
+Keep `freeze` as the operative config section.
+
+Policies should be named in terms of what remains trainable.
+
+Recommended policies:
 
 ```text
 none
 all
-last_n_blocks
-except_head
-until_epoch
+last_n_blocks_trainable
+named_modules_trainable
+named_modules_frozen
+after_module_trainable
+before_module_trainable
 ```
 
-## 8.6 Inception and special models
+Examples:
 
-Some torchvision models, such as Inception, may return auxiliary logits or model-specific structures.
+```yaml
+backbone:
+  freeze:
+    policy: none
+```
 
-Backbone adapters must normalize this.
+Train all backbone parameters.
 
-Rules:
+```yaml
+backbone:
+  freeze:
+    policy: all
+```
 
-1. Supervised task modules should not contain model-specific logic.
-2. Backbone adapters should disable or ignore auxiliary classifier outputs unless explicitly configured.
-3. Feature extraction should always return a single embedding tensor.
+Freeze all backbone parameters.
+
+```yaml
+backbone:
+  freeze:
+    policy: last_n_blocks_trainable
+    n: 2
+```
+
+Freeze all except the final 2 blocks.
+
+```yaml
+backbone:
+  freeze:
+    policy: named_modules_trainable
+    names:
+      - layer4
+      - blocks.10
+      - blocks.11
+```
+
+Freeze everything except listed modules.
+
+```yaml
+backbone:
+  freeze:
+    policy: after_module_trainable
+    module: layer3
+    inclusive: true
+```
+
+Freeze modules before `layer3`; train `layer3` and everything after it.
+
+```yaml
+backbone:
+  freeze:
+    policy: before_module_trainable
+    module: layer3
+    inclusive: false
+```
+
+Train everything before `layer3`; freeze `layer3` and everything after it.
+
+## 8.8 Inspect command
+
+Add:
+
+```bash
+dojo inspect backbone backbone=torchvision/resnet50
+```
+
+```bash
+dojo inspect backbone \
+  backbone=torchvision/resnet50 \
+  backbone.freeze.policy=after_module_trainable \
+  backbone.freeze.module=layer3 \
+  backbone.freeze.inclusive=true
+```
+
+Output should include:
+
+```text
+module name
+module type
+parameter count
+trainable/frozen status
+suggested block/stage names
+output embedding dim
+```
+
+Example output:
+
+```text
+Backbone: torchvision/resnet50
+
+stem                       frozen       params=9,536
+layer1                     frozen       params=215,808
+layer2                     frozen       params=1,219,584
+layer3                     trainable    params=7,098,368
+layer4                     trainable    params=14,964,736
+avgpool                    n/a
+embedding_dim              2048
+```
+
+## 8.9 Inception and special models
+
+Inception is a special case because of auxiliary logits and historical training conventions.
+
+Initial refactor should not overfit the generic path around Inception-specific aux-logit behavior.
+
+Support basic feature extraction if practical, but it is acceptable to skip special auxiliary-logit handling in the first implementation to keep the main backbone/head path clean.
 
 ---
 
-# 9. Head architecture
+# 9. Head, objective, and loss architecture
 
 ## 9.1 Head contract
 
-Heads map embeddings to task-specific outputs.
+Heads define output structure and semantics.
 
-```python
-class Head(nn.Module):
-    name: str
-    task_type: HeadTaskType
-
-    def forward(self, embedding: Tensor) -> Tensor | dict[str, Tensor]:
-        ...
-```
+They should not own loss configuration.
 
 Supported head task types:
 
@@ -1173,6 +1544,8 @@ binary_classification
 multilabel_classification
 regression
 ordinal_regression
+distributional_regression
+count_regression
 ```
 
 ## 9.2 Multi-head model
@@ -1192,28 +1565,6 @@ embedding
 └── life-stage ordinal head
 ```
 
-Forward output:
-
-```python
-{
-    "embedding": Tensor,
-    "heads": {
-        "species": {
-            "logits": Tensor,
-        },
-        "quality": {
-            "logits": Tensor,
-        },
-        "biomass": {
-            "prediction": Tensor,
-        },
-        "life_stage": {
-            "ordinal_logits": Tensor,
-        },
-    },
-}
-```
-
 ## 9.3 Classification head
 
 ```yaml
@@ -1224,10 +1575,9 @@ heads:
     num_classes: 120
     network:
       type: linear
-      dropout: 0.0
 ```
 
-Loss options:
+Compatible losses include:
 
 ```text
 cross_entropy
@@ -1249,7 +1599,28 @@ heads:
       type: linear
 ```
 
-Loss options:
+Regression should be modeled as:
+
+```text
+regression head
++ target transform
++ output activation, if needed
++ loss
+```
+
+rather than separate head classes for every regression scale.
+
+Common target transforms:
+
+```text
+identity
+standardize
+log1p
+log1p_standardize
+power / Box-Cox / Yeo-Johnson
+```
+
+Common losses:
 
 ```text
 mse
@@ -1257,7 +1628,26 @@ mae
 huber
 smooth_l1
 gaussian_nll
+poisson_nll
+negative_binomial_nll
+quantile
 ```
+
+Examples:
+
+```yaml
+objectives:
+  biomass:
+    head: biomass
+    target_transform:
+      type: log1p_standardize
+    loss:
+      type: huber
+      delta: 1.0
+    weight: 0.10
+```
+
+For positive-only values, prefer log transforms first. Bounded output activations are optional when the target has a true physical range.
 
 ## 9.5 Ordinal regression head
 
@@ -1265,13 +1655,13 @@ gaussian_nll
 heads:
   life_stage:
     type: ordinal_regression
-    target_column: life_stage_idx
+    target_column: stage_idx
     num_classes: 5
     network:
       type: linear
 ```
 
-Loss options:
+Compatible losses include:
 
 ```text
 coral
@@ -1279,40 +1669,160 @@ corn
 ordinal_cross_entropy
 ```
 
-## 9.6 Multi-head loss aggregation
+## 9.6 Objectives bind heads to losses, weights, and metrics
 
-Losses are computed per head and combined with weights.
+Use an explicit `objectives` layer.
+
+Heads define output structure.
+
+Objectives define training intent.
 
 ```yaml
-losses:
+heads:
   species:
-    type: class_balanced_effective_number
-    beta: 0.999
-    weight: 1.0
+    type: multiclass_classification
+    target_column: species_idx
+    num_classes: 120
 
   quality:
-    type: cross_entropy
-    weight: 0.25
+    type: multiclass_classification
+    target_column: quality_idx
+    num_classes: 4
 
   biomass:
-    type: huber
-    delta: 1.0
-    weight: 0.10
+    type: regression
+    target_column: biomass
+    output_dim: 1
 
   life_stage:
-    type: coral
+    type: ordinal_regression
+    target_column: stage_idx
+    num_classes: 5
+
+objectives:
+  species:
+    head: species
+    loss:
+      type: class_balanced_effective_number
+      beta: 0.999
+    weight: 1.0
+    metrics:
+      - macro_f1
+      - weighted_f1
+      - per_class_f1
+
+  quality:
+    head: quality
+    loss:
+      type: cross_entropy
     weight: 0.25
+    metrics:
+      - accuracy
+      - macro_f1
+
+  biomass:
+    head: biomass
+    target_transform:
+      type: log1p_standardize
+    loss:
+      type: huber
+      delta: 1.0
+    weight: 0.10
+    metrics:
+      - mae
+      - rmse
+
+  life_stage:
+    head: life_stage
+    loss:
+      type: coral
+    weight: 0.25
+    metrics:
+      - ordinal_mae
+      - accuracy
 ```
 
-Total loss:
+Total loss is implicitly a weighted sum of objective losses:
 
 ```text
 total_loss =
-    species_weight * species_loss
-  + quality_weight * quality_loss
-  + biomass_weight * biomass_loss
-  + ordinal_weight * ordinal_loss
+  1.0  * species_loss
++ 0.25 * quality_loss
++ 0.10 * biomass_loss
++ 0.25 * life_stage_loss
 ```
+
+Do not add a separate `loss_aggregation_config` initially. Weighted sum is the default and only phase-1 behavior.
+
+## 9.7 Objective shorthand
+
+For simple configs, allow objective name to imply head name.
+
+```yaml
+objectives:
+  species:
+    loss:
+      type: focal
+      gamma: 2.0
+    weight: 1.0
+```
+
+Resolved internally as:
+
+```yaml
+objectives:
+  species:
+    head: species
+    loss:
+      type: focal
+      gamma: 2.0
+    weight: 1.0
+```
+
+## 9.8 Pydantic validation
+
+Validation should enforce:
+
+```text
+every objective references an existing head
+loss is compatible with referenced head type
+metrics are compatible with referenced head type
+target transforms are compatible with objective/head type
+objective weights are non-negative
+at least one objective is enabled for supervised training
+```
+
+Invalid example:
+
+```yaml
+objectives:
+  bad_objective:
+    head: species
+    loss:
+      type: huber
+```
+
+This should fail because Huber is not valid for a multiclass classification head.
+
+## 9.9 Single-head vs multi-head implementation
+
+Do not create separate `OneHeadSupervisedModel` or `SimpleSupervisedTaskModule` classes.
+
+A single-head model is a special case of the generic supervised model with exactly one configured head.
+
+Use one internal representation:
+
+```yaml
+heads:
+  species: ...
+
+objectives:
+  species:
+    head: species
+    loss: ...
+```
+
+A user-facing shorthand config may be allowed, but it should normalize to the canonical multi-head/objective structure.
 
 ---
 
@@ -1323,13 +1833,14 @@ total_loss =
 The supervised LightningModule should own:
 
 ```text
-forward pass
+forward pass orchestration
 training_step
 validation_step
 test_step
 optimizer/scheduler creation
 metric updates
-loss aggregation
+objective loss computation
+weighted objective loss sum
 ```
 
 It should not own:
@@ -1339,6 +1850,8 @@ dataset-specific path logic
 experiment tracker-specific logic
 artifact layout decisions
 snapshot bundling implementation
+export implementation
+result file serialization
 ```
 
 Suggested class:
@@ -1348,36 +1861,96 @@ class SupervisedTaskModule(L.LightningModule):
     def __init__(
         self,
         model: SupervisedModel,
-        losses: MultiHeadLoss,
-        metrics: MultiHeadMetricCollection,
+        objectives: ObjectiveCollection,
         optimizer_config: OptimizerConfig,
-        scheduler_config: SchedulerConfig | None,
+        scheduler_config: SchedulerConfig | None = None,
+        metric_collection: ObjectiveMetricCollection | None = None,
     ):
         ...
 ```
+
+Where:
+
+```text
+model
+  = backbone + optional embedding adapter + optional tabular encoder + heads
+
+objectives
+  = binds head → target → target transform → loss → weight → metrics
+
+optimizer_config / scheduler_config
+  = consumed in configure_optimizers()
+```
+
+Snapshot ensembles, EMA/SWA, checkpointing, logging, artifact writing, result writing, and export should remain outside the module as callbacks, trainer setup, writers, or post-training commands.
 
 ## 10.2 Model composition
 
 ```python
 backbone = build_backbone(cfg.backbone)
-heads = build_heads(cfg.heads, input_dim=backbone.output_dim)
-model = SupervisedModel(backbone=backbone, heads=heads)
+adapter = build_embedding_adapter(cfg.embedding_adapter, backbone.output_dim)
+heads = build_heads(cfg.heads, input_dim=effective_embedding_dim)
+model = SupervisedModel(backbone=backbone, adapter=adapter, heads=heads)
+```
+
+If tabular features are configured:
+
+```python
+tabular_encoder = build_tabular_encoder(cfg.data.tabular_features, cfg.heads)
+model = SupervisedModel(
+    backbone=backbone,
+    adapter=adapter,
+    tabular_encoder=tabular_encoder,
+    heads=heads,
+)
 ```
 
 ## 10.3 Training command
 
+Use experiment config style.
+
 ```bash
-dojo train supervised \
-  task=supervised \
-  data=csv_s3 \
-  backbone=torchvision/resnet50 \
-  head=multihead_species_quality \
-  logging=mlflow
+dojo train supervised experiment=ifcb/experimentA
 ```
 
-## 10.4 Supervised output artifacts
+With overrides:
 
-Every supervised run should save:
+```bash
+dojo train supervised \
+  experiment=ifcb/experimentA \
+  optimizer.lr=3e-4
+```
+
+## 10.4 Supervised output artifacts and results
+
+Training outputs should distinguish between:
+
+```text
+checkpoints  = training/resume artifacts
+exports      = portable model artifacts
+metrics      = aggregate metrics
+results      = sample-level and head-level outputs
+```
+
+### Checkpoints
+
+Do not assume only `last.ckpt` and `best.ckpt`.
+
+Checkpoint outputs are determined by checkpoint callback configuration and may include:
+
+```text
+best-k checkpoints
+last checkpoint
+epoch checkpoints
+step checkpoints
+snapshot checkpoints
+EMA/SWA checkpoints
+manual checkpoints
+```
+
+Portable `model_best.pt` / `model_final.pt` files should not be automatic training checkpoints. These belong under `exports/` and should be produced by explicit export configuration or `dojo export`.
+
+### Recommended run layout
 
 ```text
 runs/{run_id}/
@@ -1386,12 +1959,19 @@ runs/{run_id}/
     resolved.json
 
   checkpoints/
+    # Lightning/training checkpoints according to checkpoint callback config
     last.ckpt
-    best.ckpt
+    epoch=004-val_macro_f1=0.842.ckpt
+    epoch=009-val_macro_f1=0.861.ckpt
+    snapshot_001.ckpt
+    snapshot_002.ckpt
 
-  model/
-    model_final.pt
-    model_best.pt
+  exports/
+    # Created only by explicit export command/callback
+    model.pt
+    model.onnx
+    snapshot_ensemble.pt
+    metadata.json
 
   metrics/
     train_metrics.json
@@ -1400,31 +1980,207 @@ runs/{run_id}/
     per_class_metrics.parquet
     confusion_matrix.parquet
 
-  predictions/
-    val_predictions.parquet
-    test_predictions.parquet
+  results/
+    # Canonical tall Parquet
+    val_results.parquet
+    test_results.parquet
+    infer_results.parquet
+    val_results_by_epoch.parquet
 
-  embeddings/
-    val_embeddings.parquet
-    test_embeddings.parquet
-
-  logs/
-    events.jsonl
+    # Optional convenience exports
+    val_results_wide.csv
+    test_results_wide.csv
+    embeddings.csv
+    confusion_matrix.csv
+    results.h5
 ```
 
-Predictions should include:
+### Canonical result format
+
+Canonical result format should be tall Parquet.
+
+It should be compatible with improv-style schemas/provenance concepts.
+
+A single sample may appear multiple times, for example:
+
+```text
+one row for embedding output
+one row for species head output
+one row for quality head output
+one row for biomass head output
+one row for nearest-neighbor output
+```
+
+Core columns should be explicit.
+
+Avoid a generic `metadata` column in canonical results.
+
+Recommended canonical columns:
 
 ```text
 sample_id
 uri
 split
+epoch
+global_step
+checkpoint_id
+model_artifact_id
+record_type
 head_name
 target
-prediction
+prediction_index
+prediction_label
+prediction_value
 logits
-probabilities
-embedding_uri or embedding row reference
-metadata
+scores
+confidence
+embedding
+distance
+neighbor_sample_id
+neighbor_rank
+cluster_id
+projection_x
+projection_y
+resize_bucket
+native_width_px
+native_height_px
+input_width_px
+input_height_px
+source_extra_json
+```
+
+`source_extra_json` should be optional and used only for dataset-specific passthrough fields that are not part of the core Dojo schema.
+
+Important context used by Dojo should be promoted to explicit columns.
+
+### Result record types
+
+Potential `record_type` values:
+
+```text
+embedding
+classification_output
+regression_output
+ordinal_output
+target
+nearest_neighbor
+cluster_assignment
+projection
+outlier_score
+diagnostic
+```
+
+### Convenience outputs
+
+In addition to canonical tall Parquet, Dojo should optionally produce:
+
+```text
+wide CSV summary
+embeddings CSV
+confusion matrix CSV
+HDF/HDF5 export
+```
+
+Wide CSV should be one sample per row and should generally exclude embeddings.
+
+Example wide columns:
+
+```text
+sample_id
+uri
+split
+species_target
+species_prediction_index
+species_prediction_label
+species_confidence
+quality_prediction_index
+quality_prediction_label
+biomass_prediction_value
+```
+
+Embeddings CSV should be one sample per row.
+
+Confusion matrix CSV should be available for classification heads.
+
+HDF/HDF5 should be treated as an optional export format derived from canonical results.
+
+### Epoch-level validation results
+
+It should be possible to output results for:
+
+```text
+final exported model
+selected checkpoint
+every validation epoch
+every N epochs
+every N batches
+```
+
+`val_results_by_epoch.parquet` should include:
+
+```text
+epoch
+global_step
+checkpoint_id
+sample_id
+record_type
+head_name
+...
+```
+
+This supports:
+
+```text
+learning dynamics
+tail-class stability analysis
+checkpoint selection
+snapshot selection
+ensemble selection
+```
+
+Because this may become large, it should be configurable.
+
+### Result output config
+
+Result output behavior should be fully configurable in YAML.
+
+Example:
+
+```yaml
+results:
+  canonical:
+    enabled: true
+    format: parquet
+    layout: tall
+    improv_compatible: true
+    include:
+      embeddings: true
+      logits: true
+      scores: true
+      predictions: true
+      targets: true
+      input_shape_context: true
+
+  validation_by_epoch:
+    enabled: true
+    every_n_epochs: 1
+    include_embeddings: false
+    include_logits: true
+    include_scores: true
+
+  exports:
+    wide_csv:
+      enabled: true
+      exclude_embeddings: true
+
+    embeddings_csv:
+      enabled: true
+
+    confusion_matrix_csv:
+      enabled: true
+
+    hdf:
+      enabled: false
 ```
 
 ---
@@ -1454,9 +2210,9 @@ DINOv2-style SSL loss
 After SSL training:
 
 ```text
-keep encoder
-optionally keep projection head for reproducibility
-discard projection head for supervised transfer unless explicitly requested
+encoder is used for downstream embeddings/transfer
+projection head may be exported for reproducibility/debugging
+teacher/student states may be preserved in ssl_model.pt if configured
 ```
 
 ## 11.3 SSL task module
@@ -1467,9 +2223,8 @@ Suggested class:
 class DinoV2SSLTaskModule(L.LightningModule):
     def __init__(
         self,
-        encoder: nn.Module,
-        projection_head: nn.Module,
-        ssl_loss: nn.Module,
+        ssl_model: SSLModel,
+        ssl_objective: SSLObjective,
         optimizer_config: OptimizerConfig,
         scheduler_config: SchedulerConfig | None,
         eval_config: SSLEvaluationConfig,
@@ -1500,22 +2255,38 @@ ssl:
     center_momentum: 0.9
 
   output:
-    save_encoder: true
-    save_projection_head: true
+    save_encoder_export: true
+    save_ssl_model_export: false
 ```
 
 ## 11.5 SSL training command
 
+Use experiment config style.
+
+```bash
+dojo train ssl experiment=ifcb/dino_v2_ssl
+```
+
+With override:
+
 ```bash
 dojo train ssl \
-  task=ssl \
-  ssl=dino_v2 \
-  data=parquet_images \
-  backbone=timm/vit_small_patch16_224 \
-  transforms=ssl_dino_v2_microscopy
+  experiment=ifcb/dino_v2_ssl \
+  training.max_epochs=300
 ```
 
 ## 11.6 SSL artifacts
+
+SSL training outputs should follow the same conventions as supervised training:
+
+```text
+checkpoints  = training/resume artifacts
+exports      = portable encoder/model artifacts
+metrics      = aggregate metrics
+results      = canonical evaluation/embedding outputs
+```
+
+### Recommended SSL run layout
 
 ```text
 runs/{run_id}/
@@ -1524,71 +2295,341 @@ runs/{run_id}/
     resolved.json
 
   checkpoints/
+    # Lightning/training checkpoints according to checkpoint callback config
     last.ckpt
-    best_ssl.ckpt
+    epoch=049-ssl_loss=1.84.ckpt
+    epoch=099-knn_macro_f1=0.63.ckpt
 
-  model/
-    encoder_final.pt
-    encoder_best.pt
-    projection_head_final.pt
+  exports/
+    # Created only by explicit export command/callback
+    encoder.pt
+    encoder.onnx
+    ssl_model.pt
+    metadata.json
 
   metrics/
-    ssl_loss.json
-    knn_metrics.json
-    linear_probe_metrics.json
+    ssl_train_metrics.json
+    ssl_eval_knn_metrics.json
+    ssl_eval_linear_probe_metrics.json
+    ssl_embedding_diagnostics.json
 
-  embeddings/
-    train_embeddings.parquet
-    val_embeddings.parquet
+  results/
+    # Canonical tall-format Parquet outputs
+    ssl_eval_results.parquet
+    ssl_eval_results_by_epoch.parquet
+    embedding_results.parquet
+
+    # Optional convenience outputs
+    ssl_eval_wide.csv
+    embedding_wide.csv
+    results.h5
 ```
+
+### `.ckpt` vs `encoder.pt` vs `ssl_model.pt`
+
+A Lightning checkpoint is for resuming training and may include:
+
+```text
+student encoder weights
+teacher encoder weights
+projection heads
+optimizer state
+scheduler state
+epoch
+global step
+Lightning loop state
+callback state
+mixed precision scaler
+```
+
+`encoder.pt` is a portable artifact for downstream use:
+
+```text
+embedding extraction
+transfer learning
+attention visualization
+fine-tuning
+```
+
+`ssl_model.pt` is a portable SSL model artifact that may include:
+
+```text
+encoder state
+projection head state
+teacher encoder state
+student encoder state
+SSL method config
+preprocessing metadata
+```
+
+Use `ssl_model.pt` when SSL-specific internals are needed.
+
+Use `encoder.pt` for most downstream classification, embedding extraction, and attention visualization.
+
+### SSL result records
+
+SSL canonical results should use the same tall Parquet result model as supervised outputs.
+
+SSL-specific record types may include:
+
+```text
+embedding
+nearest_neighbor
+knn_prediction
+linear_probe_prediction
+cluster_assignment
+projection
+outlier_score
+embedding_diagnostic
+```
+
+Recommended columns include:
+
+```text
+sample_id
+uri
+split
+epoch
+global_step
+checkpoint_id
+model_artifact_id
+record_type
+evaluation_name
+head_name
+embedding
+target
+prediction_index
+prediction_label
+scores
+confidence
+distance
+neighbor_sample_id
+neighbor_rank
+cluster_id
+projection_x
+projection_y
+resize_bucket
+native_width_px
+native_height_px
+input_width_px
+input_height_px
+source_extra_json
+```
+
+Avoid generic `metadata` in canonical schemas. Use explicit columns where Dojo understands the field.
 
 ---
 
-# 12. SSL evaluation during training
+# 12. SSL evaluation
 
-## 12.1 Evaluation methods
+## 12.1 Evaluation categories
 
-The SSL task should support:
+SSL evaluation should support three categories:
 
 ```text
-online k-NN evaluation
-periodic linear probe
-embedding export
-nearest-neighbor validation metrics
+label-required evaluation
+label-free evaluation
+visual/diagnostic evaluation
 ```
 
-These should be configurable independently.
+## 12.2 Label-required SSL evaluation
 
-## 12.2 Evaluation dataset
+When a labeled evaluation dataset is available, support:
 
-SSL evaluation may use a supervised-style labeled dataset.
+```text
+k-NN classification
+linear probe
+supervised fine-tuning evaluation
+macro/per-class metrics
+confusion matrix
+```
 
-Example:
+Config example:
 
 ```yaml
 ssl_eval:
-  labeled_data:
-    backend: csv
-    manifest_uri: s3://bucket/manifests/supervised_val.csv
-    image_uri_column: filename
-    sample_id_column: sample_id
-    label_column: species_idx
-
-  knn:
+  labeled:
     enabled: true
-    k: 20
-    distance: cosine
+    dataset:
+      backend: csv
+      manifest_uri: s3://bucket/manifests/val_labeled.csv
+      image_uri_column: filename
+      sample_id_column: sample_id
+      targets:
+        species:
+          column: species_idx
+          type: multiclass
 
-  linear_probe:
-    enabled: true
-    max_epochs: 10
-    train_backbone: false
+    knn:
+      enabled: true
+      k: 20
+      distance: cosine
+      schedule:
+        every_fractional_epoch: 0.10
 
-  embedding_export:
-    enabled: true
+    linear_probe:
+      enabled: true
+      max_epochs: 10
+      schedule:
+        every_n_epochs: 10
 ```
 
-## 12.3 Evaluation scheduling
+## 12.3 Label-free SSL evaluation
+
+When no labeled dataset is available, support:
+
+```text
+embedding extraction
+embedding collapse checks
+embedding variance/covariance diagnostics
+nearest-neighbor retrieval
+augmentation consistency
+clustering
+dimensionality reduction
+density/outlier scoring
+```
+
+These do not produce classification F1, but they help detect whether representation learning is useful or collapsed.
+
+### Embedding diagnostics
+
+Useful during training:
+
+```text
+embedding_norm_mean
+embedding_norm_std
+per_dimension_std
+effective_rank
+covariance_condition
+pairwise_cosine_mean
+pairwise_cosine_std
+```
+
+### Augmentation consistency
+
+Compare embeddings from multiple valid augmented views of the same image.
+
+```text
+cosine_similarity(z_view1, z_view2)
+```
+
+### Retrieval panels
+
+Nearest-neighbor retrieval is useful for visual inspection.
+
+Records:
+
+```text
+query_sample_id
+neighbor_sample_id
+neighbor_rank
+distance
+epoch
+checkpoint_id
+```
+
+Optional figure outputs:
+
+```text
+figures/retrieval_panels/epoch_010/*.png
+```
+
+### Clustering
+
+Support:
+
+```text
+kmeans
+mini_batch_kmeans
+hdbscan, optional
+agglomerative, optional
+```
+
+Outputs:
+
+```text
+sample_id
+cluster_id
+cluster_distance
+epoch
+checkpoint_id
+```
+
+If labels later become available, NMI/ARI can be computed retrospectively.
+
+### Dimensionality reduction
+
+Support:
+
+```text
+PCA
+UMAP
+t-SNE
+```
+
+Outputs:
+
+```text
+sample_id
+projection_x
+projection_y
+projection_method
+epoch
+checkpoint_id
+```
+
+Example files:
+
+```text
+results/embedding_projection_umap.parquet
+results/embedding_projection_pca.parquet
+figures/umap_epoch_050.png
+```
+
+## 12.4 Unlabeled SSL eval config
+
+```yaml
+ssl_eval:
+  unlabeled:
+    enabled: true
+    dataset:
+      backend: parquet_images
+      uri: s3://bucket/plankton/unlabeled/*.parquet
+
+    embedding_diagnostics:
+      enabled: true
+      schedule:
+        every_fractional_epoch: 0.10
+
+    retrieval:
+      enabled: true
+      num_queries: 64
+      k: 12
+      distance: cosine
+      schedule:
+        every_n_epochs: 5
+
+    clustering:
+      enabled: true
+      methods:
+        - type: mini_batch_kmeans
+          n_clusters: 100
+      schedule:
+        every_n_epochs: 10
+
+    dimensionality_reduction:
+      enabled: true
+      methods:
+        - type: pca
+          n_components: 2
+        - type: umap
+          n_components: 2
+      max_samples: 50000
+      schedule:
+        every_n_epochs: 10
+```
+
+## 12.5 Evaluation scheduling
 
 Evaluations should be schedulable by:
 
@@ -1600,89 +2641,158 @@ end of epoch
 end of training
 ```
 
-Config example:
+Example:
 
 ```yaml
 ssl_eval:
-  knn:
-    enabled: true
-    schedule:
-      every_n_epochs: 1
-      every_n_train_batches: null
-      every_fractional_epoch: 0.10
+  labeled:
+    knn:
+      schedule:
+        every_fractional_epoch: 0.10
 
-  linear_probe:
-    enabled: true
-    schedule:
-      every_n_epochs: 10
+    linear_probe:
+      schedule:
+        every_n_epochs: 10
 
-  embedding_export:
-    enabled: true
-    schedule:
-      every_n_epochs: 10
+  unlabeled:
+    embedding_diagnostics:
+      schedule:
+        every_fractional_epoch: 0.10
+
+    retrieval:
+      schedule:
+        every_n_epochs: 5
 ```
 
-Implementation detail:
+`every_fractional_epoch: 0.10` means approximately every 10% of an epoch.
 
-- `every_fractional_epoch: 0.10` means approximately every 10% of an epoch.
-- The callback should compute this from `estimated_train_batches`.
-- Expensive evaluations should support subsampling.
+Expensive evaluations should support subsampling:
 
 ```yaml
 ssl_eval:
-  knn:
-    max_reference_samples: 50000
-    max_query_samples: 10000
+  labeled:
+    knn:
+      max_reference_samples: 50000
+      max_query_samples: 10000
 ```
 
-## 12.4 SSL evaluation outputs
+## 12.6 Standalone vs training-integrated evaluation
+
+Evaluation should exist as reusable evaluator modules with two execution modes:
 
 ```text
-metrics/ssl_eval_knn.json
-metrics/ssl_eval_linear_probe.json
-embeddings/ssl_eval_epoch_010.parquet
+training-integrated callbacks
+standalone CLI wrappers
+```
+
+The same underlying evaluator code should be used by:
+
+```bash
+dojo eval knn
+dojo eval linear-probe
+dojo eval embeddings
+```
+
+and by:
+
+```yaml
+ssl_eval:
+  labeled:
+    knn:
+      enabled: true
 ```
 
 ---
 
-# 13. Snapshot ensemble training
+# 13. Ensemble and snapshot architecture
 
 ## 13.1 Concept
 
-Snapshot ensemble training is a supervised training mode that periodically saves model snapshots during a single run.
+Snapshot/checkpoint ensembling is a supervised model-selection and inference workflow.
 
 It should be implemented as:
 
 ```text
-training strategy + callback + artifact bundler
+checkpoint discovery
+checkpoint/model selection
+ensemble construction
+ensemble evaluation
+artifact bundling
 ```
 
-not as a separate model architecture.
+not as a separate training model architecture.
 
-The supervised model remains:
+## 13.2 Generic ensemble command
+
+```bash
+dojo ensemble experiment=ifcb/ensemble_search
+```
+
+Purpose:
 
 ```text
-backbone → heads
+given many checkpoints/models
+find which combination produces best validation result
+under configured computational constraints
 ```
 
-## 13.2 Snapshot ensemble config
+Inputs may include:
+
+```text
+checkpoints from one run
+snapshots from one run
+best-k checkpoints
+checkpoints from different runs
+exported .pt models
+candidate soups
+```
+
+Selection strategies:
+
+```text
+top_k
+greedy_forward_selection
+greedy_soup
+snapshot_cycle_selection
+diversity_aware_selection
+budget_constrained_selection
+```
+
+Budget constraints:
+
+```text
+max_models
+max_latency_ms
+max_file_size_mb
+max_memory_mb
+```
+
+## 13.3 Snapshot-specific command
+
+```bash
+dojo ensemble snapshot experiment=ifcb/snapshot_ensemble
+```
+
+Specialized for snapshots from one training run.
+
+## 13.4 Snapshot ensemble config
 
 ```yaml
-snapshot_ensemble:
+ensemble:
   enabled: true
+  type: snapshot
 
-  schedule:
-    type: cosine_restarts
-    num_snapshots: 5
-    cycle_epochs: 20
-    save_at: cycle_end
+  discovery:
+    run_uri: s3://bucket/runs/run123
+    checkpoint_glob: checkpoints/snapshot_*.ckpt
 
   selection:
+    strategy: top_k
+    k: 5
     metric: val/species/macro_f1
     mode: max
 
   artifact:
-    save_individual_checkpoints: true
     bundle_single_pt: true
     bundle_filename: snapshot_ensemble.pt
 
@@ -1690,35 +2800,7 @@ snapshot_ensemble:
     combine: logits_mean
 ```
 
-## 13.3 Training flow
-
-```text
-epoch 1-20
-  ↓
-save snapshot_001.ckpt
-
-epoch 21-40
-  ↓
-save snapshot_002.ckpt
-
-epoch 41-60
-  ↓
-save snapshot_003.ckpt
-
-epoch 61-80
-  ↓
-save snapshot_004.ckpt
-
-epoch 81-100
-  ↓
-save snapshot_005.ckpt
-
-bundle snapshots
-  ↓
-snapshot_ensemble.pt
-```
-
-## 13.4 Snapshot artifact format
+## 13.5 Snapshot artifact format
 
 The bundled `.pt` file should contain:
 
@@ -1756,16 +2838,7 @@ The bundled `.pt` file should contain:
 }
 ```
 
-## 13.5 Snapshot ensemble inference
-
-A snapshot ensemble predictor should:
-
-1. Load the bundled `.pt`.
-2. Rebuild the model architecture.
-3. Load each snapshot state dict one at a time or materialize multiple copies.
-4. Run inference for each snapshot.
-5. Average logits by head.
-6. Apply head-specific post-processing.
+## 13.6 Ensemble inference
 
 For classification:
 
@@ -1785,35 +2858,33 @@ For ordinal regression:
 
 ```text
 average ordinal logits
-then decode ordinal prediction
+decode ordinal prediction
 ```
 
-## 13.6 Snapshot ensemble artifacts
+## 13.7 Ensemble outputs
 
 ```text
 runs/{run_id}/
-  checkpoints/
-    snapshot_001.ckpt
-    snapshot_002.ckpt
-    snapshot_003.ckpt
-
   ensemble/
-    snapshot_ensemble.pt
-    snapshot_manifest.json
-    snapshot_metrics.json
+    selected_checkpoints.json
+    ensemble_manifest.json
+    ensemble_metrics.json
 
-  predictions/
-    val_snapshot_ensemble.parquet
-    test_snapshot_ensemble.parquet
+  exports/
+    snapshot_ensemble.pt
+
+  results/
+    val_results.parquet
+    test_results.parquet
 ```
 
 ---
 
 # 14. Model soups, SWA, and EMA
 
-This architecture should leave room for model averaging methods, but the initial design should prioritize snapshot ensembles.
+The architecture should leave room for model averaging methods.
 
-Potential future modules:
+Potential modules:
 
 ```text
 src/dojo/ensemble/soup.py
@@ -1825,12 +2896,10 @@ src/dojo/training/ema.py
 
 Greedy soup can reuse saved checkpoints and evaluate averaged weights.
 
-This should be an evaluation/bundling operation, not a training task.
+This belongs in the ensemble workflow.
 
 ```bash
-dojo bundle soup \
-  checkpoints=s3://bucket/runs/run123/checkpoints/*.ckpt \
-  selection.metric=val/species/macro_f1
+dojo ensemble experiment=ifcb/greedy_soup
 ```
 
 ## 14.2 SWA
@@ -1841,7 +2910,18 @@ SWA should be treated as a training callback or end-of-training phase.
 
 EMA should be a training callback that maintains shadow weights.
 
-These methods should not be required for the initial snapshot ensemble path.
+## 14.4 Relationship to imbalance
+
+For long-tail data, ensemble selection should support metrics such as:
+
+```text
+macro F1
+tail-class recall
+per-class F1
+balanced accuracy
+```
+
+Selection should not default to plain accuracy for imbalanced datasets.
 
 ---
 
@@ -1853,66 +2933,55 @@ Supported export formats:
 
 ```text
 .pt single model
-.pt snapshot ensemble
+.pt snapshot/checkpoint ensemble
 .onnx single model
-.onnx snapshot ensemble wrapper
+.onnx ensemble wrapper, optional
 ```
 
-The initial priority should be:
+## 15.2 `dojo export pt`
 
-1. `.pt` single model
-2. `.pt` snapshot ensemble containing multiple snapshot `state_dict`s
-3. `.onnx` single model
-4. `.onnx` snapshot ensemble wrapper
+`dojo export pt` converts checkpoint(s) or ensemble definitions into portable `.pt` artifacts.
 
-## 15.2 Export metadata
+It does not decide which checkpoints belong in an ensemble unless explicitly configured.
 
-Exported artifacts should include preprocessing metadata.
+That selection belongs to `dojo ensemble`.
 
-Metadata should include:
+Example:
+
+```bash
+dojo export pt \
+  checkpoint=s3://bucket/runs/run123/checkpoints/best.ckpt \
+  output=s3://bucket/runs/run123/exports/model.pt
+```
+
+For ensemble export:
+
+```bash
+dojo export pt \
+  ensemble_manifest=s3://bucket/runs/run123/ensemble/ensemble_manifest.json \
+  output=s3://bucket/runs/run123/exports/snapshot_ensemble.pt
+```
+
+## 15.3 Export metadata
+
+Exported artifacts should include:
 
 ```text
 model architecture
 backbone source/name
 head definitions
+objective summary
 class names
 class index mappings
 normalization mean/std
 image mode
 resize policy
-letterbox settings
-aspect bucket settings
+bucket definitions
+tabular feature names/order/stats
 input shape
 training config hash
 source checkpoint URI
 Dojo version
-```
-
-## 15.3 `.pt` export
-
-Single model `.pt`:
-
-```python
-{
-    "artifact_type": "supervised_model",
-    "format_version": "1.0",
-    "state_dict": {...},
-    "model_config": {...},
-    "preprocessing": {...},
-    "heads": {...},
-    "class_mappings": {...},
-}
-```
-
-Snapshot ensemble `.pt`:
-
-```python
-{
-    "artifact_type": "snapshot_ensemble",
-    "snapshots": [...],
-    "model_config": {...},
-    "preprocessing": {...},
-}
 ```
 
 ## 15.4 ONNX export
@@ -1921,127 +2990,81 @@ ONNX export should write:
 
 ```text
 model.onnx
-model.metadata.json
+metadata.json
 ```
 
-Additionally, metadata should be embedded into ONNX metadata properties when possible.
+Metadata should also be embedded into ONNX metadata properties when possible.
 
-Config:
+For aspect/size buckets:
+
+- CNN/ConvNeXt/ResNet may support dynamic H/W.
+- ViT exports are likely more robust as one ONNX file per bucket shape.
+
+Example metadata:
 
 ```yaml
-export:
-  format: onnx
-  mode: single_model
-  checkpoint_uri: runs/run123/checkpoints/best.ckpt
-  output_uri: runs/run123/export/model.onnx
+preprocessing:
+  resize_policy: bucketed
+  buckets:
+    - name: square
+      size: [224, 224]
+      min_aspect: 0.75
+      max_aspect: 1.33
+      onnx_model: model_224x224.onnx
 
-  input:
-    name: image
-    shape: [1, 3, 224, 224]
-    dynamic_batch: true
-
-  metadata:
-    include_preprocessing: true
-    include_class_mappings: true
+    - name: wide
+      size: [224, 448]
+      min_aspect: 1.33
+      max_aspect: 3.0
+      onnx_model: model_224x448.onnx
 ```
-
-## 15.5 Snapshot ensemble ONNX export
-
-For true ensemble ONNX export, the project can build a wrapper module:
-
-```text
-input image
-  ↓
-snapshot model 1
-snapshot model 2
-snapshot model 3
-  ↓
-average logits
-  ↓
-output ensemble logits
-```
-
-This may produce large ONNX files.
-
-Config should allow:
-
-```yaml
-export:
-  format: onnx
-  mode: snapshot_ensemble
-  max_snapshots: 5
-  combine: logits_mean
-```
-
-If ONNX ensemble export becomes too complex, the `.pt` snapshot ensemble artifact remains the primary ensemble deployment format.
 
 ---
 
 # 16. Inference and embedding extraction
 
-## 16.1 Inference outputs
+## 16.1 Inference command
+
+Use:
+
+```bash
+dojo infer experiment=ifcb/infer_model
+```
+
+or:
+
+```bash
+dojo infer \
+  model=s3://bucket/runs/run123/exports/model.pt \
+  data=s3://bucket/manifests/holdout.csv
+```
+
+## 16.2 Inference outputs
 
 Inference should optionally output:
 
 ```text
 head predictions
 raw logits
-probabilities
-embeddings
-novelty scores
-metadata
-```
-
-Command:
-
-```bash
-dojo predict \
-  checkpoint=s3://bucket/runs/run123/model/model_best.pt \
-  data=parquet_manifest \
-  predict.output_embeddings=true \
-  predict.output_logits=true
-```
-
-## 16.2 Output schema
-
-Predictions Parquet:
-
-```text
-sample_id
-uri
-split
-embedding
-head_name
-target
-prediction
-logits
-probabilities
+scores/probabilities
 confidence
-entropy
-top1_top2_margin
-metadata
+embeddings
+distance/novelty scores
+input-shape context
+resize bucket
+sample identifiers
 ```
 
-For multi-head predictions:
+All outputs should use the canonical results system.
 
-```text
-sample_id
-uri
-head_name
-output_type
-target
-prediction
-raw_output
-metadata
-```
+## 16.3 Embedding extraction
 
-## 16.3 Embedding export
-
-Embedding export should work with:
+Embedding extraction should work with:
 
 ```text
 supervised checkpoints
-SSL encoder checkpoints
+SSL encoder exports
+SSL training checkpoints
 snapshot ensemble members
 ```
 
@@ -2049,22 +3072,9 @@ Command:
 
 ```bash
 dojo eval embeddings \
-  checkpoint=s3://bucket/runs/ssl/model/encoder_final.pt \
+  checkpoint=s3://bucket/runs/ssl/exports/encoder.pt \
   data=csv_s3 \
-  output.uri=s3://bucket/embeddings/plankton_v1.parquet
-```
-
-Embedding Parquet schema:
-
-```text
-sample_id
-uri
-split
-embedding_model
-embedding_dim
-embedding
-label columns
-metadata columns
+  results.output_uri=s3://bucket/results/embedding_results.parquet
 ```
 
 ---
@@ -2089,43 +3099,42 @@ Implementations:
 LocalExperimentLogger
 AimExperimentLogger
 MLflowExperimentLogger
+CompositeExperimentLogger
 ```
 
 ## 17.2 Runtime logger selection
 
 ```yaml
 logging:
-  tracker: mlflow  # local_only | aim | mlflow
+  sinks:
+    - type: local
+      run_root: ./runs
 
-  local:
-    run_root: ./runs
-
-  mlflow:
-    tracking_uri: http://localhost:5000
-    experiment_name: plankton
-
-  aim:
-    repo: ./aim
-    experiment_name: plankton
+    - type: aim
+      repo: ./aim
+      experiment_name: ifcb
 ```
 
-Only one tracker should be active per run.
+or:
 
-Local artifact writing is always active.
+```yaml
+logging:
+  sinks:
+    - type: local
+      run_root: ./runs
+
+    - type: mlflow
+      tracking_uri: http://localhost:5000
+      experiment_name: ifcb
+```
+
+Multiple sinks may be supported if simple.
 
 ## 17.3 Artifact policy
 
-All artifacts are written locally first.
+Artifacts should be created according to result/export/checkpoint configuration.
 
-Then logger-specific implementations may upload or register them.
-
-```text
-artifact produced
-   ↓
-save to local run directory
-   ↓
-optionally log to Aim or MLflow
-```
+Logger sinks may register or upload artifacts after local creation.
 
 ---
 
@@ -2133,759 +3142,298 @@ optionally log to Aim or MLflow
 
 Use Hydra multirun only.
 
-No Optuna or Ray Tune in the initial refactor.
-
 Example:
 
 ```bash
 dojo train supervised -m \
+  experiment=ifcb/experimentA \
   backbone=torchvision/resnet50,timm/convnext_tiny \
   optimizer.lr=1e-4,3e-4 \
-  data.batch_size=32,64 \
-  losses.species.type=cross_entropy,class_balanced_effective_number
+  data.batch_size=32,64
 ```
 
 Each Hydra job should:
 
 1. Compose config.
-2. Convert to dict.
+2. Apply CLI overrides.
 3. Validate with Pydantic.
-4. Create independent run directory.
+4. Create run directory.
 5. Save resolved config.
 6. Run training/evaluation.
-7. Save local artifacts.
-8. Optionally log to Aim or MLflow.
+7. Save configured artifacts/results.
+8. Log to configured sinks.
 
 ---
 
-# 19. CLI design
+# 19. Testing strategy
 
-## 19.1 Top-level command
-
-```bash
-dojo --help
-```
-
-Subcommands:
-
-```bash
-dojo train supervised
-dojo train ssl
-
-dojo eval knn
-dojo eval linear-probe
-dojo eval embeddings
-
-dojo predict
-
-dojo bundle snapshot-ensemble
-dojo bundle soup
-
-dojo export pt
-dojo export onnx
-
-dojo validate-config
-```
-
-## 19.2 Command responsibilities
-
-### `dojo train supervised`
-
-Trains supervised single-head or multi-head models.
-
-### `dojo train ssl`
-
-Trains SSL models using Lightly.
-
-### `dojo eval knn`
-
-Runs k-NN evaluation over embeddings or a checkpoint.
-
-### `dojo eval linear-probe`
-
-Trains a frozen-backbone linear probe.
-
-### `dojo eval embeddings`
-
-Exports embeddings from a checkpoint.
-
-### `dojo predict`
-
-Runs inference and writes predictions.
-
-### `dojo bundle snapshot-ensemble`
-
-Bundles saved snapshots into one `.pt`.
-
-### `dojo export pt`
-
-Exports a model or snapshot ensemble to `.pt`.
-
-### `dojo export onnx`
-
-Exports a single model or ensemble wrapper to ONNX.
-
-### `dojo validate-config`
-
-Composes and validates a config without running training.
-
----
-
-# 20. Example configs
-
-## 20.1 Supervised single-head classifier
-
-```yaml
-defaults:
-  - task: supervised
-  - data: csv_s3
-  - transforms: microscopy_letterbox
-  - backbone: torchvision/resnet50
-  - optimizer: adamw
-  - scheduler: cosine
-  - logging: local_only
-  - snapshot_ensemble: disabled
-  - _self_
-
-experiment:
-  name: plankton_resnet50_species
-
-heads:
-  species:
-    type: multiclass_classification
-    target_column: species_idx
-    num_classes: 120
-    network:
-      type: linear
-
-losses:
-  species:
-    type: class_balanced_effective_number
-    beta: 0.999
-    weight: 1.0
-
-training:
-  max_epochs: 50
-  batch_size: 64
-  precision: 16-mixed
-```
-
-## 20.2 Multi-head supervised model
-
-```yaml
-defaults:
-  - task: supervised
-  - data: parquet_manifest
-  - transforms: microscopy_bucketed
-  - backbone: timm/convnext_tiny
-  - optimizer: adamw
-  - scheduler: cosine
-  - logging: mlflow
-  - _self_
-
-experiment:
-  name: plankton_multihead_convnext
-
-heads:
-  species:
-    type: multiclass_classification
-    target_column: species_idx
-    num_classes: 120
-    network:
-      type: linear
-
-  quality:
-    type: multiclass_classification
-    target_column: quality_idx
-    num_classes: 4
-    network:
-      type: linear
-
-  biomass:
-    type: regression
-    target_column: biomass
-    output_dim: 1
-    network:
-      type: linear
-
-  life_stage:
-    type: ordinal_regression
-    target_column: stage_idx
-    num_classes: 5
-    network:
-      type: linear
-
-losses:
-  species:
-    type: focal
-    gamma: 2.0
-    weight: 1.0
-
-  quality:
-    type: cross_entropy
-    weight: 0.25
-
-  biomass:
-    type: huber
-    delta: 1.0
-    weight: 0.10
-
-  life_stage:
-    type: coral
-    weight: 0.25
-```
-
-## 20.3 SSL DINOv2-style training with Lightly
-
-```yaml
-defaults:
-  - task: ssl
-  - data: parquet_images
-  - transforms: ssl_dino_v2_microscopy
-  - backbone: timm/vit_small_patch16_224
-  - ssl: dino_v2
-  - optimizer: adamw
-  - scheduler: cosine
-  - logging: aim
-  - _self_
-
-experiment:
-  name: plankton_dino_v2_ssl
-
-training:
-  max_epochs: 300
-  batch_size: 128
-  precision: 16-mixed
-
-ssl_eval:
-  labeled_data:
-    backend: csv
-    manifest_uri: s3://bucket/manifests/val_labeled.csv
-    image_uri_column: filename
-    sample_id_column: sample_id
-    targets:
-      species:
-        column: species_idx
-        type: multiclass
-
-  knn:
-    enabled: true
-    k: 20
-    distance: cosine
-    schedule:
-      every_fractional_epoch: 0.10
-
-  linear_probe:
-    enabled: true
-    schedule:
-      every_n_epochs: 10
-    max_epochs: 10
-
-  embedding_export:
-    enabled: true
-    schedule:
-      every_n_epochs: 10
-```
-
-## 20.4 Snapshot ensemble supervised training
-
-```yaml
-defaults:
-  - task: supervised
-  - data: csv_s3
-  - transforms: microscopy_letterbox
-  - backbone: torchvision/efficientnet_b0
-  - optimizer: adamw
-  - scheduler: cosine_restarts
-  - logging: mlflow
-  - snapshot_ensemble: cosine_snapshots
-  - _self_
-
-experiment:
-  name: plankton_efficientnet_snapshot_ensemble
-
-training:
-  max_epochs: 100
-  batch_size: 64
-
-scheduler:
-  type: cosine_restarts
-  cycle_epochs: 20
-
-snapshot_ensemble:
-  enabled: true
-  schedule:
-    type: cosine_restarts
-    num_snapshots: 5
-    cycle_epochs: 20
-    save_at: cycle_end
-
-  artifact:
-    save_individual_checkpoints: true
-    bundle_single_pt: true
-    bundle_filename: snapshot_ensemble.pt
-
-  inference:
-    combine: logits_mean
-```
-
-## 20.5 Transfer learning from SSL checkpoint
-
-```yaml
-defaults:
-  - task: supervised
-  - data: csv_s3
-  - transforms: microscopy_bucketed
-  - optimizer: adamw
-  - scheduler: cosine
-  - logging: local_only
-  - _self_
-
-experiment:
-  name: plankton_transfer_from_ssl_dino
-
-backbone:
-  source: checkpoint
-  architecture:
-    source: timm
-    name: vit_small_patch16_224
-    pretrained: false
-
-  checkpoint_uri: s3://bucket/runs/plankton_dino_v2_ssl/model/encoder_final.pt
-  checkpoint_key: encoder_state_dict
-  strict: false
-
-  freeze:
-    policy: last_n_blocks
-    trainable_blocks: 4
-
-heads:
-  species:
-    type: multiclass_classification
-    target_column: species_idx
-    num_classes: 120
-    network:
-      type: linear
-```
-
----
-
-# 21. Workflow summaries
-
-## 21.1 Supervised training workflow
-
-```text
-Hydra compose config
-  ↓
-Pydantic validate config
-  ↓
-create run directory
-  ↓
-build datamodule
-  ↓
-build transforms
-  ↓
-build backbone
-  ↓
-build heads
-  ↓
-build losses and metrics
-  ↓
-train LightningModule
-  ↓
-save checkpoints
-  ↓
-save metrics
-  ↓
-save predictions and optional embeddings
-  ↓
-save final .pt artifact
-  ↓
-optionally log to Aim or MLflow
-```
-
-## 21.2 SSL training workflow
-
-```text
-Hydra compose config
-  ↓
-Pydantic validate config
-  ↓
-build unlabeled datamodule
-  ↓
-build DINOv2-style Lightly transforms
-  ↓
-build encoder backbone
-  ↓
-build Lightly SSL head/loss
-  ↓
-train SSL LightningModule
-  ↓
-periodically evaluate with k-NN / linear probe / embeddings
-  ↓
-save encoder checkpoint
-  ↓
-save metrics and embeddings
-  ↓
-optionally log to Aim or MLflow
-```
-
-## 21.3 Transfer learning workflow
-
-```text
-load pretrained torchvision/timm/checkpoint backbone
-  ↓
-replace or attach supervised heads
-  ↓
-freeze according to policy
-  ↓
-train heads or fine-tune backbone
-  ↓
-evaluate
-  ↓
-export model
-```
-
-## 21.4 Snapshot ensemble workflow
-
-```text
-train supervised model with restart schedule
-  ↓
-save snapshots at configured cycle boundaries
-  ↓
-evaluate individual snapshots
-  ↓
-bundle snapshots into single .pt
-  ↓
-run ensemble prediction
-  ↓
-save ensemble metrics
-  ↓
-optionally export ONNX wrapper
-```
-
----
-
-# 22. Testing strategy
-
-## 22.1 Test fixture structure
-
-```text
-tests/fixtures/
-  images/
-    grayscale/
-    rgb/
-    extreme_aspect_ratio/
-    corrupt/
-
-  manifests/
-    train.csv
-    val.csv
-    multihead.csv
-    s3_paths.csv
-
-  parquet/
-    manifest.parquet
-    images.parquet
-
-  configs/
-    supervised_minimal.yaml
-    supervised_multihead.yaml
-    ssl_dino_v2_minimal.yaml
-    snapshot_ensemble.yaml
-    export_onnx.yaml
-
-  checkpoints/
-    tiny_resnet.ckpt
-    tiny_ssl_encoder.pt
-
-  ifcb_bins/
-    sample_manifest.csv
-    sample_images/
-```
-
-## 22.2 Config tests
+## 19.1 Config tests
 
 Test:
 
 ```text
 Hydra config composition
 Pydantic validation success
-Pydantic validation failure for invalid configs
+Pydantic validation failures
 CLI override validation
-missing required fields
 invalid head/loss combinations
+invalid objective references
 invalid dataset columns
-invalid tracker choice
-invalid snapshot ensemble config
+invalid logger sink configs
+invalid ensemble configs
 ```
 
-Examples:
-
-```text
-classification head requires num_classes
-regression head requires output_dim
-ordinal head requires num_classes > 1
-focal loss only valid for classification heads
-CORAL loss only valid for ordinal heads
-snapshot ensemble requires supervised task
-```
-
-## 22.3 Dataset tests
+## 19.2 Dataset tests
 
 Test:
 
 ```text
-CSV dataset loads local images
-CSV dataset accepts S3-style paths through mocked storage resolver
-Parquet manifest loads image paths
-Parquet image dataset decodes image bytes
-IFCB bins dataset conforms to SampleRecord contract
-multi-head targets are correctly parsed
-missing target handling
-bad image handling
+CSV local images
+CSV S3-style paths through mocked storage resolver
+Parquet manifest
+Parquet image bytes
+IFCB bins dataset
+multi-head targets
+tabular feature extraction
 sample_id propagation
-metadata propagation
+uri propagation
 ```
 
-## 22.4 Transform tests
+## 19.3 Storage tests
+
+Test:
+
+```text
+local amplify-backed storage
+cache resolver behavior
+S3 optional import behavior
+StorageResolver open_bytes/localize/write_bytes/exists
+```
+
+## 19.4 Transform tests
 
 Test:
 
 ```text
 letterbox preserves aspect ratio
-letterbox returns configured canvas size
-aspect bucket assigns expected bucket
-foreground-aware crop avoids mostly background crops
-grayscale repeat-to-3 returns 3 channels
-normalization applies expected shape and dtype
-DINOv2 SSL transform returns expected number of views
-extreme aspect ratio image does not get squashed
+aspect bucket assignment
+size bucket assignment
+foreground-aware crop
+grayscale repeat-to-3
+normalization
+DINOv2 multi-view transform
+extreme aspect ratio images
+small native resolution images
 ```
 
-## 22.5 Backbone tests
+## 19.5 Model tests
 
 Test:
 
 ```text
-torchvision ResNet feature extractor returns [B, D]
-torchvision EfficientNet feature extractor returns [B, D]
-torchvision Inception adapter handles aux outputs
-torchvision ViT feature extractor returns [B, D]
-timm backbone works when timm extra installed
-checkpoint backbone loads state_dict
-freeze policies correctly set requires_grad
+torchvision backbone construction
+timm backbone construction when extra installed
+checkpoint backbone loading
+embedding adapter
+freeze policies
+dojo inspect output
+classification head
+regression head
+ordinal head
+multi-head forward
+tabular feature fusion
 ```
 
-## 22.6 Head tests
+## 19.6 Objective/loss tests
 
 Test:
 
 ```text
-classification head output shape
-regression head output shape
-ordinal head output shape
-multi-head forward output dict
-invalid target/head mismatch raises validation error
+objective references existing head
+loss compatibility validation
+weighted objective sum
+classification losses
+regression losses
+log target transform
+ordinal losses
 ```
 
-## 22.7 Loss tests
+## 19.7 Supervised training smoke tests
 
 Test:
 
 ```text
-cross entropy
-weighted cross entropy
-effective-number class-balanced loss
-focal loss
-label smoothing
-MSE
-MAE
-Huber
-CORAL/CORN ordinal loss
-multi-head weighted aggregation
+single-head supervised 1 epoch
+multi-head supervised 1 epoch
+tabular + image supervised 1 epoch
+results written as canonical Parquet
+wide CSV export
+confusion matrix CSV export
+checkpoint callback outputs
 ```
 
-## 22.8 Supervised training smoke tests
-
-Use tiny synthetic datasets and tiny models.
-
-Test:
-
-```text
-single-head supervised training runs for 1 epoch
-multi-head supervised training runs for 1 epoch
-metrics are written locally
-checkpoints are written locally
-predictions are exported
-embeddings are optionally exported
-```
-
-## 22.9 SSL training smoke tests
+## 19.8 SSL training smoke tests
 
 Behind `ssl` extra.
 
 Test:
 
 ```text
-DINOv2-style Lightly task runs for a few batches
-multi-crop transform returns valid views
-online k-NN callback runs
-linear probe callback can be invoked
-encoder artifact is saved
+DINOv2-style Lightly task for a few batches
+multi-crop transform
+online embedding diagnostics
+online k-NN when labels are available
+unlabeled retrieval output
+encoder export
 ```
 
-## 22.10 Snapshot ensemble tests
+## 19.9 Ensemble tests
 
 Test:
 
 ```text
-snapshot callback saves snapshots
-bundle command creates one .pt file
-bundle contains multiple state_dicts
-snapshot ensemble predictor averages logits
-snapshot ensemble metrics are written
-snapshot ensemble works with multi-head model
+snapshot discovery
+top-k selection
+greedy ensemble selection
+bundle .pt creation
+ensemble inference
+ensemble result output
 ```
 
-## 22.11 Export tests
+## 19.10 Export tests
 
-Behind `onnx` extra.
+Behind `onnx` extra where needed.
 
 Test:
 
 ```text
-single .pt export contains metadata
-snapshot ensemble .pt export contains snapshots
-ONNX single-model export creates model.onnx
-ONNX metadata JSON includes preprocessing
-ONNX runtime can load exported model
+single .pt export
+snapshot ensemble .pt export
+ONNX single-model export
+ONNX metadata sidecar
+bucketed ONNX metadata
 ```
 
-## 22.12 Logging tests
+## 19.11 Logging tests
 
 Test:
 
 ```text
-local logger writes metrics/artifacts
-Aim logger adapter can be constructed when aim extra installed
-MLflow logger adapter can be constructed when mlflow extra installed
-config prevents aim and mlflow simultaneously
-local artifacts are created even when tracker is enabled
+local logger
+Aim logger when extra installed
+MLflow logger when extra installed
+multiple sinks if supported
+artifact registration
 ```
 
 ---
 
-# 23. Migration plan
+# 20. Migration plan
 
 ## Phase 1: Config and CLI foundation
 
 1. Add Hydra entrypoint.
-2. Add Pydantic schema package.
+2. Add `config_schemas`.
 3. Add `dojo validate-config`.
-4. Implement local artifact run directory.
-5. Add logger abstraction with local-only implementation.
+4. Add local/amplify storage resolver.
+5. Add result config schemas.
+6. Add logger abstraction.
 
 ## Phase 2: Supervised refactor
 
-1. Introduce common dataset record contract.
+1. Implement shared dataset record contract.
 2. Implement CSV datamodule.
 3. Implement Parquet datamodule.
-4. Port IFCB bins dataset to new dataset contract.
+4. Port IFCB bins dataset.
 5. Add backbone registry.
 6. Add head registry.
-7. Add supervised LightningModule.
-8. Add multi-head loss and metrics.
-9. Add basic supervised training command.
+7. Add objectives.
+8. Add supervised LightningModule.
+9. Add canonical results writer.
 
 ## Phase 3: Transform refactor
 
-1. Add microscopy transform presets.
+1. Add primitive transform builder.
 2. Add letterbox.
 3. Add aspect buckets.
-4. Add foreground-aware crop.
-5. Add normalization config.
-6. Add transform tests.
+4. Add size buckets.
+5. Add foreground-aware crop.
+6. Add grayscale/normalization primitives.
 
 ## Phase 4: SSL with Lightly
 
-1. Add `dojo[ssl]` extra.
-2. Add DINOv2-style Lightly task module.
-3. Add SSL transform preset.
-4. Add online k-NN eval callback.
-5. Add linear probe evaluation command.
-6. Add SSL embedding export.
+1. Add `dojo[ssl]`.
+2. Add Lightly DINOv2-style task.
+3. Add SSL transforms.
+4. Add labeled SSL eval.
+5. Add unlabeled diagnostics/retrieval/clustering/projections.
+6. Add encoder export.
 
-## Phase 5: Snapshot ensemble
+## Phase 5: Ensemble workflows
 
-1. Add snapshot training callback.
-2. Add restart scheduler config.
-3. Add snapshot bundle artifact.
-4. Add ensemble predictor.
-5. Add ensemble metrics/export.
+1. Add `dojo ensemble`.
+2. Add `dojo ensemble snapshot`.
+3. Add checkpoint selection.
+4. Add snapshot bundle artifact.
+5. Add ensemble result writing.
 
 ## Phase 6: Export
 
 1. Add `.pt` single-model export.
 2. Add `.pt` snapshot ensemble export.
 3. Add ONNX single-model export.
-4. Add ONNX metadata sidecar and embedded metadata.
-5. Add optional ONNX snapshot ensemble wrapper.
+4. Add ONNX metadata.
+5. Add bucket-aware ONNX export support.
 
-## Phase 7: Experiment tracking
+## Phase 7: Logging sinks
 
-1. Add Aim logger adapter.
-2. Add MLflow logger adapter.
-3. Ensure local-first artifact policy.
-4. Add tracking tests.
+1. Add Aim logger.
+2. Add MLflow logger.
+3. Add composite logger if needed.
+4. Ensure result/artifact config works across sinks.
 
 ---
 
-# 24. Design principles
+# 21. Design principles
 
-## 24.1 Keep task logic separate from model structure
+## 21.1 Pydantic schemas are the contract
 
-A backbone/head model should not know whether it is used for:
+Hydra composes configs.
 
-```text
-supervised training
-linear probing
-snapshot ensemble
-embedding extraction
-prediction
-```
+Pydantic validates and defines the runtime contract.
 
-## 24.2 Keep Hydra out of core logic
-
-Hydra should be limited to CLI/config composition.
-
-Core modules should use Pydantic configs.
-
-## 24.3 Keep storage concerns out of datasets
-
-Datasets should request bytes or localized paths through a storage resolver.
-
-They should not contain S3/cache implementation details.
-
-## 24.4 Save everything needed for reproducibility
-
-Every run should save:
+## 21.2 Keep task logic separate from model composition
 
 ```text
-resolved config
-code/package version if available
-dataset references
-model architecture config
-preprocessing metadata
-checkpoint provenance
-metrics
-predictions
-artifacts
+models/backbones     = feature extractors
+models/heads         = output modules
+models/compositors   = assemble PyTorch models
+tasks                = Lightning training/evaluation objectives
 ```
 
-## 24.5 Make embeddings first-class
+## 21.3 Prefer canonical internal representations
 
-Embeddings should be extractable from:
+Single-head supervised models should normalize into the same head/objective structure as multi-head models.
+
+## 21.4 Results are first-class artifacts
+
+Canonical results are tall Parquet.
+
+CSV/HDF are configurable derived exports.
+
+## 21.5 Avoid generic metadata junk drawers
+
+Use explicit columns for fields Dojo understands.
+
+Use `source_extra_json` only for optional dataset-specific passthrough fields.
+
+## 21.6 Keep storage behind a Dojo interface
+
+Use `amplify-storage-utils` underneath, but do not leak its API throughout datasets/training/export code.
+
+## 21.7 Make embeddings first-class
+
+Embeddings should be extractable and persistable from:
 
 ```text
 supervised models
@@ -2894,29 +3442,25 @@ snapshot ensemble members
 transfer-learning checkpoints
 ```
 
+## 21.8 Optimize for external orchestration
 
----
+No Prefect dependency should be added to core.
 
-# 25. Open implementation details for later design docs
+Functions should accept validated Pydantic configs and return structured result objects.
 
-This architectural doc intentionally does not fully specify:
+Example:
 
-1. Exact Pydantic class definitions.
-2. Exact Lightly DINOv2 implementation details.
-3. Exact ONNX wrapper implementation for snapshot ensembles.
-4. Exact `amplify-storage-utils` adapter API.
-5. Exact metric naming conventions.
-6. Exact Parquet schema serialization for vectors/logits.
-7. Exact migration of current code modules line-by-line.
+```python
+result = train_supervised(cfg)
+```
 
-Recommended follow-up docs:
+where `result` includes:
 
 ```text
-01_config_schema_design.md
-02_supervised_module_design.md
-03_ssl_dino_v2_design.md
-04_dataset_storage_design.md
-05_snapshot_ensemble_design.md
-06_export_and_inference_design.md
-07_testing_plan.md
+run_id
+run_dir
+checkpoint_uris
+export_uris
+metric_uris
+result_uris
 ```
