@@ -3222,27 +3222,118 @@ ssl_eval:
 
 ---
 
-# 13. Ensemble and snapshot architecture
+# 13. Generic model ensembling architecture
 
 ## 13.1 Concept
 
-Snapshot/checkpoint ensembling is a model-selection and inference workflow over compatible checkpoints or exported models.
-
-It is most commonly used for supervised prediction heads, but the workflow is not a separate model architecture. It can be applied to any set of candidate models that share compatible input preprocessing, output heads, target schemas, and class mappings.
+Model ensembling is a model-selection, artifact-construction, and inference workflow over compatible candidate models.
 
 It should be implemented as:
 
 ```text
-checkpoint discovery
-checkpoint/model selection
+candidate discovery
+candidate compatibility validation
+candidate scoring
+ensemble selection
 ensemble construction
 ensemble evaluation
 artifact bundling
+canonical result export
 ```
 
 not as a separate training model architecture.
 
-## 13.2 Generic ensemble command
+An ensemble may combine:
+
+```text
+checkpoints from one training run
+snapshots from one training run
+best-k checkpoints from one run
+checkpoints from different runs
+exported model artifacts
+fine-tuned models
+probe models
+candidate model soups
+SWA exports
+EMA exports
+```
+
+The core requirement is that ensemble members produce compatible outputs for the same task schema.
+
+## 13.2 Ensemble types
+
+The framework should support multiple ensemble families.
+
+```text
+prediction_space_ensemble
+snapshot_ensemble
+checkpoint_ensemble
+cross_run_ensemble
+weighted_ensemble
+model_soup
+swa_model
+ema_model
+```
+
+### Prediction-space ensemble
+
+A prediction-space ensemble keeps multiple member models and combines their respective output heads at inference time.
+
+Examples:
+
+```text
+average classification probabilities
+average classification logits
+average regression predictions
+average ordinal logits or ordinal probabilities
+majority vote
+weighted average by validation score
+```
+
+Prediction-space ensembles can combine models with different architectures if their inputs and outputs are compatible.
+
+### Snapshot ensemble
+
+A snapshot ensemble is a prediction-space ensemble whose members are checkpoints from the same training run.
+
+Snapshot ensembles are useful when training produces multiple good checkpoints at different epochs or schedule cycles.
+
+### Cross-run ensemble
+
+A cross-run ensemble combines compatible models from different runs.
+
+This is useful for combining models trained with different seeds, augmentations, folds, architectures, or training schedules.
+
+### Weight-space ensemble
+
+Weight-space ensemble methods combine model parameters and produce a single exported model.
+
+Examples:
+
+```text
+model soup
+greedy soup
+SWA
+EMA
+```
+
+Weight-space methods require stricter compatibility than prediction-space ensembles.
+
+They require compatible:
+
+```text
+architecture
+parameter names
+tensor shapes
+head definitions
+target schema
+class mappings
+preprocessing
+```
+
+At inference time, model soups, SWA, and EMA behave like single models, not multi-member prediction ensembles.
+
+## 13.3 Generic ensemble command
 
 ```bash
 dojo ensemble experiment=ifcb/ensemble_search
@@ -3251,10 +3342,150 @@ dojo ensemble experiment=ifcb/ensemble_search
 Purpose:
 
 ```text
-given many checkpoints/models
-find which combination produces best validation result
-under configured computational constraints
+given many compatible candidate checkpoints or exported models
+select an ensemble that optimizes the configured validation objective
+under configured compute, latency, memory, and artifact-size constraints
 ```
+
+The command should be able to run against:
+
+```text
+local run directories
+remote run directories
+explicit checkpoint manifests
+explicit model manifests
+experiment search results
+model registry entries
+```
+
+Example:
+
+```bash
+dojo ensemble \
+  experiment=ifcb/ensemble_search \
+  ensemble.discovery.run_uri=s3://bucket/runs/run123 \
+  ensemble.selection.strategy=greedy_forward_selection
+```
+
+## 13.4 Candidate compatibility requirements
+
+Prediction-space ensembles require compatible output semantics, not necessarily identical input preprocessing.
+
+Each ensemble member may define and apply its own preprocessing pipeline, image size, resize policy, normalization, and input transforms, as long as the ensemble runner can provide the required raw sample fields and each member produces compatible outputs.
+
+Hard compatibility requirements:
+
+```text
+sample identity semantics
+required input fields are available
+target schema
+head names
+head task types
+class mappings
+ordinal encoding rules
+ordinal decoding rules
+regression target units
+regression target scaling
+output tensor shapes
+output tensor meanings
+```
+
+For classification, all members included for a given head must use the same class order.
+
+For regression, all members included for a given head must predict the same target in the same units and scaling.
+
+For ordinal heads, all members included for a given head must use the same ordinal encoding and decoding rules.
+
+For multi-head models, compatibility should be checked per head.
+
+A candidate may be excluded from one head and included for another if the framework supports partial-head ensembling.
+
+### Member-specific preprocessing
+
+Candidate models may have different preprocessing requirements.
+
+Examples:
+
+```text
+different image sizes
+different resize policies
+different normalization constants
+different crop strategies
+different tabular feature transforms
+different required input modalities
+```
+
+These differences are allowed if each member artifact stores its own preprocessing metadata and the ensemble runner can apply preprocessing separately per member.
+
+This enables heterogeneous ensembles such as:
+
+```text
+EfficientNet model with 384 px inputs
+ViT model with 224 px inputs
+ConvNeXt model with 320 px inputs
+image-only model
+image + tabular model
+```
+
+The ensemble artifact should preserve member-specific preprocessing metadata.
+
+Recommended member metadata:
+
+```text
+ensemble_member_id
+model_id
+checkpoint_id
+preprocessing_config
+preprocessing_hash
+required_input_fields
+input_modalities
+target_schema_hash
+class_mapping_hash
+model_config_hash
+```
+
+### Shared-preprocessing fast path
+
+The framework may optionally support a shared-preprocessing fast path.
+
+This path preprocesses each sample once and sends the same tensor batch to all ensemble members.
+
+Shared preprocessing requires compatible:
+
+```text
+input modality
+image size
+resize policy
+normalization
+tensor layout
+tabular feature transforms
+```
+
+This is an optimization, not a general ensemble requirement.
+
+If shared preprocessing is not possible, the ensemble runner should fall back to member-specific preprocessing.
+
+### Weight-space compatibility
+
+Weight-space methods have stricter requirements than prediction-space ensembles.
+
+Methods such as model soups, SWA, and EMA require compatible:
+
+```text
+architecture
+parameter names
+tensor shapes
+head definitions
+target schema
+class mappings
+preprocessing assumptions
+```
+
+Unlike prediction-space ensembles, weight-space methods produce a single model artifact, so the resulting averaged model must have one coherent preprocessing contract.
+
+## 13.5 Candidate discovery
+
+Candidate discovery should produce a normalized candidate manifest.
 
 Inputs may include:
 
@@ -3264,19 +3495,143 @@ snapshots from one run
 best-k checkpoints
 checkpoints from different runs
 exported .pt models
+exported ONNX models
 candidate soups
+EMA exports
+SWA exports
 ```
 
-Selection strategies:
+Example discovery config:
+
+```yaml
+ensemble:
+  discovery:
+    sources:
+      - type: run_checkpoints
+        run_uri: s3://bucket/runs/run123
+        checkpoint_glob: checkpoints/*.ckpt
+
+      - type: exported_models
+        uri_glob: s3://bucket/runs/*/exports/model.pt
+
+      - type: manifest
+        manifest_uri: s3://bucket/ensembles/candidates.parquet
+```
+
+Candidate manifest columns:
+
+```text
+candidate_id
+candidate_uri
+candidate_type
+source_run_id
+source_config_id
+checkpoint_id
+model_id
+epoch
+global_step
+metric_name
+metric_value
+split
+created_at
+preprocessing_hash
+target_schema_hash
+class_mapping_hash
+model_config_hash
+```
+
+Candidate types:
+
+```text
+checkpoint
+exported_model
+snapshot_checkpoint
+soup_model
+swa_model
+ema_model
+external_model
+```
+
+## 13.6 Selection strategies
+
+Supported selection strategies:
 
 ```text
 top_k
+best_single
 greedy_forward_selection
-greedy_soup
-snapshot_cycle_selection
+greedy_backward_elimination
+weighted_greedy_forward_selection
 diversity_aware_selection
+snapshot_cycle_selection
 budget_constrained_selection
+greedy_soup
+uniform_soup
 ```
+
+### top_k
+
+Select the top K candidates by a validation metric.
+
+Useful as a simple baseline.
+
+```yaml
+ensemble:
+  selection:
+    strategy: top_k
+    k: 5
+    metric: val/species/macro_f1
+    mode: max
+```
+
+### greedy_forward_selection
+
+Start with the best single model, then iteratively add the candidate that most improves ensemble validation performance.
+
+```yaml
+ensemble:
+  selection:
+    strategy: greedy_forward_selection
+    metric: val/species/macro_f1
+    mode: max
+    max_models: 8
+    stop_if_no_improvement: true
+```
+
+### diversity_aware_selection
+
+Select candidates using both validation quality and diversity.
+
+Diversity signals may include:
+
+```text
+prediction disagreement
+error disagreement
+low correlation between logits
+low correlation between probabilities
+different random seeds
+different architectures
+different augmentations
+different training folds
+different checkpoint epochs
+```
+
+Example:
+
+```yaml
+ensemble:
+  selection:
+    strategy: diversity_aware_selection
+    metric: val/species/macro_f1
+    mode: max
+    diversity_metric: prediction_disagreement
+    diversity_weight: 0.20
+    max_models: 8
+```
+
+### budget_constrained_selection
+
+Select the best ensemble under deployment constraints.
 
 Budget constraints:
 
@@ -3285,66 +3640,243 @@ max_models
 max_latency_ms
 max_file_size_mb
 max_memory_mb
+max_parameters
+max_flops
 ```
 
-### Candidate compatibility requirements
-
-Prediction-space ensembles require compatible:
-
-```text
-input preprocessing
-image size / normalization
-target schema
-head names
-class mappings
-ordinal decoding rules
-regression target scaling
-output semantics
-```
-
-For classification, all members must use the same class order for a given head.
-
-For regression, all members must predict the same target in the same units and scaling.
-
-For ordinal heads, all members must use the same ordinal encoding and decoding rules.
-
-For model soups or other weight-averaging methods, candidates must additionally have compatible parameter names, tensor shapes, architecture definitions, and head definitions.
-This is important because **prediction ensembles** can combine different architectures if their outputs match, but **model soups/SWA/EMA** require weight-level compatibility.
-
-
-
-## 13.3 Snapshot-specific command
-
-```bash
-dojo ensemble snapshot experiment=ifcb/snapshot_ensemble
-```
-
-Specialized for snapshots from one training run.
-
-## 13.4 Snapshot ensemble config
+Example:
 
 ```yaml
 ensemble:
-  enabled: true
-  type: snapshot
-
-  discovery:
-    run_uri: s3://bucket/runs/run123
-    checkpoint_glob: checkpoints/snapshot_*.ckpt
-
   selection:
-    strategy: top_k
-    k: 5
+    strategy: budget_constrained_selection
     metric: val/species/macro_f1
     mode: max
+    constraints:
+      max_models: 4
+      max_latency_ms: 100
+      max_file_size_mb: 2048
+      max_memory_mb: 4096
+```
 
-  artifact:
-    bundle_single_pt: true
-    bundle_filename: snapshot_ensemble.pt
+## 13.X Offline ensemble assessment from canonical results
+
+Prediction-space ensembles can be assessed from previously exported canonical result files, without loading model checkpoints, when all candidate results were produced on the same evaluation dataset and compatible output heads.
+
+This enables fast ensemble search over cached predictions.
+
+Required alignment fields:
+
+"""text
+sample_id
+split
+head_name
+target
+record_type
+"""
+
+Recommended provenance fields:
+
+"""text
+run_id
+config_id
+checkpoint_id
+model_id
+epoch
+global_step
+"""
+
+Required compatibility:
+
+"""text
+same evaluation dataset or exactly aligned sample_id set
+same target semantics
+same head task type
+same class mapping for classification
+same ordinal encoding and decoding rules for ordinal outputs
+same regression units and target scaling for regression outputs
+"""
+
+Candidate preprocessing, image size, model architecture, and training method do not need to match because the ensemble is combining canonical outputs, not raw model inputs.
+
+### Cached classification ensembling
+
+Classification ensemble assessment should use cached `classification_output` records.
+
+Recommended columns:
+
+"""text
+sample_id
+split
+record_type = classification_output
+head_name
+target
+prediction_index
+prediction_label
+prediction_confidence
+logits
+probabilities
+run_id
+checkpoint_id
+model_id
+"""
+
+Supported cached-output combine modes:
+
+"""text
+probabilities_mean
+weighted_probabilities_mean
+logits_mean
+weighted_logits_mean
+majority_vote
+weighted_vote
+"""
+
+If `probabilities` are available, prefer `probabilities_mean` for heterogeneous models.
+
+If only `prediction_label` is available, only vote-based ensemble assessment is possible.
+
+### Cached regression ensembling
+
+Regression ensemble assessment should use cached `regression_output` records.
+
+Recommended columns:
+
+"""text
+sample_id
+split
+record_type = regression_output
+head_name
+target
+prediction_value
+prediction_uncertainty
+run_id
+checkpoint_id
+model_id
+"""
+
+Supported cached-output combine modes:
+
+"""text
+prediction_mean
+prediction_median
+weighted_prediction_mean
+prediction_trimmed_mean
+"""
+
+For basic regression ensembles:
+
+"""text
+ensemble_prediction_value = mean(member_prediction_values)
+ensemble_prediction_uncertainty = std(member_prediction_values)
+"""
+
+### Cached ordinal ensembling
+
+Ordinal ensemble assessment should use cached `ordinal_output` records.
+
+Recommended columns:
+
+"""text
+sample_id
+split
+record_type = ordinal_output
+head_name
+target
+prediction_index
+prediction_label
+prediction_confidence
+ordinal_logits
+probabilities
+run_id
+checkpoint_id
+model_id
+"""
+
+Supported cached-output combine modes:
+
+"""text
+ordinal_logits_mean
+ordinal_probabilities_mean
+expected_rank_mean
+"""
+
+All candidate outputs must use the same ordinal encoding and decoding rules.
+
+### Offline ensemble selection
+
+Cached canonical results can be used for:
+
+"""text
+best single model selection
+top-k ensemble assessment
+greedy forward ensemble selection
+weighted ensemble search
+diversity/disagreement analysis
+calibration analysis
+budget-aware selection, if candidate metadata includes latency or size
+"""
+
+Example command:
+
+"""bash
+dojo ensemble from-results experiment=ifcb/offline_ensemble_search
+"""
+
+Example config:
+
+"""yaml
+ensemble:
+  type: cached_prediction_ensemble
+
+  discovery:
+    sources:
+      - type: canonical_results
+        uri: s3://bucket/runs/run123/results/val_results/
+      - type: canonical_results
+        uri: s3://bucket/runs/run456/results/val_results/
+      - type: canonical_results
+        uri: s3://bucket/runs/run789/results/val_results/
+
+  compatibility:
+    require_same_sample_ids: true
+    require_same_target_schema: true
+    require_same_class_mappings: true
+
+  selection:
+    strategy: greedy_forward_selection
+    metric: val/species/macro_f1
+    mode: max
+    max_models: 5
 
   inference:
     combine:
-      classification: probabilities_mean  
+      classification: probabilities_mean
+      regression: prediction_mean
+      ordinal: ordinal_probabilities_mean
+"""
+
+### Limitations
+
+Cached canonical results are sufficient to assess ensemble performance on an existing dataset, but they are not sufficient to deploy the ensemble on new data.
+
+Deployment still requires access to the selected member model artifacts or a bundled ensemble artifact.
+
+Cached results also cannot measure true ensemble latency or memory use unless candidate metadata includes those measurements.
+
+The validation set may be used for ensemble selection. A separate test set should be used for final unbiased reporting.
+
+## 13.7 Ensemble inference combine modes
+
+Combine modes should be task-specific.
+
+Example config:
+
+```yaml
+ensemble:
+  inference:
+    combine:
+      classification: probabilities_mean
       regression: prediction_mean
       ordinal: ordinal_probabilities_mean
 ```
@@ -3357,79 +3889,575 @@ probabilities_mean
 weighted_logits_mean
 weighted_probabilities_mean
 majority_vote
+weighted_vote
 ```
 
-Note: homogeneous ensembles from one run (eg snapshots): logits_mean or probabilities_mean; heterogeneous model ensembles: probabilities_mean. 
-
-## 13.5 Snapshot artifact format
-
-The bundled `.pt` file should contain:
-
-```python
-{
-    "artifact_type": "snapshot_ensemble",
-    "format_version": "1.0",
-
-    "model_config": {...},
-    "preprocessing": {...},
-    "heads": {...},
-    "class_mappings": {...},
-
-    "snapshots": [
-        {
-            "name": "snapshot_001",
-            "epoch": 20,
-            "global_step": 12345,
-            "metric": 0.842,
-            "state_dict": {...},
-        },
-        {
-            "name": "snapshot_002",
-            "epoch": 40,
-            "global_step": 24690,
-            "metric": 0.858,
-            "state_dict": {...},
-        },
-    ],
-
-    "combine": "logits_mean",
-    "created_at": "...",
-    "dojo_version": "...",
-    "source_run_id": "...",
-}
-```
-
-## 13.6 Ensemble inference
-
-For classification:
+Supported regression combine modes:
 
 ```text
-ensemble_logits = mean(snapshot_logits)
+prediction_mean
+prediction_median
+weighted_prediction_mean
+prediction_trimmed_mean
+```
+
+Supported ordinal combine modes:
+
+```text
+ordinal_logits_mean
+ordinal_probabilities_mean
+expected_rank_mean
+weighted_ordinal_logits_mean
+weighted_ordinal_probabilities_mean
+```
+
+Recommended defaults:
+
+```text
+snapshot ensemble from one run: logits_mean or probabilities_mean
+cross-run homogeneous ensemble: probabilities_mean
+cross-run heterogeneous ensemble: probabilities_mean
+regression ensemble: prediction_mean
+ordinal ensemble: ordinal_probabilities_mean
+```
+
+### Classification inference
+
+With `logits_mean`:
+
+```text
+member_logits = [logits_1, logits_2, ...]
+ensemble_logits = mean(member_logits)
 probabilities = softmax(ensemble_logits)
-prediction = argmax(probabilities)
+prediction_index = argmax(probabilities)
+prediction_confidence = max(probabilities)
 ```
 
-For regression:
+With `probabilities_mean`:
 
 ```text
-ensemble_prediction = mean(snapshot_prediction)
+member_probabilities = [softmax(logits_1), softmax(logits_2), ...]
+probabilities = mean(member_probabilities)
+prediction_index = argmax(probabilities)
+prediction_confidence = max(probabilities)
 ```
 
-For ordinal regression:
+`probabilities_mean` is usually safer when combining heterogeneous models because it reduces sensitivity to different logit scales.
+
+### Regression inference
 
 ```text
-average ordinal logits
-decode ordinal prediction
+member_predictions = [prediction_1, prediction_2, ...]
+prediction_value = mean(member_predictions)
+prediction_uncertainty = std(member_predictions)
 ```
 
-## 13.7 Ensemble outputs
+If members also produce aleatoric uncertainty, total uncertainty may combine:
+
+```text
+within_member_uncertainty
+between_member_disagreement
+```
+
+### Ordinal inference
+
+Ordinal ensembling must respect the ordinal head implementation.
+
+Common approaches:
+
+```text
+average ordinal logits, then decode
+average ordinal probabilities, then decode
+average expected rank values
+```
+
+The ensemble artifact should store the ordinal decoding rule used for each ordinal head.
+
+## 13.8 Ensemble config
+
+Generic config:
+
+```yaml
+ensemble:
+  enabled: true
+  type: prediction_space_ensemble
+
+  discovery:
+    sources:
+      - type: run_checkpoints
+        run_uri: s3://bucket/runs/run123
+        checkpoint_glob: checkpoints/*.ckpt
+
+  compatibility:
+    require_same_preprocessing: false
+    require_same_target_schema: true
+    require_same_class_mappings: true
+    allow_partial_head_compatibility: false
+
+  selection:
+    strategy: greedy_forward_selection
+    metric: val/species/macro_f1
+    mode: max
+    split: val
+    max_models: 5
+    stop_if_no_improvement: true
+
+  inference:
+    combine:
+      classification: probabilities_mean
+      regression: prediction_mean
+      ordinal: ordinal_probabilities_mean
+
+  artifact:
+    bundle_single_pt: true
+    bundle_filename: ensemble.pt
+    include_member_state_dicts: true
+    include_member_uris: true
+    include_member_hashes: true
+
+  output:
+    save_member_predictions: false
+    save_ensemble_predictions: true
+    save_disagreement_metrics: true
+```
+
+## 13.9 Final-output snapshot ensemble
+
+A final-output snapshot ensemble is a prediction-space ensemble over checkpoints from the same supervised or fine-tuned training run.
+
+Each snapshot contains the full model needed to produce final task outputs:
+
+```text
+backbone / encoder
+neck or adapter, if used
+task heads
+class mappings
+target transforms
+preprocessing metadata
+```
+
+The ensemble combines final task outputs, not embeddings.
+
+Typical use cases:
+
+```text
+classification snapshot ensemble
+multi-head supervised snapshot ensemble
+fine-tuned SSL model snapshot ensemble
+```
+
+## 13.10 Training setup for final-output snapshot ensembles
+
+A final-output snapshot ensemble requires a training run that intentionally produces multiple useful checkpoints from one optimization trajectory.
+
+The recommended approach is snapshot-cycle training:
+
+```text
+train one model
+use a cyclic or warm-restart learning-rate schedule
+save a snapshot near the end of each cycle
+combine saved snapshots later as a prediction-space ensemble
+```
+
+This follows the classic snapshot-ensemble pattern:
+
+```text
+high learning rate at cycle restart
+  -> model moves to a new region of weight space
+
+cosine decay within the cycle
+  -> model settles into a useful local solution
+
+cycle end
+  -> save checkpoint snapshot
+
+repeat
+  -> produce multiple diverse-but-compatible snapshots
+```
+
+Snapshot-cycle training is most useful for final-output ensembles where each saved snapshot contains the full model needed for prediction:
+
+```text
+backbone / encoder
+neck or adapter, if used
+task heads
+class mappings
+target transforms
+preprocessing metadata
+```
+
+The ensemble combines final task outputs, not embeddings.
+
+Typical use cases:
+
+```text
+classification snapshot ensemble
+regression snapshot ensemble
+ordinal regression snapshot ensemble
+multi-head supervised snapshot ensemble
+fine-tuned SSL model snapshot ensemble
+```
+
+### Snapshot-cycle scheduler
+
+The training config should support cosine cycles or cosine warm restarts.
+
+Example:
+
+```yaml
+training:
+  max_epochs: 300
+
+  scheduler:
+    type: cosine_warm_restarts
+
+    # Number of epochs in the first cycle.
+    first_cycle_epochs: 50
+
+    # Keep all cycles the same length.
+    cycle_mult: 1.0
+
+    # Learning-rate range within each cycle.
+    max_lr: 1.0e-4
+    min_lr: 1.0e-6
+
+    # Optional warmup before the first cycle.
+    warmup_epochs: 5
+```
+
+This produces cycle-end snapshot candidates such as:
+
+```text
+epoch 050
+epoch 100
+epoch 150
+epoch 200
+epoch 250
+epoch 300
+```
+
+The exact cycle schedule may be expressed in epochs or iterations, but the checkpointing logic should know when a cycle ends.
+
+### Cycle-end snapshot checkpointing
+
+Snapshot checkpoints should be saved at or near the end of each scheduler cycle.
+
+Example:
+
+```yaml
+training:
+  checkpointing:
+    enabled: true
+
+    save_last: true
+
+    save_cycle_snapshots:
+      enabled: true
+      at_cycle_end: true
+      filename_template: snapshot_cycle={cycle:02d}_epoch={epoch:03d}_step={global_step}
+
+    save_top_k:
+      enabled: true
+      k: 5
+      monitor: val/species/macro_f1
+      mode: max
+      filename_template: best_epoch={epoch:03d}_macro_f1={metric:.4f}
+```
+
+Cycle-end snapshots and best-k checkpoints can both be included as ensemble candidates.
+
+Recommended candidate sources:
+
+```text
+cycle-end snapshots
+best-k validation checkpoints
+last checkpoint
+late-training checkpoints
+EMA checkpoint, if enabled
+SWA checkpoint, if enabled
+```
+
+### Validation during snapshot-cycle training
+
+Validation should run often enough to score snapshot candidates.
+
+Example:
+
+```yaml
+training:
+  validation:
+    run_every_n_epochs: 1
+
+  metrics:
+    primary_metric: val/species/macro_f1
+    mode: max
+```
+
+Each saved snapshot should record the metrics available at that point in training.
+
+Recommended snapshot metadata:
+
+```text
+run_id
+config_id
+checkpoint_id
+epoch
+global_step
+cycle_index
+cycle_start_epoch
+cycle_end_epoch
+scheduler_type
+learning_rate_at_save
+selection_metric_name
+selection_metric_value
+model_config_hash
+target_schema_hash
+class_mapping_hash
+preprocessing_hash
+```
+
+### Alternative snapshot sources
+
+Snapshot-cycle training is the preferred setup when snapshot ensembling is planned from the beginning.
+
+The framework should also support simpler snapshot sources:
+
+```text
+regular epoch checkpoints
+late-training checkpoints
+best-k validation checkpoints
+manual checkpoint manifests
+```
+
+Example late-training snapshot setup:
+
+```yaml
+training:
+  max_epochs: 300
+
+  checkpointing:
+    enabled: true
+    save_last: true
+
+    save_epoch_snapshots:
+      enabled: true
+      every_n_epochs: 5
+      start_epoch: 200
+      filename_template: late_snapshot_epoch={epoch:03d}
+```
+
+This does not intentionally create cycle diversity, but it may still produce useful ensemble candidates.
+
+### Relationship to model soups, SWA, and EMA
+
+Snapshot-cycle training produces candidates for a prediction-space ensemble.
+
+It should not be confused with weight-averaging methods.
+
+```text
+snapshot ensemble:
+  save multiple checkpoints
+  keep multiple member models
+  combine outputs at inference
+
+model soup:
+  average compatible checkpoint weights
+  export one model
+
+SWA:
+  average weights during or after training
+  export one model
+
+EMA:
+  maintain shadow weights during training
+  export one model
+```
+
+The same training run may produce snapshot candidates, EMA weights, and SWA weights, but these should be represented as different candidate types.
+
+## 13.11 Snapshot ensemble command
+
+Snapshot ensembling should be exposed as a specialized mode of the generic ensemble workflow.
+
+Specialized command:
+
+```bash
+dojo ensemble snapshot experiment=ifcb/snapshot_ensemble
+```
+
+Equivalent generic command:
+
+```bash
+dojo ensemble \
+  experiment=ifcb/snapshot_ensemble \
+  ensemble.type=snapshot_ensemble \
+  ensemble.discovery.sources.0.type=run_checkpoints
+```
+
+The snapshot command should:
+
+```text
+discover snapshot checkpoints from one run
+validate candidate compatibility
+score candidates on a validation split
+select a subset of snapshots
+construct a prediction-space ensemble
+evaluate the selected ensemble
+export an ensemble artifact
+write canonical result records
+```
+
+### Snapshot-cycle ensemble config
+
+Example config for snapshots produced by cosine warm-restart training:
+
+```yaml
+ensemble:
+  enabled: true
+  type: snapshot_ensemble
+
+  discovery:
+    sources:
+      - type: run_checkpoints
+        run_uri: s3://bucket/runs/run123
+        checkpoint_glob: checkpoints/snapshot_cycle=*.ckpt
+        candidate_type: snapshot_checkpoint
+
+  compatibility:
+    require_same_target_schema: true
+    require_same_class_mappings: true
+    allow_member_specific_preprocessing: true
+    allow_partial_head_compatibility: false
+
+  selection:
+    strategy: cycle_end_snapshots
+
+    # Optional: use all discovered cycle-end snapshots.
+    use_all_cycles: true
+
+    # Optional: cap number of selected snapshots.
+    max_models: 6
+
+    metric: val/species/macro_f1
+    mode: max
+    split: val
+
+  inference:
+    combine:
+      classification: probabilities_mean
+      regression: prediction_mean
+      ordinal: ordinal_probabilities_mean
+
+  artifact:
+    bundle_single_pt: true
+    bundle_filename: snapshot_ensemble.pt
+    include_member_state_dicts: true
+    include_member_uris: true
+    include_member_hashes: true
+
+  output:
+    save_ensemble_predictions: true
+    save_member_predictions: false
+    save_disagreement_metrics: true
+```
+
+### Snapshot selection strategies
+
+The simplest snapshot ensemble uses all cycle-end snapshots.
+
+```yaml
+ensemble:
+  selection:
+    strategy: cycle_end_snapshots
+    use_all_cycles: true
+```
+
+A validation-filtered snapshot ensemble selects the best K cycle-end snapshots.
+
+```yaml
+ensemble:
+  selection:
+    strategy: top_k
+    candidate_filter:
+      candidate_type: snapshot_checkpoint
+    k: 5
+    metric: val/species/macro_f1
+    mode: max
+```
+
+A greedy snapshot ensemble selects snapshots that improve ensemble validation performance.
+
+```yaml
+ensemble:
+  selection:
+    strategy: greedy_forward_selection
+    candidate_filter:
+      candidate_type: snapshot_checkpoint
+    metric: val/species/macro_f1
+    mode: max
+    max_models: 5
+    stop_if_no_improvement: true
+```
+
+The framework should allow both classic uniform snapshot ensembling and validation-based snapshot selection.
+
+### Cached-result snapshot ensemble search
+
+If canonical validation results have already been written for each snapshot, the snapshot ensemble can be assessed without re-running model inference.
+
+Example:
+
+```bash
+dojo ensemble snapshot from-results experiment=ifcb/snapshot_ensemble_from_results
+```
+
+Example config:
+
+```yaml
+ensemble:
+  enabled: true
+  type: cached_snapshot_ensemble
+
+  discovery:
+    sources:
+      - type: canonical_results
+        uri: s3://bucket/runs/run123/results/snapshot_val_results/
+        candidate_type: snapshot_checkpoint
+
+  compatibility:
+    require_same_sample_ids: true
+    require_same_target_schema: true
+    require_same_class_mappings: true
+
+  selection:
+    strategy: greedy_forward_selection
+    metric: val/species/macro_f1
+    mode: max
+    max_models: 5
+
+  inference:
+    combine:
+      classification: probabilities_mean
+      regression: prediction_mean
+      ordinal: ordinal_probabilities_mean
+```
+
+Cached-result search is useful for fast ensemble selection, but deployment still requires access to the selected member checkpoints or a bundled ensemble artifact.
+
+### Snapshot ensemble outputs
+
+Recommended output layout:
 
 ```text
 runs/{run_id}/
   ensemble/
-    selected_checkpoints.json
+    candidate_manifest.json
+    compatibility_report.json
+    selected_candidates.json
     ensemble_manifest.json
     ensemble_metrics.json
+    member_metrics.json
+    disagreement_metrics.json
 
   exports/
     snapshot_ensemble.pt
@@ -3437,13 +4465,19 @@ runs/{run_id}/
   results/
     val_results/
       part-00000.parquet
+
     test_results/
       part-00000.parquet
+
+    # Optional member-level outputs
+    val_member_results/
+      member=snapshot_cycle_01/
+        part-00000.parquet
+      member=snapshot_cycle_02/
+        part-00000.parquet
 ```
 
-Ensemble prediction outputs should use the same canonical result schemas as ordinary supervised outputs.
-
-For example:
+Ensemble prediction rows should use the normal canonical supervised result types:
 
 ```text
 classification ensemble -> record_type = classification_output
@@ -3451,27 +4485,337 @@ regression ensemble     -> record_type = regression_output
 ordinal ensemble        -> record_type = ordinal_output
 ```
 
-The ensemble artifact should be identified through provenance columns such as:
+The ensemble artifact should be identified with provenance fields such as:
 
-```
+```text
 model_id
 ensemble_id
 ensemble_method
+ensemble_member_count
+ensemble_combine_method
 ```
 
-For ensemble outputs, model_id should identify the exported ensemble artifact, such as snapshot_ensemble.pt.
+For snapshot ensembles, `ensemble_method` should identify the method used to generate or select members, for example:
 
-checkpoint_id may be null for bundled ensembles, or may refer to the selected ensemble artifact rather than any single member checkpoint. Member checkpoint provenance should be stored in the ensemble manifest.
+```text
+snapshot_cycle_uniform
+snapshot_cycle_top_k
+snapshot_cycle_greedy_forward
+late_checkpoint_top_k
+```
 
+## 13.12 Ensemble artifact format
 
+The exported ensemble artifact should contain enough information for reproducible inference.
 
----
+Example bundled artifact:
 
-# 14. Model soups, SWA, and EMA
+```python
+{
+    "artifact_type": "prediction_space_ensemble",
+    "ensemble_type": "snapshot_ensemble",
+    "format_version": "1.0",
 
-The architecture should leave room for model averaging methods.
+    "ensemble_id": "...",
+    "model_id": "...",
 
-Potential modules:
+    "model_config": {...},
+    "preprocessing": {...},
+    "target_schema": {...},
+    "heads": {...},
+    "class_mappings": {...},
+
+    "members": [
+        {
+            "ensemble_member_id": "snapshot_001",
+            "candidate_id": "...",
+            "name": "snapshot_001",
+            "candidate_type": "snapshot_checkpoint",
+            "source_run_id": "run123",
+            "source_config_id": "...",
+            "checkpoint_id": "...",
+            "checkpoint_uri": "s3://bucket/runs/run123/checkpoints/snapshot_001.ckpt",
+            "checkpoint_sha256": "...",
+            "epoch": 20,
+            "global_step": 12345,
+            "selection_metric_name": "val/species/macro_f1",
+            "selection_metric_value": 0.842,
+            "weight": 1.0,
+            "state_dict": {...},
+        },
+        {
+            "ensemble_member_id": "snapshot_002",
+            "candidate_id": "...",
+            "name": "snapshot_002",
+            "candidate_type": "snapshot_checkpoint",
+            "source_run_id": "run123",
+            "source_config_id": "...",
+            "checkpoint_id": "...",
+            "checkpoint_uri": "s3://bucket/runs/run123/checkpoints/snapshot_002.ckpt",
+            "checkpoint_sha256": "...",
+            "epoch": 40,
+            "global_step": 24690,
+            "selection_metric_name": "val/species/macro_f1",
+            "selection_metric_value": 0.858,
+            "weight": 1.0,
+            "state_dict": {...},
+        },
+    ],
+
+    "combine": {
+        "classification": "logits_mean",
+        "regression": "prediction_mean",
+        "ordinal": "ordinal_logits_mean",
+    },
+
+    "selection_config": {...},
+    "selection_results": {...},
+    "compatibility_report": {...},
+
+    "created_at": "...",
+    "dojo_version": "...",
+}
+```
+
+The artifact may either bundle member weights directly or store immutable references to member artifacts.
+
+If member weights are not bundled, the artifact must include:
+
+```text
+member checkpoint/model URI
+content hash
+model config hash
+preprocessing hash
+target schema hash
+class mapping hash
+```
+
+## 13.13 Ensemble run layout
+
+Recommended output layout:
+
+```text
+runs/{run_id}/
+  config/
+    resolved.yaml
+    resolved.json
+
+  ensemble/
+    candidate_manifest.json
+    compatibility_report.json
+    selected_candidates.json
+    ensemble_manifest.json
+    ensemble_metrics.json
+    member_metrics.json
+    disagreement_metrics.json
+
+  exports/
+    ensemble.pt
+    snapshot_ensemble.pt
+
+  results/
+    val_results/
+      part-00000.parquet
+
+    test_results/
+      part-00000.parquet
+
+    # Optional debugging/provenance outputs
+    val_member_results/
+      member=snapshot_001/
+        part-00000.parquet
+      member=snapshot_002/
+        part-00000.parquet
+
+    test_member_results/
+      member=snapshot_001/
+        part-00000.parquet
+      member=snapshot_002/
+        part-00000.parquet
+```
+
+## 13.14 Ensemble result records
+
+Ensemble prediction outputs should use the same canonical result schemas as ordinary supervised outputs.
+
+Recommended record types:
+
+```text
+classification ensemble -> record_type = classification_output
+regression ensemble     -> record_type = regression_output
+ordinal ensemble        -> record_type = ordinal_output
+```
+
+The row represents the ensemble prediction, not an individual member prediction.
+
+Recommended additional provenance columns:
+
+```text
+model_id
+ensemble_id
+ensemble_method
+ensemble_member_count
+ensemble_combine_method
+```
+
+For ensemble outputs, `model_id` should identify the exported ensemble artifact, such as `ensemble.pt` or `snapshot_ensemble.pt`.
+
+`checkpoint_id` may be null for bundled ensembles because no single checkpoint produced the prediction.
+
+Member checkpoint provenance should be stored in the ensemble manifest rather than repeated in every prediction row.
+
+Optional member-level prediction rows may be saved for debugging, calibration analysis, and disagreement analysis.
+
+Recommended member-level provenance columns:
+
+```text
+ensemble_id
+ensemble_member_id
+member_checkpoint_id
+member_model_id
+member_weight
+```
+
+Member-level outputs should also use the canonical supervised result schemas.
+
+## 13.15 Ensemble metrics
+
+The ensemble workflow should report:
+
+```text
+ensemble validation metrics
+ensemble test metrics, when available
+single best candidate metrics
+selected member metrics
+member disagreement metrics
+calibration metrics
+latency and memory metrics
+artifact size
+```
+
+For classification:
+
+```text
+accuracy
+balanced_accuracy
+macro_f1
+micro_f1
+weighted_f1
+per_class_f1
+per_class_recall
+per_class_precision
+macro_auroc
+macro_average_precision
+negative_log_likelihood
+expected_calibration_error
+confusion_matrix
+```
+
+For regression:
+
+```text
+mae
+mse
+rmse
+r2
+spearman_correlation
+pearson_correlation
+prediction_uncertainty_summary
+```
+
+For ordinal regression:
+
+```text
+accuracy
+balanced_accuracy
+macro_f1
+mean_absolute_rank_error
+quadratic_weighted_kappa
+ordinal_calibration_error
+```
+
+For long-tail or imbalanced datasets, selection should not default to plain accuracy.
+
+Preferred selection metrics include:
+
+```text
+macro_f1
+balanced_accuracy
+tail_class_recall
+per_class_f1
+macro_average_precision
+macro_auroc
+negative_log_likelihood
+calibration_error
+```
+
+Selection should support a primary metric and optional tie-breakers.
+
+Example:
+
+```yaml
+ensemble:
+  selection:
+    metric: val/species/macro_f1
+    mode: max
+    tie_breakers:
+      - metric: val/species/tail_recall
+        mode: max
+      - metric: val/species/expected_calibration_error
+        mode: min
+```
+
+## 13.16 Relationship to model soups, SWA, and EMA
+
+Model soups, SWA, and EMA are related to ensembling but should be represented differently from prediction-space ensembles.
+
+```text
+prediction-space ensemble:
+  keeps multiple member models
+  combines outputs at inference
+  exports an ensemble artifact
+
+model soup:
+  averages compatible model weights
+  exports one ordinary model artifact
+
+SWA:
+  averages weights during or after training
+  exports one ordinary model artifact
+
+EMA:
+  maintains shadow weights during training
+  exports one ordinary model artifact
+```
+
+Prediction-space ensembles should use:
+
+```text
+artifact_type = prediction_space_ensemble
+```
+
+Model soups, SWA, and EMA should usually export ordinary model artifacts with provenance indicating how the weights were produced.
+
+Example:
+
+```text
+artifact_type = model
+weight_source = greedy_soup
+```
+
+```text
+artifact_type = model
+weight_source = swa
+```
+
+```text
+artifact_type = model
+weight_source = ema
+```
+
+# 14. Model soups, SWA, and EMA 
+
+The architecture should leave room for model averaging methods. Potential modules:
 
 ```text
 src/dojo/ensemble/soup.py
