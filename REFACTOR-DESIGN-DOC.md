@@ -6,18 +6,19 @@ Draft architectural design.
 
 ## Target Repository
 
-This design is intended for a major breaking refactor of `WHOIGit/image-classifier-dojo`.
+This design is intended for a major breaking refactor of [`WHOIGit/image-classifier-dojo`](https://github.com/WHOIGit/image-classifier-dojo).
 
 The refactor prioritizes:
 
-- supervised image modeling with one or more heads
-- self-supervised learning using Lightly, initially focused on DINOv2-style workflows
+- supervised image modeling with one or more output heads
+- self-supervised learning (SSL) using Lightly, initially focused on DINOv2-style workflows
 - strong Pydantic schemas as the source of truth
 - Hydra-based config composition and CLI overrides
 - configurable experiment logging and artifact output
 - snapshot/checkpoint ensembling workflows
-- local/S3-capable storage using `amplify-storage-utils`
-- columnar, improv-compatible result output
+- local/S3-capable storage using [`amplify-storage-utils`](https://github.com/WHOIGit/amplify-storage-utils)
+- IFCB bin support (for SSL) using [`ifcbkit`](https://github.com/WHOIGit/ifcbkit)
+- columnar, [`improv`](https://github.com/WHOIGit/improv)-compatible result output
 - future Prefect orchestration without adding Prefect to the core project
 
 ---
@@ -28,33 +29,35 @@ The refactor prioritizes:
 
 The refactored project should support:
 
-1. Supervised image classification, regression, and ordinal regression.
-2. Multi-head supervised models with one or more output heads.
+1. Supervised image classification, regression, count regression, distributional regression, and ordinal regression.
+2. Supervised models with one or more output heads.
 3. Transfer learning from:
    - torchvision pretrained backbones
    - timm pretrained backbones
    - non-pretrained torchvision/timm backbones
    - local or remote checkpoints
+   - SSL encoder exports
 4. Self-supervised learning using Lightly, initially focused on DINOv2-style training.
 5. SSL evaluation during training using labeled and/or unlabeled evaluation datasets.
-6. Supervised model holdout evaluation for one or more checkpoints/models.
+6. Supervised holdout evaluation for one or more checkpoints/models.
 7. Snapshot and checkpoint ensembling workflows.
-8. Bundling snapshot/checkpoint ensembles into a single `.pt` artifact containing multiple snapshot `state_dict`s.
-9. Optional export to ONNX, including preprocessing and result metadata.
+8. Bundling selected checkpoint/snapshot ensembles into a single `.pt` artifact containing multiple `state_dict`s.
+9. Optional export to ONNX, including preprocessing and model metadata.
 10. Dataset loading from:
     - CSV manifests
     - Parquet manifests
     - Parquet image datasets
-    - IFCB bins dataset or equivalent current Dojo support
+    - IFCB bin manifests
 11. S3 path support for CSV/Parquet-defined image paths.
-12. Use of `amplify-storage-utils` for local storage, object storage abstraction, caching, and optional S3 support.
-13. Hyperparameter search through Hydra multirun.
-14. Experiment logging through:
+12. IFCB raw-bin support through [`ifcbkit`](https://github.com/WHOIGit/ifcbkit).
+13. Use of [`amplify-storage-utils`](https://github.com/WHOIGit/amplify-storage-utils) for local storage, object-store abstraction, caching, and optional S3 support.
+14. Hyperparameter search through Hydra multirun.
+15. Experiment logging through:
     - local files
     - Aim
     - MLflow
-    - optionally more than one sink if configured
-15. Configurable result outputs:
+    - optionally more than one sink, if configured
+16. Configurable result outputs:
     - canonical tall Parquet
     - wide CSV summaries
     - embeddings CSV
@@ -66,7 +69,7 @@ The refactored project should support:
 The following are intentionally deferred:
 
 1. Full WebDataset support.
-2. Full production model serving framework.
+2. Production model serving framework.
 3. Prefect flows inside the Dojo package.
 4. Full AutoML or Bayesian optimization.
 5. Direct dependency on Meta DINOv2 repositories.
@@ -121,7 +124,7 @@ validated ExperimentConfig
 training / evaluation / export code
 ```
 
-Core training code should receive Pydantic objects, not raw Hydra `DictConfig`s.
+Core training/evaluation code should receive Pydantic objects, not raw Hydra `DictConfig`s.
 
 ```python
 def train_supervised(cfg: ExperimentConfig) -> RunResult:
@@ -177,8 +180,9 @@ This should accept multiple checkpoints/models so users can compare:
 best-k checkpoints
 last checkpoint
 snapshot checkpoints
-exported models
-candidate soups/ensembles
+exported .pt models
+candidate ensembles
+candidate soups
 ```
 
 #### `dojo eval knn`
@@ -201,7 +205,7 @@ This replaces `dojo predict`.
 
 #### `dojo ensemble`
 
-Evaluate many possible checkpoint/model combinations and select ensemble candidates based on validation performance and computational tradeoff.
+Evaluate possible checkpoint/model combinations and select ensemble candidates based on validation performance and computational tradeoff.
 
 This is the generic ensemble search/selection command.
 
@@ -276,17 +280,13 @@ Aim only
 MLflow only
 local + Aim
 local + MLflow
-local + Aim + MLflow, if not burdensome
 ```
-
-Local artifacts should generally be produced for reproducibility, but the logger config should not prohibit tracker-only workflows if a user explicitly configures them.
 
 Recommended default:
 
 ```text
-local artifacts enabled
-one experiment tracker optional
-multiple trackers allowed if implementation remains simple
+local artifacts & metrics enabled
+experiment tracker optional
 ```
 
 Logging config should be explicit:
@@ -302,9 +302,9 @@ logging:
       experiment_name: ifcb
 
     # optionally:
-    # - type: aim
-    #   repo: ./aim
-    #   experiment_name: ifcb
+    - type: aim
+      repo: ./aim
+      experiment_name: ifcb
 ```
 
 ---
@@ -370,7 +370,7 @@ image-classifier-dojo/
 
     transforms/
       supervised_default.yaml
-      microscopy_letterbox.yaml
+      letterbox_square.yaml
       bucketed_aspect_size.yaml
       ssl_dino_v2_plankton.yaml
 
@@ -485,18 +485,16 @@ image-classifier-dojo/
         transforms/
           __init__.py
           builder.py
-          primitives/
-            __init__.py
-            letterbox.py
-            aspect_bucket.py
-            size_bucket.py
-            foreground_crop.py
-            grayscale.py
-            normalization.py
-            crop.py
-            blur.py
-            noise.py
-            rotation.py
+          letterbox.py
+          aspect_bucket.py
+          size_bucket.py
+          foreground_crop.py
+          grayscale.py
+          normalization.py
+          crop.py
+          blur.py
+          noise.py
+          rotation.py
 
         samplers/
           __init__.py
@@ -648,6 +646,10 @@ image-classifier-dojo/
         torch_utils.py
         serialization.py
 
+      patches/
+        __init__.py
+        model_summary_with_grad.py
+
   tests/
     fixtures/
       configs/
@@ -681,54 +683,35 @@ image-classifier-dojo/
       test_hydra_multirun_config.py
 ```
 
-## 3.1 Config folders vs experiment configs
+## 3.1 Notes on structure
 
-Most files under `configs/` are reusable config groups.
+### `config_schemas/`
 
-Users should usually create or modify files under:
+Pydantic experiment/config schemas live in:
 
 ```text
-configs/example_experiments/
+src/dojo/config_schemas/
 ```
 
-A runnable experiment config composes reusable config groups.
+### `data/record_schemas/`
 
-Example:
+Pydantic schemas for persisted records and result row formats live in:
 
-```yaml
-# configs/example_experiments/ifcb/experimentA.yaml
-defaults:
-  - /task: supervised
-  - /data: csv_s3
-  - /transforms: bucketed_aspect_size
-  - /backbone: torchvision/resnet50
-  - /optimizer: adamw
-  - /scheduler: cosine
-  - /logging: local
-  - /results: canonical_parquet
-  - /ensemble: disabled
-  - _self_
-
-experiment:
-  name: ifcb_experimentA
-
-data:
-  manifest_uri: s3://bucket/ifcb/train.csv
-  image_uri_column: filename
-  sample_id_column: sample_id
-  split_column: split
-
-  targets:
-    species:
-      column: class_idx
-      type: multiclass
+```text
+src/dojo/data/record_schemas/
 ```
 
-Then run:
+Hot-path DataLoader batches however should still use lighter dicts/dataclasses internally.
 
-```bash
-dojo train supervised experiment=ifcb/experimentA
+### `models/compositors/`
+
+Compositors assemble PyTorch model parts.
+
+```text
+backbone + optional tabular encoder + optional adapter/fusion + head(s)
 ```
+
+Tasks train composited models.
 
 ---
 
@@ -752,6 +735,7 @@ numpy
 pillow
 scikit-learn
 amplify-storage-utils
+
 ```
 
 `amplify-storage-utils` should be a core dependency because it provides local/object-store abstractions beyond S3.
@@ -763,6 +747,7 @@ amplify-storage-utils
 
 ssl = [
   "lightly",
+  "ifcbkit",
 ]
 
 timm = [
@@ -784,6 +769,7 @@ mlflow = [
 
 s3 = [
   "amplify-storage-utils[s3]",
+  "ifcbkit[s3]",
 ]
 
 hdf = [
@@ -806,7 +792,7 @@ Notes:
 - `timm` keeps timm optional.
 - `onnx` keeps export dependencies optional.
 - `aim` and `mlflow` are optional logger dependencies.
-- `s3` enables S3-compatible storage through `amplify-storage-utils`.
+- `s3` enables S3-compatible storage.
 - `hdf` enables HDF/HDF5 result exports.
 
 ---
@@ -837,6 +823,7 @@ class ExperimentConfig(BaseModel):
     data: DataConfig
     transforms: TransformConfig
     backbone: BackboneConfig
+    tabular: TabularInputConfig | None = None
     embedding_adapter: EmbeddingAdapterConfig | None = None
     heads: dict[str, HeadConfig] | None = None
     objectives: dict[str, ObjectiveConfig] | None = None
@@ -854,7 +841,7 @@ class ExperimentConfig(BaseModel):
 
 ## 5.3 Experiment config composition
 
-Example root experiment config:
+Example experiment config:
 
 ```yaml
 defaults:
@@ -944,7 +931,7 @@ class SampleRecord(BaseModel):
     source_extra: dict[str, Any] = {}
 ```
 
-Hot-path DataLoader batches may use lightweight dictionaries/dataclasses rather than Pydantic validation on every batch.
+Hot-path DataLoader batches should use lightweight dictionaries/dataclasses rather than Pydantic validation on every batch.
 
 ## 6.3 CSV datasets
 
@@ -1025,34 +1012,82 @@ tabular features...
 
 ## 6.5 IFCB bins dataset
 
-The refactor should preserve current Dojo IFCB bins functionality through a new dataset/datamodule equivalent:
+The IFCB bins dataset is primarily for SSL/unlabeled training over raw IFCB bins.
+
+IFCB bins are a data format containing IFCB ROIs. A manifest does not necessarily enumerate every ROI. Instead, a row may identify a bin, and the dataset expands that bin into a variable number of ROI images at runtime.
+
+This backend should use [`ifcbkit`](https://github.com/WHOIGit/ifcbkit), which provides IFCB raw-bin parsing and image access.
+
+IFCB raw data is organized around `.hdr`, `.adc`, and `.roi` triplets. `ifcbkit` can read all ROI images from a bin and can also read a single image by ROI ID.
+
+Suggested modules:
 
 ```text
 src/dojo/data/datasets/ifcb_bins_dataset.py
 src/dojo/data/datamodules/ifcb_bins.py
 ```
 
-The dataset should conform to the shared sample contract.
+See extant (not yet refactored) src/dojo/selfsupervised/datasets.py for fuctional example.
 
-Example:
+### Manifest shape
+
+Preferred manifest fields:
+
+```text
+bin_id
+bin_uri
+optional source/context columns
+```
+
+Use:
+
+```text
+bin_id_column
+bin_uri_column
+```
+
+rather than image/ROI-specific fields.
+
+Example config for unlabeled SSL training:
 
 ```yaml
 data:
   backend: ifcb_bins
-  root_uri: s3://bucket/ifcb_bins/
-  manifest_uri: s3://bucket/ifcb_bins/manifest.csv
-  image_uri_column: roi_uri
-  sample_id_column: roi_id
-
-  targets:
-    species:
-      column: class_idx
-      type: multiclass
+  manifest_uri: s3://bucket/ifcb_bins/unlabeled_bins.parquet
+  bin_id_column: bin_id
+  bin_uri_column: bin_uri
 ```
 
-## 6.6 Storage using `amplify-storage-utils`
+For labeled evaluation over selected ROIs, a separate CSV/Parquet ROI manifest may still be used.
 
-Use `amplify-storage-utils` as a core dependency for local storage abstraction.
+### IFCB bin expansion
+
+The dataset should:
+
+1. Read the bin manifest.
+2. Use `bin_id_column` and `bin_uri_column` to locate each bin.
+3. Use `ifcbkit` to access `.hdr` / `.adc` / `.roi` content.
+4. Expand each bin into ROI image samples.
+5. Produce stable ROI `sample_id`s from IFCB ROI identifiers.
+6. Preserve bin-level information as explicit fields where relevant.
+
+Recommended sample/result fields:
+
+```text
+sample_id          # ROI ID
+bin_id
+bin_uri
+roi_number
+uri                # optional ROI-level pseudo-URI
+native_width_px
+native_height_px
+```
+
+---
+
+# 6.6 Storage using `amplify-storage-utils`
+
+Use [`amplify-storage-utils`](https://github.com/WHOIGit/amplify-storage-utils) as a core dependency for local storage abstraction.
 
 S3 support should be optional through `[s3]`.
 
@@ -1078,26 +1113,6 @@ amplify-storage-utils ObjectStore
 filesystem / cache / zip / sqlite / optional S3
 ```
 
-Config example:
-
-```yaml
-storage:
-  backend: amplify
-
-  cache:
-    enabled: true
-    location: /tmp/dojo-cache
-
-  stores:
-    default:
-      type: filesystem
-      root: ./data
-
-    remote:
-      type: s3
-      bucket: whoi-bucket
-```
-
 Datasets should depend only on `StorageResolver`, not directly on `amplify-storage-utils`.
 
 ---
@@ -1113,28 +1128,31 @@ Python should provide reusable transform primitives.
 YAML should compose those primitives into experiment-specific transform pipelines.
 
 ```text
-Python primitives = reusable operations
-YAML configs       = experiment/domain-specific recipes
+Python transform modules = reusable operations
+YAML configs             = experiment/domain-specific recipes
 ```
 
-## 7.2 Transform primitives
+## 7.2 Transform modules
 
-Initial primitives:
+Initial transform modules:
 
 ```text
 letterbox
 aspect_bucket
 size_bucket
 foreground_crop
-grayscale_repeat
+grayscale
 normalization
-random_crop
-random_rotation
-random_flip
-brightness_contrast
-gaussian_blur
-gaussian_noise
-to_tensor
+crop
+blur
+noise
+rotation
+```
+
+These live directly under:
+
+```text
+src/dojo/data/transforms/
 ```
 
 ## 7.3 Transform pipeline example
@@ -1209,7 +1227,7 @@ transforms:
       - native_long_side
 ```
 
-Important scale-related columns should be recordable as explicit result columns when relevant:
+Important scale-related fields should be recordable as explicit result columns when relevant:
 
 ```text
 native_width_px
@@ -1219,57 +1237,6 @@ input_height_px
 resize_bucket
 microns_per_pixel
 ```
-
-## 7.5 Tabular metadata as model input
-
-Some size/shape/acquisition features may be useful model inputs.
-
-Examples:
-
-```text
-equivalent_diameter_um
-major_axis_um
-minor_axis_um
-bbox_area_px
-microns_per_pixel
-native_width_px
-native_height_px
-```
-
-These should be provided as tabular features to heads/compositors.
-
-Config example:
-
-```yaml
-heads:
-  species:
-    type: multiclass_classification
-    target_column: species_idx
-    num_classes: 120
-    inputs:
-      image_embedding: true
-      tabular_features:
-        enabled: true
-        numeric:
-          - equivalent_diameter_um
-          - major_axis_um
-          - minor_axis_um
-        encoder:
-          type: mlp
-          hidden_dims: [32]
-          output_dim: 32
-          normalization: standard
-```
-
-Model flow:
-
-```text
-image → backbone → image embedding
-tabular columns → tabular encoder → tabular embedding
-image embedding + tabular embedding → fused embedding → head
-```
-
-Exported model artifacts must include tabular feature names, ordering, encodings, and normalization statistics.
 
 ---
 
@@ -1400,6 +1367,34 @@ backbone:
     n: 4
 ```
 
+### What `strict: false` means
+
+`strict` should map to the PyTorch `load_state_dict(..., strict=...)` behavior.
+
+Use:
+
+```yaml
+strict: true
+```
+
+when the checkpoint must match the architecture exactly.
+
+Use:
+
+```yaml
+strict: false
+```
+
+when transfer learning may involve missing or unexpected keys, such as:
+
+```text
+loading an encoder without its old classifier head
+loading SSL encoder weights into a supervised model
+loading a backbone while replacing projection/classification heads
+```
+
+When `strict: false`, Dojo should log missing and unexpected keys clearly.
+
 ## 8.7 Freeze policies
 
 Keep `freeze` as the operative config section.
@@ -1415,7 +1410,6 @@ last_n_blocks_trainable
 named_modules_trainable
 named_modules_frozen
 after_module_trainable
-before_module_trainable
 ```
 
 Examples:
@@ -1460,6 +1454,17 @@ Freeze everything except listed modules.
 ```yaml
 backbone:
   freeze:
+    policy: named_modules_frozen
+    names:
+      - stem
+      - layer1
+```
+
+Freeze only listed modules.
+
+```yaml
+backbone:
+  freeze:
     policy: after_module_trainable
     module: layer3
     inclusive: true
@@ -1467,15 +1472,6 @@ backbone:
 
 Freeze modules before `layer3`; train `layer3` and everything after it.
 
-```yaml
-backbone:
-  freeze:
-    policy: before_module_trainable
-    module: layer3
-    inclusive: false
-```
-
-Train everything before `layer3`; freeze `layer3` and everything after it.
 
 ## 8.8 Inspect command
 
@@ -1518,6 +1514,8 @@ avgpool                    n/a
 embedding_dim              2048
 ```
 
+The current Dojo patch [`src/dojo/patches/model_summary_patch.py`](https://github.com/WHOIGit/image-classifier-dojo/blob/main/src/dojo/patches/model_summary_patch.py) is relevant here. It extends Lightning’s model summary to include `requires_grad` state. The refactor should either preserve this functionality or turn it into the basis for `dojo inspect`.
+
 ## 8.9 Inception and special models
 
 Inception is a special case because of auxiliary logits and historical training conventions.
@@ -1525,6 +1523,7 @@ Inception is a special case because of auxiliary logits and historical training 
 Initial refactor should not overfit the generic path around Inception-specific aux-logit behavior.
 
 Support basic feature extraction if practical, but it is acceptable to skip special auxiliary-logit handling in the first implementation to keep the main backbone/head path clean.
+
 
 ---
 
@@ -1556,6 +1555,8 @@ A supervised model should have one backbone and one or more heads.
 image
   ↓
 backbone
+  ↓
+optional tabular fusion / embedding adapter
   ↓
 embedding
   ↓
@@ -1752,8 +1753,6 @@ total_loss =
 + 0.25 * life_stage_loss
 ```
 
-Do not add a separate `loss_aggregation_config` initially. Weighted sum is the default and only phase-1 behavior.
-
 ## 9.7 Objective shorthand
 
 For simple configs, allow objective name to imply head name.
@@ -1838,9 +1837,9 @@ training_step
 validation_step
 test_step
 optimizer/scheduler creation
-metric updates
 objective loss computation
 weighted objective loss sum
+metric updates derived from objective definitions
 ```
 
 It should not own:
@@ -1860,52 +1859,200 @@ Suggested class:
 class SupervisedTaskModule(L.LightningModule):
     def __init__(
         self,
-        model: SupervisedModel,
-        objectives: ObjectiveCollection,
+        model_config: SupervisedModelConfig,
+        objectives_config: ObjectiveCollectionConfig,
         optimizer_config: OptimizerConfig,
         scheduler_config: SchedulerConfig | None = None,
-        metric_collection: ObjectiveMetricCollection | None = None,
     ):
-        ...
+        super().__init__()
+        self.save_hyperparameters()
+
+        self.model = build_supervised_model(model_config)
+        self.objectives = build_objectives(objectives_config)
+        self.metrics = build_metrics(objectives_config)
 ```
 
-Where:
+Te `SupervisedTaskModule` constructor should not receive an already-instantiated `SupervisedModel`. Constructor arguments should be serializable Pydantic configs so Lightning checkpoints, hyperparameter logging, and reproducibility are clean. Lightning prefers constructor inputs that are serializable because save_hyperparameters() can store them in the checkpoint.
 
-```text
-model
-  = backbone + optional embedding adapter + optional tabular encoder + heads
-
-objectives
-  = binds head → target → target transform → loss → weight → metrics
-
-optimizer_config / scheduler_config
-  = consumed in configure_optimizers()
-```
+`objectives` contains loss definitions, objective weights, and metric definitions per head/objective. Therefore a separate `metric_collection` constructor argument is probably redundant. The module can build metrics from the validated objective definitions.
 
 Snapshot ensembles, EMA/SWA, checkpointing, logging, artifact writing, result writing, and export should remain outside the module as callbacks, trainer setup, writers, or post-training commands.
 
 ## 10.2 Model composition
 
+The model compositor should assemble the image backbone, optional tabular encoder (described in next section), optional embedding adapter/fusion layer, and heads.
+
+Suggested construction:
+
 ```python
 backbone = build_backbone(cfg.backbone)
-adapter = build_embedding_adapter(cfg.embedding_adapter, backbone.output_dim)
-heads = build_heads(cfg.heads, input_dim=effective_embedding_dim)
-model = SupervisedModel(backbone=backbone, adapter=adapter, heads=heads)
-```
 
-If tabular features are configured:
+tabular_encoder = build_tabular_encoder(cfg.tabular) if cfg.tabular else None
 
-```python
-tabular_encoder = build_tabular_encoder(cfg.data.tabular_features, cfg.heads)
+embedding_adapter = build_embedding_adapter(
+    cfg.embedding_adapter,
+    image_embedding_dim=backbone.output_dim,
+    tabular_embedding_dim=tabular_encoder.output_dim if tabular_encoder else 0,
+) if cfg.embedding_adapter else None
+
+heads = build_heads(
+    cfg.heads,
+    input_dim=embedding_adapter.output_dim if embedding_adapter else backbone.output_dim,
+)
+
 model = SupervisedModel(
     backbone=backbone,
-    adapter=adapter,
     tabular_encoder=tabular_encoder,
+    embedding_adapter=embedding_adapter,
     heads=heads,
 )
 ```
 
-## 10.3 Training command
+The exact effective head input dimension should be derived from the compositor:
+
+```text
+image embedding dim
++ optional tabular fusion-embedding dim
+→ optional adapter output dim
+→ head input dim
+```
+
+## 10.3 Tabular metadata as model input
+
+Tabular features may be useful model inputs.
+
+Examples:
+
+```text
+equivalent_diameter_um
+major_axis_um
+minor_axis_um
+bbox_area_px
+microns_per_pixel
+native_width_px
+native_height_px
+```
+
+Tabular/image fusion should be configured as part of model input/composition.
+
+Example:
+
+```yaml
+data:
+  backend: csv
+  manifest_uri: s3://bucket/manifests/train.csv
+  image_uri_column: filename
+  sample_id_column: sample_id
+  split_column: split
+
+  targets:
+    species:
+      column: species_idx
+      type: multiclass
+
+  tabular_features:
+    numeric:
+      - equivalent_diameter_um
+      - major_axis_um
+      - minor_axis_um
+      - native_area_px
+
+backbone:
+  source: timm
+  name: convnext_tiny
+  pretrained: true
+  output_dim: auto
+
+  freeze:
+    policy: last_n_blocks_trainable
+    n: 2
+
+tabular:
+  enabled: true
+  numeric:
+    - equivalent_diameter_um
+    - major_axis_um
+    - minor_axis_um
+    - native_area_px
+
+  encoder:
+    type: mlp
+    hidden_dims: [32]
+    output_dim: 32
+    activation: relu
+    normalization: standard
+
+fusion:
+  enabled: true
+  type: concat
+  inputs:
+    - image_embedding
+    - tabular_embedding
+
+embedding_adapter:
+  enabled: true
+  type: mlp
+  hidden_dims: [512]
+  output_dim: 256
+  activation: gelu
+  dropout: 0.1
+
+heads:
+  species:
+    type: multiclass_classification
+    target_column: species_idx
+    num_classes: 120
+    network:
+      type: linear
+
+objectives:
+  species:
+    head: species
+    loss:
+      type: class_balanced_effective_number
+      beta: 0.999
+    weight: 1.0
+    metrics:
+      - macro_f1
+      - weighted_f1
+      - per_class_f1
+```
+
+Model flow:
+
+```text
+image → backbone → image_embedding (dim 768)
+tabular features → tabular_encoder → tabular_embedding (dim 32)
+
+image_embedding + tabular_embedding 
+  ↓
+fusion layer (concat) → fused_embedding (dim 800)
+  ↓
+embedding_adapter (optional) → head_input_embedding (dim 256)
+  ↓
+head(s)
+```
+
+The supervised compositor is responsible for assembling:
+
+```text
+backbone
+optional tabular encoder and fusion layer
+optional embedding adapter
+head(s)
+```
+
+Exported model artifacts must include tabular feature names, ordering, encodings, and normalization statistics.
+
+Fusion should initially support `concat` only. More complex fusion strategies can be added later.
+
+`embedding_adapter` is optional. It is a projection/MLP applied after the image/tabular fusion step, or directly after the image embedding when no tabular features are used. It can reduce dimensionality, standardize embedding sizes across backbones, add task-specific capacity, or reshape fused embeddings before heads. It should be disabled by default and omitted for true linear-probe evaluation.
+
+The tabular encoder is trained jointly through the supervised objective. Gradients flow from the objective loss through the head, adapter, fusion layer, and into both the tabular encoder and the image backbone if the backbone is trainable. To avoid tabular overfitting or shortcut learning, keep the tabular encoder small, support parameter-group learning rates, regularize the tabular branch, and compare image-only, tabular-only, and image+tabular ablations. Another training option is to use a frozen image-embedding from a previous training to see if addition of tabular data and adapter improves scores.
+
+
+
+## 10.4 Training command
 
 Use experiment config style.
 
@@ -1921,20 +2068,18 @@ dojo train supervised \
   optimizer.lr=3e-4
 ```
 
-## 10.4 Supervised output artifacts and results
+## 10.5 Supervised output artifacts and results
 
 Training outputs should distinguish between:
 
 ```text
 checkpoints  = training/resume artifacts
 exports      = portable model artifacts
-metrics      = aggregate metrics
-results      = sample-level and head-level outputs
+metrics      = aggregate training metrics and plots
+results      = sample-level, embedding, and diagnostic outputs for validation epochs (best or final or all, as configured)
 ```
 
 ### Checkpoints
-
-Do not assume only `last.ckpt` and `best.ckpt`.
 
 Checkpoint outputs are determined by checkpoint callback configuration and may include:
 
@@ -1977,15 +2122,23 @@ runs/{run_id}/
     train_metrics.json
     val_metrics.json
     test_metrics.json
-    per_class_metrics.parquet
-    confusion_matrix.parquet
+    confusion_matrix.json
+    metrics.h5
 
   results/
     # Canonical tall Parquet
-    val_results.parquet
-    test_results.parquet
-    infer_results.parquet
-    val_results_by_epoch.parquet
+    val_results/
+      epoch=000/
+        part-00000.parquet
+      epoch=001/
+        part-00000.parquet
+      best -> epoch=001
+
+    test_results/
+      part-00000.parquet
+
+    infer_results/
+      part-00000.parquet
 
     # Optional convenience exports
     val_results_wide.csv
@@ -1995,80 +2148,405 @@ runs/{run_id}/
     results.h5
 ```
 
+### Metrics format
+
+Aggregate metrics should generally be JSON and/or HDF5.
+
+Metrics may include:
+
+```text
+train_metrics.json
+val_metrics.json
+test_metrics.json
+confusion_matrix.json
+metrics.h5
+```
+
+Parquet should be used for result rows and large tabular outputs, but JSON/HDF are sufficient for aggregate metrics.
+
 ### Canonical result format
 
 Canonical result format should be tall Parquet.
 
-It should be compatible with improv-style schemas/provenance concepts.
+It should be compatible with [`improv`](https://github.com/WHOIGit/improv)-style schema/provenance concepts.
 
 A single sample may appear multiple times, for example:
 
 ```text
-one row for embedding output
-one row for species head output
-one row for quality head output
-one row for biomass head output
-one row for nearest-neighbor output
+one sample_metadata record
+one embedding record
+one species head output record
+one quality head output record
+one biomass head output record
+one nearest-neighbor output record
 ```
 
-Core columns should be explicit.
+Do not require static sample metadata to be repeated for every epoch/head output record. Static metadata can be written once and joined later by `sample_id`, `config_id`, and/or `dataset_id`.
 
-Avoid a generic `metadata` column in canonical results.
+### Canonical process/sample headers
 
-Recommended canonical columns:
+Use one common column block per major output family, then add only record-specific columns under each `record_type`.
+
+## Supervised result columns
+
+### Supervised common columns
+
+All supervised sample/output records should share this common provenance/header block.
 
 ```text
 sample_id
 uri
 split
+record_type
+run_id
+config_id
+dataset_id
 epoch
 global_step
 checkpoint_id
-model_artifact_id
-record_type
-head_name
-target
-prediction_index
-prediction_label
-prediction_value
-logits
-scores
-confidence
-embedding
-distance
-neighbor_sample_id
-neighbor_rank
-cluster_id
-projection_x
-projection_y
-resize_bucket
-native_width_px
-native_height_px
-input_width_px
-input_height_px
-source_extra_json
+model_id
 ```
 
-`source_extra_json` should be optional and used only for dataset-specific passthrough fields that are not part of the core Dojo schema.
+Notes:
 
-Important context used by Dojo should be promoted to explicit columns.
+- `epoch` and `global_step` may be null for static sample metadata records.
+- `checkpoint_id` identifies the checkpoint that produced a result row.
+- `model_id` identifies a portable exported model artifact when results come from `exports/model.pt` or another exported artifact.
+- `record_type = ...` hints at what other columns will have data for a given record
 
-### Result record types
+### Supervised `record_type` values
 
-Potential `record_type` values:
+Recommended supervised `record_type` values:
 
 ```text
+sample_metadata
 embedding
 classification_output
 regression_output
 ordinal_output
+```
+
+### `sample_metadata` record-specific columns
+
+These are mostly static per sample/config and need only be included once. 
+Not all columns will always be present. For instance: 
+- `resize_bucket` for instance ought only be present if training using varying input bucket sizes configuration.
+- `tabular_data` is optional if included in training and can be a JSON string.
+
+
+```text
+record_type = sample_metadata
+bin_id
+bin_uri
+roi_number
+native_width_px
+native_height_px
+input_width_px
+input_height_px
+resize_bucket
+microns_per_pixel
+tabular_data
+source_extra_json
+```
+
+`source_extra_json` should be optional and used only for dataset-specific passthrough fields that are not part of the core schema.
+
+### `embedding` record-specific columns
+
+```text
+record_type = embedding
+embedding_kind = {image_embedding | tabular_embedding | fused_embedding | head_input_embedding}
+embedding
+embedding_dim
+```
+
+Default embedding kind for supervised learning is `head_input_embedding`.
+
+`tabular_embedding` and `fused_embedding` are only relevant when using tabular input data.
+
+`image_embedding` is only different from `head_input_embedding` in supervised learning when an embedding adaptor is used.
+
+Default embedding kind for self-supervised learning is `image_embedding`.
+
+### Supervised-column heads
+
+Classification output:
+
+```text
+record_type = classification_output
+head_name
 target
+prediction_index
+prediction_label
+prediction_confidence
+logits
+probabilities
+```
+
+Regression output:
+
+```text
+record_type = regression_output
+head_name
+target
+prediction_value
+prediction_uncertainty
+```
+
+Ordinal output:
+
+```text
+record_type = ordinal_output
+head_name
+target
+prediction_index
+prediction_label
+prediction_confidence
+ordinal_logits
+probabilities
+```
+
+## Representation-evaluation result columns
+
+Representation-evaluation outputs can be produced from embeddings generated by supervised or self-supervised model families.
+
+Some record types require labeled data; others can be produced from unlabeled data. A few can be used in either context.
+
+### Label availability by record type
+
+| `record_type`             | Requires labels for eval? | Notes                                                                  |
+| ------------------------- | ------------------------: | ---------------------------------------------------------------------- |
+| `embedding`               |                        No | Can be produced for any image.                                         |
+| `nearest_neighbor`        |                        No | Used for unlabeled retrieval or as support records for labeled k-NN.   |
+| `knn_prediction`          |                       Yes | Requires neighbor labels to produce predicted class/label.             |
+| `classification_probe_prediction` |               Yes | Requires labeled train/eval data. Columns mirror `classification_output`. |
+| `regression_probe_prediction`     |               Yes | Requires labeled train/eval data. Columns mirror `regression_output`. |
+| `ordinal_probe_prediction`        |               Yes | Requires labeled train/eval data. Columns mirror `ordinal_output`. |
+| `cluster_assignment`      |                        No | Labels optional; labels can be used later for ARI/NMI/purity.          |
+| `projection`              |                        No | PCA/UMAP/t-SNE coordinates; labels optional for coloring plots.        |
+| `outlier_score`           |                        No | Can be computed from embedding density/distance without labels.        |
+| `diagnostic`              |                        No | Collapse checks, embedding variance, augmentation consistency, etc.    |
+
+### Representation-evaluation common columns
+
+All canonical self-supervised and representation-evaluation result records should share this common provenance/header block.
+
+```text
+sample_id
+uri
+split
+record_type
+run_id
+config_id
+dataset_id
+epoch
+global_step
+checkpoint_id
+model_id
+evaluation_name
+```
+
+Notes:
+
+- `record_type = ...` may still be repeated in record-specific column sections for clarity, even though it is part of the common columns.
+- `evaluation_name` identifies the evaluation job, probe, retrieval run, clustering run, projection run, diagnostic pass, or other representation-evaluation process.
+
+### Representation-evaluation `record_type` values
+
+Recommended self-supervised and representation-evaluation `record_type` values:
+
+Representation-evaluation records are model-training-method agnostic. They may be produced from embeddings generated by supervised, self-supervised, semi-supervised, or unsupervised models. This allows direct comparison of embedding spaces across training regimes using the same evaluation methods.
+
+```text
+embedding
 nearest_neighbor
+knn_prediction
+linear_probe_prediction
 cluster_assignment
 projection
 outlier_score
 diagnostic
 ```
+
+### `embedding` record-specific columns
+
+Used with labeled or unlabeled datasets.
+
+```text
+record_type = embedding
+embedding_kind = {image_embedding | tabular_embedding | fused_embedding | head_input_embedding}
+embedding
+embedding_dim
+embedding_model_name
+```
+
+`embedding_kind` should identify which representation was saved. For self-supervised learning, this is typically `image_embedding`.
+
+### `nearest_neighbor` record-specific columns
+
+Used with labeled or unlabeled datasets.
+
+For unlabeled evaluation, this is a retrieval/similarity record.
+
+For labeled k-NN evaluation, this can be used as supporting provenance for a `knn_prediction` record.
+
+```text
+record_type = nearest_neighbor
+query_sample_id
+neighbor_sample_id
+neighbor_rank
+distance
+distance_metric
+neighbor_label
+```
+
+`neighbor_label` is optional and should be null when labels are unavailable.
+
+### `knn_prediction` record-specific columns
+
+Requires labeled data.
+
+This record summarizes the k-NN classification result for a query sample.
+
+```text
+record_type = knn_prediction
+head_name
+target
+prediction_index
+prediction_label
+prediction_confidence
+probabilities
+k
+distance_metric
+```
+
+Optional supporting fields:
+
+```text
+neighbor_sample_ids
+neighbor_labels
+neighbor_distances
+```
+
+If storing each neighbor separately, prefer separate `nearest_neighbor` records instead of list-valued neighbor columns.
+
+### Probe prediction record-specific columns
+
+Requires labeled data.
+
+Probe predictions are produced by training a small downstream model on frozen embeddings. 
+They are used to evaluate representation quality, not to report the native output of the original supervised model.
+
+Use the supervised head column templates in the [Supervised-column heads](#supervised-column-heads) section according to the probe task type:
+
+- For classification probes, use the `classification_output` column template.
+- For regression probes, use the `regression_output` column template.
+- For ordinal probes, use the `ordinal_output` column template.
+
+Possible probe `record_type` values:
+
+```text
+classification_probe_prediction
+regression_probe_prediction
+ordinal_probe_prediction
+```
+
+These probe-specific record_type values make it clear that the row came from a downstream representation-evaluation probe rather than from the model's native supervised head.
+
+Adl. notes:
+- head_name should identify the probe, for example linear_probe_species, linear_probe_depth, or ridge_probe_biomass.
+- A ridge probe is a linear regression probe trained on frozen embeddings with L2 regularization. It is useful for continuous targets and should generally use `record_type = regression_probe_prediction` with `probe_model_type = ridge`.
+- For strictly linear probes, the downstream model should be linear with respect to the saved embedding.
+- For non-linear downstream probes, prefer explicit record types or metadata such as `probe_model_type = mlp_probe`, `probe_model_type = random_forest_probe`, or `probe_model_type = kernel_svm_probe`. These need not be implemented at this stage.
+- Avoid using `record_type = classification_output`, `record_type = regression_output`, or `record_type = ordinal_output` for probe results unless downstream tools require the native supervised-output schemas. Those record types are best reserved for outputs from the model's own supervised heads.
+
+### `cluster_assignment` record-specific columns
+
+Does not require labels.
+
+Labels may be joined later for cluster purity, ARI, NMI, or review workflows.
+
+```text
+record_type = cluster_assignment
+cluster_method
+cluster_id
+cluster_distance
+cluster_probability
+```
+
+`cluster_probability` is optional and only applies to clustering methods that provide soft assignments or membership confidence.
+
+### `projection` record-specific columns
+
+Does not require labels.
+
+Used for dimensionality reduction outputs such as PCA, UMAP, or t-SNE.
+
+```text
+record_type = projection
+projection_method
+projection_x
+projection_y
+projection_z
+```
+
+`projection_z` is optional and should be null for 2D projections.
+
+Labels can be joined later for visualization coloring.
+
+### `outlier_score` record-specific columns
+
+Does not require labels.
+
+Used for novelty, anomaly, or density-based scoring.
+
+```text
+record_type = outlier_score
+outlier_method
+outlier_score
+outlier_rank
+is_outlier
+```
+
+`is_outlier` should be optional because thresholding may be configured separately from scoring.
+
+### `diagnostic` record-specific columns
+
+Does not require labels.
+
+Used for representation diagnostics such as collapse checks, embedding variance, effective rank, augmentation consistency, or covariance statistics.
+
+Diagnostics may be sample-level or aggregate. If the diagnostic is aggregate, `sample_id` should be null.
+
+```text
+record_type = diagnostic
+diagnostic_name
+diagnostic_value
+diagnostic_scope
+```
+
+Suggested `diagnostic_scope` values:
+
+```text
+sample
+batch
+epoch
+dataset
+```
+
+Example `diagnostic_name` values:
+
+```text
+embedding_norm_mean
+embedding_norm_std
+per_dimension_std
+effective_rank
+covariance_condition
+pairwise_cosine_mean
+pairwise_cosine_std
+augmentation_consistency_cosine
+```
+
 
 ### Convenience outputs
 
@@ -2092,10 +2570,11 @@ split
 species_target
 species_prediction_index
 species_prediction_label
-species_confidence
+species_prediction_confidence
 quality_prediction_index
 quality_prediction_label
 biomass_prediction_value
+...
 ```
 
 Embeddings CSV should be one sample per row.
@@ -2106,43 +2585,38 @@ HDF/HDF5 should be treated as an optional export format derived from canonical r
 
 ### Epoch-level validation results
 
-It should be possible to output results for:
+Validation results across epochs should use partitioned Parquet.
+
+Example:
 
 ```text
-final exported model
-selected checkpoint
-every validation epoch
-every N epochs
-every N batches
+results/val_results/
+  epoch=000/
+    part-00000.parquet
+  epoch=001/
+    part-00000.parquet
+  epoch=002/
+    part-00000.parquet
+  best -> epoch=001
 ```
 
-`val_results_by_epoch.parquet` should include:
+A symlink or small manifest can point to the best epoch for usability without duplicating data.
 
-```text
-epoch
-global_step
-checkpoint_id
-sample_id
-record_type
-head_name
-...
+Example manifest:
+
+```json
+{
+  "best_epoch": 1,
+  "best_checkpoint_id": "epoch=001-val_macro_f1=0.861",
+  "best_path": "results/val_results/epoch=001/"
+}
 ```
 
-This supports:
-
-```text
-learning dynamics
-tail-class stability analysis
-checkpoint selection
-snapshot selection
-ensemble selection
-```
-
-Because this may become large, it should be configurable.
+This should be YAML configurable.
 
 ### Result output config
 
-Result output behavior should be fully configurable in YAML.
+Canonical results are tall Parquet. 
 
 Example:
 
@@ -2150,13 +2624,10 @@ Example:
 results:
   canonical:
     enabled: true
-    format: parquet
-    layout: tall
-    improv_compatible: true
     include:
       embeddings: true
       logits: true
-      scores: true
+      probabilities: true
       predictions: true
       targets: true
       input_shape_context: true
@@ -2164,9 +2635,11 @@ results:
   validation_by_epoch:
     enabled: true
     every_n_epochs: 1
-    include_embeddings: false
-    include_logits: true
-    include_scores: true
+    partition_by:
+      - epoch
+    best_pointer:
+      enabled: true
+      mode: symlink_or_manifest
 
   exports:
     wide_csv:
@@ -2182,6 +2655,8 @@ results:
     hdf:
       enabled: false
 ```
+
+The schema should be designed to be compatible with [`improv`](https://github.com/WHOIGit/improv) concepts by construction.
 
 ---
 
@@ -2312,12 +2787,19 @@ runs/{run_id}/
     ssl_eval_knn_metrics.json
     ssl_eval_linear_probe_metrics.json
     ssl_embedding_diagnostics.json
+    metrics.h5
 
   results/
     # Canonical tall-format Parquet outputs
-    ssl_eval_results.parquet
-    ssl_eval_results_by_epoch.parquet
-    embedding_results.parquet
+    ssl_eval_results/
+      epoch=000/
+        part-00000.parquet
+      epoch=010/
+        part-00000.parquet
+      best -> epoch=010
+
+    embedding_results/
+      part-00000.parquet
 
     # Optional convenience outputs
     ssl_eval_wide.csv
@@ -2368,55 +2850,36 @@ Use `encoder.pt` for most downstream classification, embedding extraction, and a
 
 ### SSL result records
 
-SSL canonical results should use the same tall Parquet result model as supervised outputs.
+SSL canonical results should use the same tall Parquet result model as supervised and representation-evaluation outputs.
 
-SSL-specific record types may include:
+The SSL section should not define a separate SSL-only result schema. Instead, SSL evaluations should emit the canonical [Representation-evaluation record types](#representation-evaluation-record-types). These record types are model-training-method agnostic and may also be produced from supervised model embeddings, semi-supervised model embeddings, or exported foundation-model embeddings.
+
+This allows direct comparison of embedding spaces across training regimes, for example:
+
+```text
+supervised encoder embeddings      -> k-NN / probes / clustering / projection / diagnostics
+self-supervised encoder embeddings -> k-NN / probes / clustering / projection / diagnostics
+
+SSL-specific `record_type`s may include:
 
 ```text
 embedding
 nearest_neighbor
 knn_prediction
-linear_probe_prediction
+classification_probe_prediction
+regression_probe_prediction
+ordinal_probe_prediction
 cluster_assignment
 projection
 outlier_score
-embedding_diagnostic
+diagnostic
 ```
 
-Recommended columns include:
+These are not SSL-specific record types persay. They describe the evaluation result that was produced from an embedding space.
 
-```text
-sample_id
-uri
-split
-epoch
-global_step
-checkpoint_id
-model_artifact_id
-record_type
-evaluation_name
-head_name
-embedding
-target
-prediction_index
-prediction_label
-scores
-confidence
-distance
-neighbor_sample_id
-neighbor_rank
-cluster_id
-projection_x
-projection_y
-resize_bucket
-native_width_px
-native_height_px
-input_width_px
-input_height_px
-source_extra_json
-```
+Again see [Representation-evaluation record types](#representation-evaluation-record-types) section for common and record_type specific columns.
 
-Avoid generic `metadata` in canonical schemas. Use explicit columns where Dojo understands the field.
+Partitioned Parquet should be supported for epoch-level SSL evaluation outputs too.
 
 ---
 
@@ -2427,10 +2890,12 @@ Avoid generic `metadata` in canonical schemas. Use explicit columns where Dojo u
 SSL evaluation should support three categories:
 
 ```text
-label-required evaluation
-label-free evaluation
-visual/diagnostic evaluation
+label-required representation evaluation
+label-free representation evaluation
+visual/diagnostic representation evaluation
 ```
+
+Although this section focuses on SSL-trained encoders, the same representation-evaluation methods should also be usable for supervised encoders. This allows embeddings from supervised and self-supervised models to be compared with the same evaluation protocols.
 
 ## 12.2 Label-required SSL evaluation
 
@@ -2444,9 +2909,22 @@ macro/per-class metrics
 confusion matrix
 ```
 
+Probe evaluations train small downstream models on frozen embeddings.
+
+Fine-tuning evaluations update some or all model weights and should be treated as supervised training/evaluation, not as probe evaluation.
+
+```text
+k-NN classification              -> record_type = knn_prediction
+classification probe             -> record_type = classification_probe_prediction
+regression probe                 -> record_type = regression_probe_prediction
+ordinal probe                    -> record_type = ordinal_probe_prediction
+supervised fine-tuning classifier -> record_type = classification_output
+supervised fine-tuning regressor  -> record_type = regression_output
+supervised fine-tuning ordinal    -> record_type = ordinal_output
+```
+
 Config example:
 
-```yaml
 ssl_eval:
   labeled:
     enabled: true
@@ -2467,12 +2945,28 @@ ssl_eval:
       schedule:
         every_fractional_epoch: 0.10
 
-    linear_probe:
+    probes:
       enabled: true
-      max_epochs: 10
-      schedule:
+      tasks:
+        species:
+          type: classification
+          probe_model_type: linear_classifier
+          loss: cross_entropy
+    
+        biomass:
+          type: regression
+          probe_model_type: ridge
+          loss: mean_squared_error
+    
+        life_stage:
+          type: ordinal
+          probe_model_type: ordinal_logistic_regression
+          schedule:
+
         every_n_epochs: 10
 ```
+
+For classification probes, `probe_model_type = linear_classifier` refers to a single linear layer or equivalent multinomial logistic regression model trained on frozen embeddings. It produces logits and probabilities using the same column schema as `classification_output`.
 
 ## 12.3 Label-free SSL evaluation
 
@@ -2493,7 +2987,16 @@ These do not produce classification F1, but they help detect whether representat
 
 ### Embedding diagnostics
 
-Useful during training:
+```
+record_type = diagnostic
+
+# fields
+diagnostic_name
+diagnostic_value
+diagnostic_scope
+```
+
+diagnostic_names for assessing during training.
 
 ```text
 embedding_norm_mean
@@ -2511,6 +3014,14 @@ Compare embeddings from multiple valid augmented views of the same image.
 
 ```text
 cosine_similarity(z_view1, z_view2)
+```
+
+Reccommended record form:
+```
+record_type = diagnostic
+diagnostic_name = augmentation_consistency_cosine
+diagnostic_value
+diagnostic_scope = sample
 ```
 
 ### Retrieval panels
@@ -2548,9 +3059,12 @@ agglomerative, optional
 Outputs:
 
 ```text
+record_type = cluster_assignment
 sample_id
+cluster_method
 cluster_id
 cluster_distance
+cluster_probability
 epoch
 checkpoint_id
 ```
@@ -2570,10 +3084,12 @@ t-SNE
 Outputs:
 
 ```text
+record_type = projection
 sample_id
+projection_method
 projection_x
 projection_y
-projection_method
+projection_z
 epoch
 checkpoint_id
 ```
@@ -2593,8 +3109,10 @@ ssl_eval:
   unlabeled:
     enabled: true
     dataset:
-      backend: parquet_images
-      uri: s3://bucket/plankton/unlabeled/*.parquet
+      backend: ifcb_bins
+      manifest_uri: s3://bucket/ifcb_bins/unlabeled_bins.parquet
+      bin_id_column: bin_id
+      bin_uri_column: bin_uri
 
     embedding_diagnostics:
       enabled: true
@@ -2708,7 +3226,9 @@ ssl_eval:
 
 ## 13.1 Concept
 
-Snapshot/checkpoint ensembling is a supervised model-selection and inference workflow.
+Snapshot/checkpoint ensembling is a model-selection and inference workflow over compatible checkpoints or exported models.
+
+It is most commonly used for supervised prediction heads, but the workflow is not a separate model architecture. It can be applied to any set of candidate models that share compatible input preprocessing, output heads, target schemas, and class mappings.
 
 It should be implemented as:
 
@@ -2767,6 +3287,32 @@ max_file_size_mb
 max_memory_mb
 ```
 
+### Candidate compatibility requirements
+
+Prediction-space ensembles require compatible:
+
+```text
+input preprocessing
+image size / normalization
+target schema
+head names
+class mappings
+ordinal decoding rules
+regression target scaling
+output semantics
+```
+
+For classification, all members must use the same class order for a given head.
+
+For regression, all members must predict the same target in the same units and scaling.
+
+For ordinal heads, all members must use the same ordinal encoding and decoding rules.
+
+For model soups or other weight-averaging methods, candidates must additionally have compatible parameter names, tensor shapes, architecture definitions, and head definitions.
+This is important because **prediction ensembles** can combine different architectures if their outputs match, but **model soups/SWA/EMA** require weight-level compatibility.
+
+
+
 ## 13.3 Snapshot-specific command
 
 ```bash
@@ -2797,8 +3343,23 @@ ensemble:
     bundle_filename: snapshot_ensemble.pt
 
   inference:
-    combine: logits_mean
+    combine:
+      classification: probabilities_mean  
+      regression: prediction_mean
+      ordinal: ordinal_probabilities_mean
 ```
+
+Supported classification combine modes:
+
+```text
+logits_mean
+probabilities_mean
+weighted_logits_mean
+weighted_probabilities_mean
+majority_vote
+```
+
+Note: homogeneous ensembles from one run (eg snapshots): logits_mean or probabilities_mean; heterogeneous model ensembles: probabilities_mean. 
 
 ## 13.5 Snapshot artifact format
 
@@ -2874,9 +3435,35 @@ runs/{run_id}/
     snapshot_ensemble.pt
 
   results/
-    val_results.parquet
-    test_results.parquet
+    val_results/
+      part-00000.parquet
+    test_results/
+      part-00000.parquet
 ```
+
+Ensemble prediction outputs should use the same canonical result schemas as ordinary supervised outputs.
+
+For example:
+
+```text
+classification ensemble -> record_type = classification_output
+regression ensemble     -> record_type = regression_output
+ordinal ensemble        -> record_type = ordinal_output
+```
+
+The ensemble artifact should be identified through provenance columns such as:
+
+```
+model_id
+ensemble_id
+ensemble_method
+```
+
+For ensemble outputs, model_id should identify the exported ensemble artifact, such as snapshot_ensemble.pt.
+
+checkpoint_id may be null for bundled ensembles, or may refer to the selected ensemble artifact rather than any single member checkpoint. Member checkpoint provenance should be stored in the ensemble manifest.
+
+
 
 ---
 
@@ -3046,8 +3633,8 @@ Inference should optionally output:
 ```text
 head predictions
 raw logits
-scores/probabilities
-confidence
+probabilities
+prediction_confidence
 embeddings
 distance/novelty scores
 input-shape context
@@ -3063,9 +3650,9 @@ Embedding extraction should work with:
 
 ```text
 supervised checkpoints
+supervised .pt model exports that expose their embeddings
 SSL encoder exports
 SSL training checkpoints
-snapshot ensemble members
 ```
 
 Command:
@@ -3101,6 +3688,10 @@ AimExperimentLogger
 MLflowExperimentLogger
 CompositeExperimentLogger
 ```
+
+These should play nice with Lightning's logging system.
+
+See extant src/dojo/multiclass/callbacks.py for AimLogger metrics examples
 
 ## 17.2 Runtime logger selection
 
@@ -3140,7 +3731,8 @@ Logger sinks may register or upload artifacts after local creation.
 
 # 18. Hyperparameter search
 
-Use Hydra multirun only.
+Use Hydra multirun.
+Baysian hyperparameter search may be added in the future.
 
 Example:
 
@@ -3192,11 +3784,13 @@ CSV local images
 CSV S3-style paths through mocked storage resolver
 Parquet manifest
 Parquet image bytes
-IFCB bins dataset
+IFCB bin manifest
+IFCB bin expansion into ROI samples
 multi-head targets
 tabular feature extraction
 sample_id propagation
 uri propagation
+bin_id/bin_uri propagation
 ```
 
 ## 19.3 Storage tests
@@ -3234,14 +3828,16 @@ Test:
 torchvision backbone construction
 timm backbone construction when extra installed
 checkpoint backbone loading
+strict true/false checkpoint loading behavior
 embedding adapter
+tabular encoder
+fusion/compositor output dimensions
 freeze policies
 dojo inspect output
 classification head
 regression head
 ordinal head
 multi-head forward
-tabular feature fusion
 ```
 
 ## 19.6 Objective/loss tests
@@ -3256,6 +3852,7 @@ classification losses
 regression losses
 log target transform
 ordinal losses
+metrics built from objective definitions
 ```
 
 ## 19.7 Supervised training smoke tests
@@ -3266,7 +3863,9 @@ Test:
 single-head supervised 1 epoch
 multi-head supervised 1 epoch
 tabular + image supervised 1 epoch
-results written as canonical Parquet
+canonical tall Parquet results
+partitioned validation results by epoch
+best pointer manifest/symlink
 wide CSV export
 confusion matrix CSV export
 checkpoint callback outputs
@@ -3284,6 +3883,7 @@ multi-crop transform
 online embedding diagnostics
 online k-NN when labels are available
 unlabeled retrieval output
+IFCB bins unlabeled SSL path
 encoder export
 ```
 
@@ -3344,23 +3944,32 @@ artifact registration
 1. Implement shared dataset record contract.
 2. Implement CSV datamodule.
 3. Implement Parquet datamodule.
-4. Port IFCB bins dataset.
-5. Add backbone registry.
-6. Add head registry.
-7. Add objectives.
+4. Add backbone registry.
+5. Add head registry.
+6. Add objectives.
+7. Add supervised model compositor.
 8. Add supervised LightningModule.
 9. Add canonical results writer.
 
-## Phase 3: Transform refactor
+## Phase 3: IFCB bins
 
-1. Add primitive transform builder.
+1. Add `ifcbkit` dependency. Remove `pyifcb` dependancy. 
+2. Implement IFCB bin dataset.
+3. Implement IFCB bin datamodule.
+4. Add bin manifest support with `bin_id_column` and `bin_uri_column`.
+5. Add runtime ROI expansion.
+6. Add tests for variable ROI counts per bin.
+
+## Phase 4: Transform refactor
+
+1. Add transform builder.
 2. Add letterbox.
 3. Add aspect buckets.
 4. Add size buckets.
 5. Add foreground-aware crop.
-6. Add grayscale/normalization primitives.
+6. Add grayscale/normalization transforms.
 
-## Phase 4: SSL with Lightly
+## Phase 5: SSL with Lightly
 
 1. Add `dojo[ssl]`.
 2. Add Lightly DINOv2-style task.
@@ -3369,7 +3978,7 @@ artifact registration
 5. Add unlabeled diagnostics/retrieval/clustering/projections.
 6. Add encoder export.
 
-## Phase 5: Ensemble workflows
+## Phase 6: Ensemble workflows
 
 1. Add `dojo ensemble`.
 2. Add `dojo ensemble snapshot`.
@@ -3377,7 +3986,7 @@ artifact registration
 4. Add snapshot bundle artifact.
 5. Add ensemble result writing.
 
-## Phase 6: Export
+## Phase 7: Export
 
 1. Add `.pt` single-model export.
 2. Add `.pt` snapshot ensemble export.
@@ -3385,7 +3994,7 @@ artifact registration
 4. Add ONNX metadata.
 5. Add bucket-aware ONNX export support.
 
-## Phase 7: Logging sinks
+## Phase 8: Logging sinks
 
 1. Add Aim logger.
 2. Add MLflow logger.
@@ -3429,20 +4038,25 @@ Use `source_extra_json` only for optional dataset-specific passthrough fields.
 
 ## 21.6 Keep storage behind a Dojo interface
 
-Use `amplify-storage-utils` underneath, but do not leak its API throughout datasets/training/export code.
+Use [`amplify-storage-utils`](https://github.com/WHOIGit/amplify-storage-utils) underneath, but do not leak its API throughout datasets/training/export code.
 
-## 21.7 Make embeddings first-class
+## 21.7 Use `ifcbkit` for IFCB raw-bin handling
+
+Use [`ifcbkit`](https://github.com/WHOIGit/ifcbkit) for IFCB bin discovery, parsing, ROI image extraction, and identifier handling.
+
+Dojo should not reimplement IFCB raw-bin parsing.
+
+## 21.8 Make embeddings first-class
 
 Embeddings should be extractable and persistable from:
 
 ```text
 supervised models
 SSL encoders
-snapshot ensemble members
 transfer-learning checkpoints
 ```
 
-## 21.8 Optimize for external orchestration
+## 21.9 Optimize for external orchestration
 
 No Prefect dependency should be added to core.
 
