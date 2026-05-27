@@ -76,6 +76,15 @@ The following are intentionally deferred:
 6. Exhaustive support for every possible timm architecture edge case.
 7. Specialized Inception auxiliary-logit handling in the initial generic path.
 
+### Implemented-as-stub for this phase
+
+These capabilities have config schemas and CLI surface area defined, but their runtime implementations are deferred until after Phase 8 of the migration plan (§20). The first working code path lands the canonical implementation only; alternatives are stubbed (`NotImplementedError` with a pointer to the post-Phase-8 backlog):
+
+- **timm backbones** — config schema and `source: timm` exist; only `source: torchvision` is functional in the initial implementation.
+- **MLflow logger sink** — config schema exists; only the `local` and `aim` sinks are functional initially.
+- **SSL methods other than DINOv2** — SimCLR, VICReg, PMSN, original DINO, and other Lightly methods are out of scope for this phase.
+- **Ensemble types beyond snapshot + prediction-space.** Snapshot ensembles (§13.12) and generic prediction-space ensembles (§13.3) — voting / averaging over user-supplied checkpoints, exported `.pt` files, or canonical-result directories, including top-k and greedy-forward selection — are functional in this phase. Bagging, boosting, fusion, adversarial, and fast-geometric strategies from the previous `torchensemble`-based code are **not** carried forward. Weight-space methods (model soup, SWA, EMA — see §14) and cross-run / weighted ensembles (§13.2) remain deferred.
+
 ---
 
 # 2. Key architectural decisions
@@ -140,6 +149,7 @@ Primary commands:
 ```bash
 dojo train supervised
 dojo train ssl
+dojo train-snapshot-ensemble
 
 dojo eval holdout
 dojo eval knn
@@ -149,13 +159,15 @@ dojo eval embeddings
 dojo infer
 
 dojo ensemble
-dojo ensemble snapshot
 
 dojo export pt
 dojo export onnx
 
 dojo inspect backbone
 dojo inspect checkpoint
+dojo inspect dataset
+
+dojo tools make-manifest
 
 dojo validate-config
 ```
@@ -169,6 +181,10 @@ Train supervised single-head or multi-head models.
 #### `dojo train ssl`
 
 Train self-supervised models using Lightly.
+
+#### `dojo train-snapshot-ensemble`
+
+Train a supervised model with a snapshot-cycle schedule and assemble a snapshot ensemble from the resulting checkpoints in a single command. See §13.12.
 
 #### `dojo eval holdout`
 
@@ -205,13 +221,7 @@ This replaces `dojo predict`.
 
 #### `dojo ensemble`
 
-Evaluate possible checkpoint/model combinations and select ensemble candidates based on validation performance and computational tradeoff.
-
-This is the generic ensemble search/selection command.
-
-#### `dojo ensemble snapshot`
-
-Specialized subcommand for snapshot ensembles from a training run or snapshot checkpoint collection.
+Build a prediction-space ensemble from user-supplied candidate checkpoints, exported `.pt` models, or canonical-result directories. Supports voting / averaging combine modes and selection strategies including top-k and greedy forward selection. See §13.3.
 
 #### `dojo export pt`
 
@@ -228,6 +238,14 @@ List module names, parameter counts, output dimensions, and freeze-policy effect
 #### `dojo inspect checkpoint`
 
 Inspect model/checkpoint structure and available module names.
+
+#### `dojo inspect dataset`
+
+Inspect a dataset configuration without training: target columns, class labels and indices, per-split class distributions, imbalance ratios, missing/unknown labels, and suggested label mappings. See §6.7.
+
+#### `dojo tools make-manifest`
+
+Scan a class-folder directory tree and emit a CSV or Parquet manifest matching the §6.3/§6.4 schemas. See §6.8.
 
 ### Config-first usage
 
@@ -832,10 +850,11 @@ class ExperimentConfig(BaseModel):
     scheduler: SchedulerConfig | None = None
     training: TrainingConfig
     logging: LoggingConfig
-    artifacts: ArtifactConfig
+    checkpointing: CheckpointingConfig | None = None
     results: ResultsConfig
     ensemble: EnsembleConfig | None = None
     export: ExportConfig | None = None
+    run_storage: RunStorageConfig | None = None
     seed: int = 13
 ```
 
@@ -1115,6 +1134,116 @@ filesystem / cache / zip / sqlite / optional S3
 
 Datasets should depend only on `StorageResolver`, not directly on `amplify-storage-utils`.
 
+## 6.7 Inspect dataset command
+
+`dojo inspect dataset` reports the structure and label statistics of a dataset configuration without training. It is the dataset-side counterpart to `dojo inspect backbone` / `dojo inspect checkpoint` (§8.8).
+
+```bash
+dojo inspect dataset experiment=ifcb/baseline_resnet50
+dojo inspect dataset experiment=ifcb/baseline_resnet50 splits=train,val output=json
+```
+
+It should:
+
+```text
+resolve the dataset config (CSV / Parquet / IFCB-bins backend)
+report target columns: name, dtype, head binding
+per target:
+  class labels and integer indices
+  per-split class distributions (train / val / test)
+  imbalance ratio (max class count / min class count)
+  missing / NaN / unknown label counts
+per split:
+  total samples
+  samples with at least one valid label
+  samples dropped for missing files or unreadable images
+suggest label mappings:
+  candidate `label -> index` table when the manifest has string labels
+  but no `*_idx` column, or when an existing `*_idx` column has gaps
+```
+
+Example human-readable output:
+
+```text
+Dataset: csv  s3://bucket/manifests/train.csv
+Splits: train=15842, val=1980, test=1981
+
+Target: species  (head=species, type=multiclass_classification, target_column=species_idx)
+  classes: 120
+  imbalance ratio (max/min): 87.4
+  per-split coverage:
+    train: 15842/15842 labeled, missing=0
+    val:    1980/1980 labeled, missing=0
+    test:   1981/1981 labeled, missing=0
+  top-5 by frequency:
+    42  Detonula_pumila            2614
+     7  Chaetoceros_socialis       2188
+    ...
+  rare classes (count < 10):
+     91  Pleurosigma_sp                3
+    103  Tropidoneis_sp                7
+
+Target: biomass  (head=biomass, type=regression, target_column=biomass)
+  range: [0.02, 184.3]  median=0.81
+  missing: 0
+  zero-valued: 12   negative: 0
+
+Suggested label mapping (would be applied if accepted):
+  see runs/_inspect/{run_id}/suggested_species_idx_mapping.csv
+```
+
+Output modes:
+
+- `output=human` (default) — formatted text suitable for a terminal.
+- `output=json` — machine-readable for CI gating and sweep preflight.
+- `output=md` — Markdown table form for inclusion in PRs/issues.
+
+### Preflight mode inside `dojo train`
+
+The same inspection logic should run as a preflight inside `dojo train supervised` and `dojo train ssl` (gated by `runtime.preflight: true`) so multirun jobs fail fast on bad manifests before any data loading or model build.
+
+```yaml
+runtime:
+  preflight: true        # default
+  preflight_fail_on:
+    - missing_files
+    - empty_classes
+    - imbalance_ratio_gt: 1000
+```
+
+The existing project has scattered building blocks for this in `src/dojo_deprecated/tools/dataset_lists_from_folder.py` and `src/dojo_deprecated/multiclass/datasets.py` (`count_perclass`, `parse_targets_file`); the refactor should unify them in `src/dojo/cli/inspect.py` against the new dataset abstractions.
+
+## 6.8 Manifest-from-directory utility
+
+Class-folder directory layouts are a common starting point. Rather than adding a fourth dataset backend, Dojo provides a utility that emits a CSV or Parquet manifest matching §6.3 / §6.4 schemas from a class-folder tree:
+
+```bash
+dojo tools make-manifest \
+  input_dir=/data/miniset \
+  output=/data/miniset/manifest.parquet \
+  format=parquet \
+  split=stratified \
+  val_fraction=0.15 \
+  test_fraction=0.10
+```
+
+Behavior:
+
+```text
+walk input_dir; each immediate subdirectory becomes a class
+emit one row per image file
+columns (CSV / Parquet manifest mode):
+  sample_id, filename, species (string), species_idx (int)
+optional split assignment:
+  stratified | random | none
+optional per-class sample limits (min/max)
+optional reproducible-shuffle seed
+```
+
+The utility should reuse the path validation in `src/dojo_deprecated/multiclass/datasets.py` (`parse_targets_file`) and the per-class limiting in `src/dojo_deprecated/tools/dataset_lists_from_folder.py` (`limit_images_perclass`). It should not become a backend — datasets are still loaded through the CSV / Parquet / IFCB-bins backends listed in §6.1.
+
+`dojo tools make-manifest` should also support a **Parquet-with-image-bytes** output (§6.4 Mode B) for use as a committed test fixture; see §19 fixture spec.
+
 ---
 
 # 7. Transform and preprocessing architecture
@@ -1297,6 +1426,8 @@ backbone:
 
 ## 8.4 timm backbones
 
+> **Deferred (stub) in the initial implementation.** The config schema and `source: timm` selector should exist, but the runtime path is implemented as a stub (`NotImplementedError` with a clear message) until after Phase 8. Only `source: torchvision` and `source: checkpoint` are functional in phases 1–8. See §1.2.
+
 Config:
 
 ```yaml
@@ -1394,6 +1525,47 @@ loading a backbone while replacing projection/classification heads
 ```
 
 When `strict: false`, Dojo should log missing and unexpected keys clearly.
+
+### What `source: checkpoint` covers
+
+`source: checkpoint` covers both classes of artifact:
+
+- **Supervised checkpoint** — `checkpoint_key: state_dict` (or whatever key the prior run used); the head defined in the source run is **ignored**.
+- **SSL encoder export** — `checkpoint_key: encoder_state_dict`; projection / DINO heads are not loaded.
+
+In both cases the new training run defines its own `heads:` block; nothing from the source artifact's head ever appears in the new model. `strict: false` only governs *backbone* keys.
+
+The backbone always produces the model's embedding (see §8.5 and §10.5's `head_input_embedding` / `image_embedding` record kinds). There is no separate `output: embedding` switch — using a checkpoint-sourced backbone *is* using it as an embedding source.
+
+### Frozen feature extractor recipe
+
+To use a `.pt` artifact purely as a frozen feature extractor (no fine-tuning of the backbone), combine `source: checkpoint` with `freeze.policy: all` and, optionally, an `embedding_adapter` (§8.5) to project to a downstream-friendly dimensionality:
+
+```yaml
+backbone:
+  source: checkpoint
+  architecture:
+    source: torchvision
+    name: resnet50
+    pretrained: false
+
+  checkpoint_uri: s3://bucket/runs/ssl_dino_v2/exports/encoder.pt
+  checkpoint_key: encoder_state_dict
+  strict: false
+
+  freeze:
+    policy: all
+
+embedding_adapter:
+  enabled: true
+  type: mlp
+  hidden_dims: [512]
+  output_dim: 256
+  activation: gelu
+  dropout: 0.1
+```
+
+For a true linear-probe evaluation, leave `embedding_adapter` disabled and let the head's `network: linear` consume the raw backbone embedding directly.
 
 ## 8.7 Freeze policies
 
@@ -1546,6 +1718,38 @@ ordinal_regression
 distributional_regression
 count_regression
 ```
+
+### Required fields on every head
+
+Every head config must declare:
+
+```text
+type             # one of the head task types above
+target_column    # name of the manifest column this head reads from
+                 # (must exist in the resolved dataset schema)
+network          # head sub-network spec (e.g. {type: linear})
+```
+
+Type-specific required fields:
+
+```text
+multiclass_classification / binary_classification / multilabel_classification:
+  num_classes
+
+regression:
+  output_dim  (default: 1)
+
+ordinal_regression:
+  num_classes
+
+distributional_regression:
+  distribution  (e.g. gaussian, negative_binomial)
+
+count_regression:
+  output_dim  (default: 1)
+```
+
+Pydantic validation should ensure `target_column` resolves to a column present in the dataset's manifest, and that its dtype is compatible with the head type (integer for classification/ordinal indices, float for regression).
 
 ## 9.2 Multi-head model
 
@@ -2670,6 +2874,8 @@ Do not depend directly on Meta DINOv2 repositories.
 
 The initial SSL task should focus on DINOv2-style training using Lightly components.
 
+> **DINOv2 only for this phase.** SimCLR, VICReg, PMSN, original DINO, and other Lightly SSL methods previously implemented in `src/dojo_deprecated/selfsupervised/models.py` are out of scope for this refactor. Their config slots may exist (`ssl.method: ...`) but the runtime path should raise `NotImplementedError` for anything other than `dino_v2` until after Phase 8. See §1.2.
+
 ## 11.2 SSL model structure
 
 ```text
@@ -3224,6 +3430,15 @@ ssl_eval:
 
 # 13. Generic model ensembling architecture
 
+> **Scope for this phase: snapshot ensembles and generic prediction-space ensembles.**
+>
+> §13 describes the full ensembling framework (candidate discovery, compatibility, selection, combination, artifact bundling). Two ensemble runtimes are implemented in phases 1–8:
+>
+> 1. **Snapshot ensembles** — members are checkpoints from a single training run. Entry point: **`dojo train-snapshot-ensemble`** (§13.12), which trains and ensembles in one command.
+> 2. **Generic prediction-space ensembles** — members are user-supplied checkpoints, exported `.pt` files, folders, or URIs. Combine modes: averaging (probabilities/logits/predictions) and voting. Selection strategies: top-k and greedy forward selection over a validation split or cached canonical results. Entry point: **`dojo ensemble`** (§13.3). Offline assessment from cached results is also functional (§13.7).
+>
+> The previous codebase used `torchensemble` to provide Voting, Bagging, Boosting / GradientBoosting, Fusion, Snapshot, Adversarial, and FastGeometric strategies via the standalone `src/dojo_deprecated/homogenous_ensembles/train_ensemble.py` script. **`torchensemble` is dropped as a dependency.** The non-snapshot, non-prediction-space strategies are not carried forward. Cross-run / weighted ensembles, model soups, SWA, and EMA (§14) remain deferred as separate workflows.
+
 ## 13.1 Concept
 
 Model ensembling is a model-selection, artifact-construction, and inference workflow over compatible candidate models.
@@ -3262,17 +3477,17 @@ The core requirement is that ensemble members produce compatible outputs for the
 
 ## 13.2 Ensemble types
 
-The framework should support multiple ensemble families.
+The framework should support multiple ensemble families. Two have functional implementations in this phase; the rest are deferred.
 
 ```text
-prediction_space_ensemble
-snapshot_ensemble
-checkpoint_ensemble
-cross_run_ensemble
-weighted_ensemble
-model_soup
-swa_model
-ema_model
+prediction_space_ensemble      functional this phase  (§13.3)
+snapshot_ensemble              functional this phase  (§13.12 — a single-run prediction-space ensemble)
+checkpoint_ensemble            deferred
+cross_run_ensemble             deferred
+weighted_ensemble              deferred
+model_soup                     see §14   (deferred)
+swa_model                      see §14   (deferred)
+ema_model                      see §14   (deferred)
 ```
 
 ### Prediction-space ensemble
@@ -3342,30 +3557,69 @@ dojo ensemble experiment=ifcb/ensemble_search
 Purpose:
 
 ```text
-given many compatible candidate checkpoints or exported models
-select an ensemble that optimizes the configured validation objective
-under configured compute, latency, memory, and artifact-size constraints
+given user-supplied compatible candidate checkpoints, exported .pt models,
+or canonical-result directories, build a prediction-space ensemble that
+optimizes the configured validation objective
 ```
 
-The command should be able to run against:
+The command operates on **user-specified** candidate sources — there is no run-internal magic discovery here (that lives in `dojo train-snapshot-ensemble`, §13.12). Sources may be:
 
 ```text
-local run directories
-remote run directories
-explicit checkpoint manifests
-explicit model manifests
-experiment search results
-model registry entries
+local checkpoint files / directories / globs
+exported .pt model files / directories
+local or remote run directories
+explicit checkpoint or model manifests
+canonical result directories (for cached-result / offline assessment, §13.7)
 ```
 
-Example:
+Functional combine modes in this phase (§13.8):
+
+```text
+probabilities_mean       (averaging)
+logits_mean              (averaging)
+prediction_mean          (regression averaging)
+ordinal_probabilities_mean
+majority_vote            (hard voting)
+soft_vote                (probability voting)
+```
+
+Functional selection strategies in this phase (§13.6):
+
+```text
+all                            use every supplied candidate
+top_k                          best k by validation metric
+greedy_forward_selection       add candidates while ensemble metric improves
+```
+
+Examples:
 
 ```bash
+# Greedy forward selection over a folder of exported .pt files
 dojo ensemble \
   experiment=ifcb/ensemble_search \
-  ensemble.discovery.run_uri=s3://bucket/runs/run123 \
+  ensemble.discovery.sources.0.type=model_paths \
+  ensemble.discovery.sources.0.paths=/runs/exports/*.pt \
+  ensemble.selection.strategy=greedy_forward_selection \
+  ensemble.selection.metric=val/species/macro_f1
+
+# Top-k averaging from explicit URIs
+dojo ensemble \
+  experiment=ifcb/ensemble_topk \
+  ensemble.discovery.sources.0.type=model_uris \
+  "ensemble.discovery.sources.0.uris=[s3://bucket/a.pt, s3://bucket/b.pt, s3://bucket/c.pt]" \
+  ensemble.selection.strategy=top_k \
+  ensemble.selection.k=3 \
+  ensemble.inference.combine.classification=probabilities_mean
+
+# Offline (cached-result) greedy assessment without re-running inference
+dojo ensemble \
+  experiment=ifcb/ensemble_search \
+  ensemble.discovery.sources.0.type=canonical_results \
+  ensemble.discovery.sources.0.uri=s3://bucket/runs/run123/results/val_results/ \
   ensemble.selection.strategy=greedy_forward_selection
 ```
+
+Cross-run / weighted-ensemble strategies and a model-registry candidate source are out of scope for this phase.
 
 ## 13.4 Candidate compatibility requirements
 
@@ -3659,9 +3913,9 @@ ensemble:
       max_memory_mb: 4096
 ```
 
-## 13.X Offline ensemble assessment from canonical results
+## 13.7 Offline ensemble assessment from canonical results
 
-Prediction-space ensembles can be assessed from previously exported canonical result files, without loading model checkpoints, when all candidate results were produced on the same evaluation dataset and compatible output heads.
+Prediction-space ensembles can be assessed from previously exported canonical result files, without loading model checkpoints, when all candidate results were produced on the same evaluation dataset and compatible output heads. This is functional in this phase via `dojo ensemble` with a `canonical_results` discovery source (§13.3) and via `dojo train-snapshot-ensemble` with `train.skip=true` (§13.12).
 
 This enables fast ensemble search over cached predictions.
 
@@ -3866,7 +4120,7 @@ Cached results also cannot measure true ensemble latency or memory use unless ca
 
 The validation set may be used for ensemble selection. A separate test set should be used for final unbiased reporting.
 
-## 13.7 Ensemble inference combine modes
+## 13.8 Ensemble inference combine modes
 
 Combine modes should be task-specific.
 
@@ -3973,7 +4227,7 @@ average expected rank values
 
 The ensemble artifact should store the ordinal decoding rule used for each ordinal head.
 
-## 13.8 Ensemble config
+## 13.9 Ensemble config
 
 Generic config:
 
@@ -4021,7 +4275,7 @@ ensemble:
     save_disagreement_metrics: true
 ```
 
-## 13.9 Final-output snapshot ensemble
+## 13.10 Final-output snapshot ensemble
 
 A final-output snapshot ensemble is a prediction-space ensemble over checkpoints from the same supervised or fine-tuned training run.
 
@@ -4046,7 +4300,7 @@ multi-head supervised snapshot ensemble
 fine-tuned SSL model snapshot ensemble
 ```
 
-## 13.10 Training setup for final-output snapshot ensembles
+## 13.11 Training setup for final-output snapshot ensembles
 
 A final-output snapshot ensemble requires a training run that intentionally produces multiple useful checkpoints from one optimization trajectory.
 
@@ -4275,37 +4529,46 @@ EMA:
 
 The same training run may produce snapshot candidates, EMA weights, and SWA weights, but these should be represented as different candidate types.
 
-## 13.11 Snapshot ensemble command
+## 13.12 Snapshot ensemble command
 
-Snapshot ensembling should be exposed as a specialized mode of the generic ensemble workflow.
-
-Specialized command:
+Snapshot ensembling is exposed as a **single combined command** that performs training and ensembling against the just-finished run, sharing one run directory and one resolved config:
 
 ```bash
-dojo ensemble snapshot experiment=ifcb/snapshot_ensemble
+dojo train-snapshot-ensemble experiment=ifcb/snapshot_experiment
 ```
 
-Equivalent generic command:
-
-```bash
-dojo ensemble \
-  experiment=ifcb/snapshot_ensemble \
-  ensemble.type=snapshot_ensemble \
-  ensemble.discovery.sources.0.type=run_checkpoints
-```
-
-The snapshot command should:
+The combined command should:
 
 ```text
-discover snapshot checkpoints from one run
-validate candidate compatibility
-score candidates on a validation split
-select a subset of snapshots
-construct a prediction-space ensemble
-evaluate the selected ensemble
-export an ensemble artifact
-write canonical result records
+1. compose and validate the config (per §2.1 / §5)
+2. create the run directory (per §10.5)
+3. train a supervised model with a snapshot-cycle scheduler
+     (per §13.11 — cosine warm restarts producing one snapshot per cycle)
+4. discover snapshot checkpoints from the just-finished run by in-memory run_id
+5. validate candidate compatibility
+6. score candidates on the configured validation split
+7. select a subset of snapshots (per §13.6 selection strategy)
+8. construct a prediction-space ensemble
+9. evaluate the selected ensemble
+10. export an ensemble artifact (per §13.13)
+11. write canonical result records (per §10.5 / §13.15)
 ```
+
+Steps 1–3 are `dojo train supervised` semantics; steps 4–11 are the ensemble pipeline. They share the run directory so snapshot checkpoints in `runs/{run_id}/checkpoints/snapshot_*.ckpt` are discovered without a manual URI. The config for steps 4–11 is the `ensemble:` block described in "Snapshot-cycle ensemble config" below; setting `ensemble.enabled: false` reduces the command to plain supervised training with snapshot checkpoints saved but not ensembled.
+
+### Re-running ensembling against a historical run
+
+When a training run already exists and only the ensembling phase needs to be re-run (different selection strategy, different combine mode, different metric), override the discovery source to point at the existing run:
+
+```bash
+dojo train-snapshot-ensemble \
+  experiment=ifcb/snapshot_experiment \
+  train.skip=true \
+  ensemble.discovery.sources.0.type=run_checkpoints \
+  ensemble.discovery.sources.0.run_uri=s3://bucket/runs/run123
+```
+
+With `train.skip=true`, steps 1–3 are skipped, the snapshot checkpoints are discovered from the configured `run_uri`, and the run directory is created fresh to hold the new ensemble artifacts and result records. This replaces the separate `dojo ensemble snapshot` form from earlier drafts.
 
 ### Snapshot-cycle ensemble config
 
@@ -4403,12 +4666,12 @@ The framework should allow both classic uniform snapshot ensembling and validati
 
 ### Cached-result snapshot ensemble search
 
-If canonical validation results have already been written for each snapshot, the snapshot ensemble can be assessed without re-running model inference.
-
-Example:
+If canonical validation results have already been written for each snapshot, the snapshot ensemble can be assessed without re-running model inference. Use the combined command with `train.skip=true` and a `canonical_results` discovery source:
 
 ```bash
-dojo ensemble snapshot from-results experiment=ifcb/snapshot_ensemble_from_results
+dojo train-snapshot-ensemble \
+  experiment=ifcb/snapshot_ensemble_from_results \
+  train.skip=true
 ```
 
 Example config:
@@ -4504,7 +4767,7 @@ snapshot_cycle_greedy_forward
 late_checkpoint_top_k
 ```
 
-## 13.12 Ensemble artifact format
+## 13.13 Ensemble artifact format
 
 The exported ensemble artifact should contain enough information for reproducible inference.
 
@@ -4590,7 +4853,7 @@ target schema hash
 class mapping hash
 ```
 
-## 13.13 Ensemble run layout
+## 13.14 Ensemble run layout
 
 Recommended output layout:
 
@@ -4634,7 +4897,7 @@ runs/{run_id}/
         part-00000.parquet
 ```
 
-## 13.14 Ensemble result records
+## 13.15 Ensemble result records
 
 Ensemble prediction outputs should use the same canonical result schemas as ordinary supervised outputs.
 
@@ -4678,7 +4941,7 @@ member_weight
 
 Member-level outputs should also use the canonical supervised result schemas.
 
-## 13.15 Ensemble metrics
+## 13.16 Ensemble metrics
 
 The ensemble workflow should report:
 
@@ -4765,7 +5028,7 @@ ensemble:
         mode: min
 ```
 
-## 13.16 Relationship to model soups, SWA, and EMA
+## 13.17 Relationship to model soups, SWA, and EMA
 
 Model soups, SWA, and EMA are related to ensembling but should be represented differently from prediction-space ensembles.
 
@@ -4825,9 +5088,9 @@ src/dojo/training/ema.py
 
 ## 14.1 Greedy soup
 
-Greedy soup can reuse saved checkpoints and evaluate averaged weights.
+Greedy soup can reuse saved checkpoints and evaluate averaged weights. It is a **weight-space** ensemble (one output model from averaged parameters), distinct from the prediction-space greedy forward selection in §13.6 that is functional this phase.
 
-This belongs in the ensemble workflow.
+**Greedy soup itself is deferred** (along with SWA and EMA below) — the functional `dojo ensemble` workflow (§13.3) does prediction-space combination only. When weight-space soup is added later, the entry point will reuse `dojo ensemble` with a `model_soup`-type config:
 
 ```bash
 dojo ensemble experiment=ifcb/greedy_soup
@@ -5029,9 +5292,11 @@ Implementations:
 ```text
 LocalExperimentLogger
 AimExperimentLogger
-MLflowExperimentLogger
+MLflowExperimentLogger    (deferred — stubbed until after Phase 8)
 CompositeExperimentLogger
 ```
+
+> **MLflow deferred.** The MLflow sink's config schema should exist, but the runtime implementation is a stub for phases 1–8. The functional sinks in the initial implementation are `local` and `aim` (the existing project uses Aim today). See §1.2.
 
 These should play nice with Lightning's logging system.
 
@@ -5099,9 +5364,93 @@ Each Hydra job should:
 7. Save configured artifacts/results.
 8. Log to configured sinks.
 
+### Interaction with Hydra multirun output directories
+
+Dojo's run directory (`{logging.run_root}/{run_id}/`, §10.5) is the canonical location for checkpoints, exports, metrics, and results. It is **independent** of Hydra's working directory (`hydra.run.dir` / `hydra.sweep.dir`).
+
+Without explicit configuration, a single multirun job can end up scattering output across three different paths: Hydra's CWD (`outputs/...` or `multirun/...`), Dojo's `runs/{run_id}/`, and the logger sink's artifact store. To keep everything under one canonical location, Dojo should ship Hydra defaults that align Hydra's job dirs with `run_root`:
+
+```yaml
+# configs/hydra/default.yaml
+hydra:
+  run:
+    dir: ${logging.run_root}/${run_id}
+
+  sweep:
+    dir: ${logging.run_root}/_sweeps/${now:%Y-%m-%d_%H-%M-%S}
+    subdir: ${run_id}
+
+  job:
+    chdir: false
+```
+
+Key points:
+
+- `run_id` is generated at config-resolve time (UUID or timestamp-slug) and is stable across the run, multirun sweep, and logger sinks. It must be available as an OmegaConf interpolation before Hydra creates its job directory — generated either in a Hydra `Resolver`, in a structured-config default factory, or in the entrypoint's pre-Hydra setup.
+- `chdir: false` keeps the process CWD at the project root. All Dojo paths are either absolute or expressed relative to `logging.run_root`. This avoids the historical Hydra footgun where `os.getcwd()` silently changes per job.
+- For sweeps, `hydra.sweep.dir` is purely a Hydra coordination directory (it holds Hydra's per-job metadata and overrides files). Dojo artifacts continue to land under `{logging.run_root}/{run_id}/`, one per sweep job.
+- Hydra's `hydra.job.num` and `hydra.job.id` may be folded into `run_id` (e.g. `${experiment.name}-${now:%Y%m%d-%H%M%S}-${hydra.job.num}`) to make sweep-member IDs both unique and ordered.
+
+Example multirun output, with the recommended defaults:
+
+```text
+runs/
+  ifcb-20260527-101502-0/                # sweep member 0
+    config/resolved.yaml
+    checkpoints/...
+    exports/...
+    metrics/...
+    results/...
+  ifcb-20260527-101502-1/                # sweep member 1
+    ...
+  _sweeps/
+    2026-05-27_10-15-02/
+      0/.hydra/                          # Hydra coordination only
+      1/.hydra/
+      multirun.yaml
+```
+
 ---
 
 # 19. Testing strategy
+
+## 19.0 Fixtures and example datasets
+
+Three tiers of dataset live alongside the project:
+
+### Tier 1 — Committed test fixtures (`tests/fixtures/`)
+
+Minimal, deterministic data used by unit and integration tests. **Committed to the repo via git LFS.**
+
+- **Format:** Parquet manifests with **image bytes inlined** (§6.4 Mode B). One self-contained Parquet file per fixture is preferred over loose-image-files-plus-CSV — it avoids the path-resolution combinatorics in tests and survives `git clone` cleanly.
+- **Generator:** `dojo tools make-manifest input_dir=... output=... format=parquet inline_image_bytes=true ...` (§6.8).
+- **Sizing:** TBD. A starting target is "small enough that a full integration test runs in under 60 seconds on a laptop CPU": roughly 5–20 classes, ~20–100 images per class, original-resolution but ROI-cropped. The fixture may be a decimated subset of `miniset` (Tier 2) or hand-curated.
+- **Git LFS configuration:** `*.parquet` under `tests/fixtures/parquet/` tracked via `.gitattributes`:
+
+  ```text
+  tests/fixtures/parquet/**/*.parquet filter=lfs diff=lfs merge=lfs -text
+  ```
+
+- **Do not commit fixture data files until explicitly approved by the project owner.** This doc only specifies the format and pipeline; the actual fixture parquet is added in a follow-up commit once class count and sample counts are settled.
+
+Integration tests in `tests/integration/` (e.g. `test_train_supervised.py`, `test_snapshot_ensemble.py`, `test_hydra_multirun_config.py`) consume Tier 1 fixtures exclusively.
+
+### Tier 2 — Local development fixture
+
+Used for fast manual smoke testing during development. **Not committed.**
+
+- Path: `/home/sbatchelder/Projects/ifcbNN/datasets/miniset/`
+- Status: optional. Documented in the README; pointed at via a project-local config override or env var (e.g. `DOJO_DEV_DATASET_ROOT`).
+- May be further decimated for faster turnarounds.
+
+A `configs/example_experiments/ifcb/miniset_smoke.yaml` should exist that points at `${oc.env:DOJO_DEV_DATASET_ROOT}` and runs end-to-end in well under a minute, suitable for ad-hoc `dojo train supervised experiment=ifcb/miniset_smoke` checks during development.
+
+### Tier 3 — Real example dataset
+
+Used for example experiment configs and as the reference target for any "real" integration check. **Not committed; fetched at runtime.**
+
+- Hugging Face dataset: `sbatchelder/NES-plankton-classifier-2022-dataset` (`https://huggingface.co/datasets/sbatchelder/NES-plankton-classifier-2022-dataset`).
+- Referenced from `configs/example_experiments/ifcb/baseline_resnet50.yaml`, `dino_v2_ssl.yaml`, `convnext_snapshot.yaml`, and `transfer_from_ssl.yaml`. These example experiments are documented usage, not part of CI.
 
 ## 19.1 Config tests
 
@@ -5274,37 +5623,45 @@ artifact registration
 
 # 20. Migration plan
 
+**Guiding rule:** *prioritize porting extant capabilities before adding new similar ones.* Anything in `src/dojo_deprecated/` that has a working analogue gets ported first; new capabilities (timm backbones, MLflow logger, non-snapshot ensemble types, non-DINOv2 SSL methods, IFCB-bins backend if not used today, etc.) come after Phase 8 and are stubbed in the meantime (§1.2).
+
+## Phase 0: Deprecation move
+
+1. `git mv src/dojo src/dojo_deprecated`.
+2. Create an empty `src/dojo/` package skeleton (`__init__.py`, `cli/__init__.py`, `config_schemas/__init__.py`).
+3. Update `pyproject.toml`:
+   - bump `version` to `0.3.0` to mark the refactor cycle
+   - point the console-scripts entry at the new `src/dojo/cli/main.py` (which initially just prints a friendly "refactor in progress" message)
+4. `src/dojo_deprecated/` remains importable for reference during the refactor and is **deleted in Phase 8** once nothing depends on it.
+
+The deprecated tree will be the source of porting cues: `dojo_deprecated/multiclass/`, `dojo_deprecated/multilabel/`, `dojo_deprecated/selfsupervised/`, `dojo_deprecated/tools/dataset_lists_from_folder.py`, `dojo_deprecated/schemas/core.py`, and `dojo_deprecated/multiclass/callbacks.py` are all useful references.
+
 ## Phase 1: Config and CLI foundation
 
-1. Add Hydra entrypoint.
-2. Add `config_schemas`.
-3. Add `dojo validate-config`.
-4. Add local/amplify storage resolver.
-5. Add result config schemas.
-6. Add logger abstraction.
+1. Add Hydra entrypoint and `configs/` skeleton (group dirs from §3).
+2. Add `config_schemas` (pydantic) — the validated contract per §5.
+3. Add the Hydra↔`run_root` reconciliation defaults from §18.
+4. Add `dojo validate-config`.
+5. Add local/amplify storage resolver (§6.6).
+6. Add result config schemas.
+7. Add logger abstraction (local + Aim functional; MLflow stubbed per §17 / §1.2).
+8. Add `dojo inspect dataset` (§6.7) — built early because it's the cheapest gate against bad manifests.
+9. Add `dojo tools make-manifest` (§6.8).
 
 ## Phase 2: Supervised refactor
 
 1. Implement shared dataset record contract.
 2. Implement CSV datamodule.
-3. Implement Parquet datamodule.
-4. Add backbone registry.
-5. Add head registry.
+3. Implement Parquet datamodule (both Mode A and Mode B from §6.4).
+4. Add backbone registry — torchvision source functional; **timm source stubbed** per §1.2.
+5. Add head registry (including required `target_column` validation per §9.1).
 6. Add objectives.
 7. Add supervised model compositor.
-8. Add supervised LightningModule.
+8. Add supervised LightningModule (`dojo train supervised`).
 9. Add canonical results writer.
+10. Port and fix the `count_perclass` / `parse_targets_file` logic from `src/dojo_deprecated/multiclass/datasets.py` into the new inspector and datamodules. The `multilabel/datasets.py:81` bug (undefined `target` should be `label`) is fixed as part of this porting.
 
-## Phase 3: IFCB bins
-
-1. Add `ifcbkit` dependency. Remove `pyifcb` dependancy. 
-2. Implement IFCB bin dataset.
-3. Implement IFCB bin datamodule.
-4. Add bin manifest support with `bin_id_column` and `bin_uri_column`.
-5. Add runtime ROI expansion.
-6. Add tests for variable ROI counts per bin.
-
-## Phase 4: Transform refactor
+## Phase 3: Transform refactor
 
 1. Add transform builder.
 2. Add letterbox.
@@ -5313,24 +5670,14 @@ artifact registration
 5. Add foreground-aware crop.
 6. Add grayscale/normalization transforms.
 
-## Phase 5: SSL with Lightly
+## Phase 4: Logging sinks
 
-1. Add `dojo[ssl]`.
-2. Add Lightly DINOv2-style task.
-3. Add SSL transforms.
-4. Add labeled SSL eval.
-5. Add unlabeled diagnostics/retrieval/clustering/projections.
-6. Add encoder export.
+1. Wire up the Aim logger (port `AimLoggerConfig.artifacts_location` URI handling from `src/dojo_deprecated/schemas/core.py`, including `file:///absolute/path` normalization).
+2. Add composite logger.
+3. MLflow logger: **stubbed** per §1.2 — config schema present, runtime raises `NotImplementedError`.
+4. Ensure result/artifact config works across the functional sinks.
 
-## Phase 6: Ensemble workflows
-
-1. Add `dojo ensemble`.
-2. Add `dojo ensemble snapshot`.
-3. Add checkpoint selection.
-4. Add snapshot bundle artifact.
-5. Add ensemble result writing.
-
-## Phase 7: Export
+## Phase 5: Export
 
 1. Add `.pt` single-model export.
 2. Add `.pt` snapshot ensemble export.
@@ -5338,12 +5685,50 @@ artifact registration
 4. Add ONNX metadata.
 5. Add bucket-aware ONNX export support.
 
-## Phase 8: Logging sinks
+## Phase 6: IFCB bins
 
-1. Add Aim logger.
-2. Add MLflow logger.
-3. Add composite logger if needed.
-4. Ensure result/artifact config works across sinks.
+1. Add `ifcbkit` dependency. Remove `pyifcb` dependency.
+2. Implement IFCB bin dataset.
+3. Implement IFCB bin datamodule.
+4. Add bin manifest support with `bin_id_column` and `bin_uri_column`.
+5. Add runtime ROI expansion.
+6. Add tests for variable ROI counts per bin.
+
+## Phase 7: SSL with Lightly (DINOv2 only)
+
+1. Add `dojo[ssl]`.
+2. Add Lightly DINOv2-style task.
+3. Add SSL transforms.
+4. Add labeled SSL eval.
+5. Add unlabeled diagnostics/retrieval/clustering/projections.
+6. Add encoder export.
+7. Non-DINOv2 SSL methods (SimCLR, VICReg, PMSN, original DINO from `src/dojo_deprecated/selfsupervised/models.py`) remain **stubbed** per §1.2; their config schema slots may exist but the runtime raises `NotImplementedError`.
+
+## Phase 8: Ensemble workflows and cleanup
+
+1. Add the shared candidate discovery / compatibility validation pipeline (§13.4, §13.5).
+2. Add prediction-space combine modes — averaging (probabilities, logits, prediction mean, ordinal-probabilities mean) and voting (majority, soft) (§13.8).
+3. Add selection strategies — top-k and greedy forward selection — usable against both live inference and cached canonical results (§13.6, §13.7).
+4. Add `dojo train-snapshot-ensemble` (§13.12): integrate the snapshot-cycle scheduler in the supervised LightningModule and feed snapshot checkpoints into the pipeline by in-memory `run_id`.
+5. Add `dojo ensemble` (§13.3): take user-supplied checkpoints / `.pt` model files / folders / URIs / canonical-result directories.
+6. Add the ensemble bundle artifact format (§13.13).
+7. Add ensemble result writing (§13.15).
+8. **Drop `torchensemble`** from dependencies. Confirm nothing imports from `src/dojo_deprecated/homogenous_ensembles/`.
+9. **Delete `src/dojo_deprecated/`** once a green CI run on Tier-1 fixtures (§19.0) confirms no remaining dependencies.
+10. Verify all stubbed paths (timm, MLflow, non-DINOv2 SSL, weight-space ensembles, cross-run / weighted ensembles) raise clear `NotImplementedError` messages with pointers to a post-Phase-8 backlog issue.
+11. Commit fixture Parquet under `tests/fixtures/parquet/` via git LFS — **pending explicit owner approval** per §19.0.
+
+## Post-Phase-8 backlog (not scheduled)
+
+Carried as separate work items, in no particular order:
+
+- timm backbones (§8.4)
+- MLflow logger (§17)
+- Cross-run and weighted ensemble types (§13.2)
+- Weight-space ensembles: model soup / greedy soup, SWA, EMA (§14)
+- Additional Lightly SSL methods: SimCLR, VICReg, PMSN, original DINO (§11.1)
+- WebDataset backend
+- Bayesian hyperparameter search (§18)
 
 ---
 
