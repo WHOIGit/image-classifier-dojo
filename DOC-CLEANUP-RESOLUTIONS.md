@@ -58,6 +58,83 @@ outputs:
 sweep_outputs:
 ```
 
+Minimal supervised config example:
+
+```yaml
+experiment:
+  name: ifcb_species_baseline
+
+task:
+  type: supervised
+
+runtime:
+  seed: 123
+  run_id: "{coolname}"
+  precision: bf16-mixed
+  num_workers: 8
+  fast_dev_run: false
+
+storage:
+  local_cache_dir: ./.cache/dojo
+
+data:
+  backend: parquet_manifest
+  manifest_uri: s3://datasets/ifcb/species_manifest.parquet
+  image_uri_column: image_uri
+  split_column: split
+  sample_id_column: roi_id
+  targets:
+    species:
+      column: species_idx
+      type: multiclass_classification
+      class_names: s3://datasets/ifcb/species_classes.json
+      missing_policy: error
+
+model:
+  backbone:
+    source: torchvision
+    name: resnet50
+    weights: IMAGENET1K_V2
+  tabular:
+    enabled: false
+  embedding_adapter:
+    enabled: false
+  heads:
+    species:
+      type: multiclass_classification
+      target: species
+      num_classes: 42
+
+objectives:
+  species:
+    head: species
+    loss: cross_entropy
+    metrics: [accuracy, macro_f1, per_class_f1]
+    weight: 1.0
+
+training:
+  max_epochs: 50
+  batch_size: 64
+
+optimizer:
+  name: adamw
+  lr: 0.0003
+  weight_decay: 0.01
+
+scheduler:
+  name: cosine
+  warmup_epochs: 3
+
+checkpointing:
+  monitor: val/species/macro_f1
+  mode: max
+  save_top_k: 3
+
+outputs:
+  run_root: ./runs
+  run_dir_template: "{experiment.name}/{runtime.run_id}"
+```
+
 ## Output Paths, Run IDs, and Config Artifacts
 
 - Split output path configuration into `outputs.run_root` and
@@ -87,18 +164,38 @@ config/overrides.txt
 config/sweep_values.txt   # only for sweep members
 ```
 
+Output template example:
+
+```yaml
+runtime:
+  run_id: "{coolname}"
+  sweep_id: "{hydra.job.id}"
+
+outputs:
+  run_root: ./runs
+  run_dir_template: >-
+    {experiment.name}/{model.backbone.name:slug}/bs{training.batch_size:03}/{runtime.run_id}
+  sweep_dir_template: "{experiment.name}/sweep_results/{runtime.sweep_id}"
+  existing_run_dir: error
+```
+
 ## CLI Structure
 
 - Canonical command families are `dojo train`,  `dojo infer` and `dojo eval`.
 - Keep config-first commands; subcommands are shorthands that constrain the
   target output.
 - Use:
+  - `dojo train` (task type selected via `task.type`)
   - `dojo infer`
   - `dojo infer predictions`
   - `dojo infer embeddings`
   - `dojo eval`
   - `dojo eval holdout`
   - `dojo eval representation`
+- `dojo train` dispatches on `task.type` (see Task Types section below):
+  `supervised`, `ssl`, `snapshot_ensemble`. There are no
+  `dojo train supervised` / `dojo train ssl` / `dojo train-snapshot-ensemble`
+  subcommands.
 - Rename the old `dojo eval embeddings` concept to `dojo infer embeddings`.
 - Remove `dojo eval knn` as a primary command for now.
 - Remove `dojo eval linear-probe` as a primary command for now.
@@ -116,6 +213,84 @@ config/sweep_values.txt   # only for sweep members
 - warn about run/sweep directory collisions;
 - show enabled outputs and deferred/stubbed features;
 - optionally emit machine-readable JSON for CI/tests.
+
+CLI examples:
+
+```bash
+dojo inspect config experiment=ifcb/species_baseline training.batch_size=64
+dojo inspect dataset data=ifcb/species_manifest output=./inspect_outputs/species_manifest.parquet
+dojo train experiment=ifcb/species_baseline
+dojo infer embeddings experiment=ifcb/species_baseline checkpoint=./runs/baseline/checkpoints/best.ckpt
+dojo eval representation experiment=ifcb/dinov2_repr_eval
+dojo ensemble candidates experiment=ifcb/ensemble_candidates output=./shared_manifests/ifcb_candidates.json
+dojo ensemble experiment=ifcb/ensemble_search ensemble.candidates.manifest_uri=./shared_manifests/ifcb_candidates.json
+```
+
+## Task Types
+
+- `task.type` is the axis that determines what `dojo train` does. Supported
+  task types in phase 1:
+  - `supervised`
+  - `ssl`
+  - `snapshot_ensemble`
+- `task.type: snapshot_ensemble` is a single-command convenience that
+  internally orchestrates two steps against one shared run directory:
+  1. supervised training with a snapshot-cycle scheduler (cosine warm
+     restarts producing one checkpoint per cycle);
+  2. ensembling the just-finished snapshot checkpoints using the
+     ensemble pipeline.
+- The combined `task.type: snapshot_ensemble` run shares the run
+  directory with both steps. Snapshot checkpoints land in
+  `runs/{run_id}/checkpoints/`; ensemble artifacts land in
+  `runs/{run_id}/ensemble_*` per the Artifact Layout section.
+- The old top-level command `dojo train-snapshot-ensemble` is **dropped**.
+  The canonical invocation is:
+
+  ```bash
+  dojo train experiment=ifcb/snapshot_experiment
+  ```
+
+  where the experiment config sets `task.type: snapshot_ensemble`.
+- "Re-run ensembling against a historical training run" is **not** a
+  `task.type: snapshot_ensemble` invocation. It is a regular
+  `dojo ensemble` invocation with a `run_checkpoints` candidate source
+  pointing at the historical run directory.
+- A `task.type: snapshot_ensemble` config must include both a
+  `training:` block (with a snapshot-cycle scheduler) and an
+  `ensemble:` block (selection strategy + combine modes). Pydantic
+  validation should enforce both blocks are present and that the
+  scheduler is one capable of producing snapshot candidates.
+
+Example:
+
+```yaml
+task:
+  type: snapshot_ensemble
+
+training:
+  max_epochs: 300
+
+scheduler:
+  name: cosine_warm_restarts
+  first_cycle_epochs: 50
+  cycle_mult: 1.0
+  max_lr: 1.0e-4
+  min_lr: 1.0e-6
+  warmup_epochs: 5
+
+checkpointing:
+  save_cycle_snapshots:
+    enabled: true
+    at_cycle_end: true
+
+ensemble:
+  selection:
+    strategy: cycle_end_snapshots
+    use_all_cycles: true
+  inference:
+    combine:
+      classification: probabilities_mean
+```
 
 ## Dataset Architecture
 
@@ -143,12 +318,58 @@ IFCB behavior to preserve or port if supported by `ifcbkit`:
 - stable ROI IDs;
 - optional estimated or cached length.
 
+CSV/Parquet manifest example:
+
+```yaml
+data:
+  backend: parquet_manifest
+  manifest_uri: s3://datasets/ifcb/species_manifest.parquet
+  sample_id_column: roi_id
+  image_uri_column: image_uri
+  split_column: split
+  source_extra_columns: [cruise_id, cast_id, instrument_id]
+  tabular_feature_columns:
+    - depth_m
+    - temperature_c
+    - salinity_psu
+  targets:
+    species:
+      column: species_idx
+      type: multiclass_classification
+      missing_policy: error
+    biovolume:
+      column: biovolume_um3
+      type: regression
+      missing_policy: drop_sample
+```
+
+IFCB bins example:
+
+```yaml
+data:
+  backend: ifcb_bins
+  manifest_uri: s3://datasets/ifcb/bin_manifest.parquet
+  bin_id_column: bin_id
+  bin_uri_column: bin_uri
+  split_column: split
+  exclude_patterns: [bad, skip, beads, temp, data_temp]
+  shuffle_buffer_size: 1000
+  length:
+    mode: cached
+    cache_uri: s3://datasets/ifcb/cache/bin_lengths.parquet
+  targets:
+    species:
+      column: species_idx
+      type: multiclass_classification
+      missing_policy: error
+```
+
 ## Model, Heads, and Objectives
 
 - The old `multilabel` module is actually multi-head multiclass and should not
   be directly ported.
 - Move the old multi-head multiclass module to `dojo_deprecated` for reference.
-- Move all current `src/dojo` code to `src/dojo_depricated`, kept for reference but will ultimately be removed. 
+- Move all current `src/dojo` code to `src/dojo_deprecated`, kept for reference but will ultimately be removed. 
 - Reserve `multilabel_classification` for true multi-hot multilabel problems.
 - Use the new multi-head paradigm for current and future head types.
 - Heads reference logical data targets, not raw manifest columns.
@@ -180,13 +401,94 @@ objectives:
     head: species
 ```
 
+Multi-head example:
+
+```yaml
+data:
+  targets:
+    species:
+      column: species_idx
+      type: multiclass_classification
+      missing_policy: error
+    life_stage:
+      column: life_stage_idx
+      type: ordinal_classification
+      missing_policy: error
+    biovolume:
+      column: biovolume_um3
+      type: regression
+      transform: log1p
+      missing_policy: drop_sample
+
+model:
+  tabular:
+    enabled: true
+    columns: [depth_m, temperature_c, salinity_psu]
+    encoder:
+      type: mlp
+      hidden_dims: [64, 64]
+    fusion:
+      type: concat_mlp
+      output_dim: 512
+  heads:
+    species:
+      type: multiclass_classification
+      target: species
+      num_classes: 42
+    life_stage:
+      type: ordinal_classification
+      target: life_stage
+      num_classes: 5
+    biovolume:
+      type: regression
+      target: biovolume
+
+objectives:
+  species:
+    head: species
+    loss: cross_entropy
+    metrics: [macro_f1, per_class_f1]
+    weight: 1.0
+  life_stage:
+    head: life_stage
+    loss: ordinal_cross_entropy
+    metrics: [mae, quadratic_weighted_kappa]
+    weight: 0.5
+  biovolume:
+    head: biovolume
+    loss: smooth_l1
+    metrics: [mae, rmse, r2]
+    weight: 0.25
+```
+
+## Backbones
+
+- `model.backbone.source: timm` is **functional** in the first refactor
+  phase (not deferred).
+- Supported user-facing backbone sources in phase 1:
+  - `torchvision`
+  - `timm`
+  - `checkpoint`
+- timm support is gated by the `timm` optional extra (`pip install
+  dojo[timm]`). The schema accepts `source: timm` regardless of install;
+  the runtime raises a clear error if `timm` is not installed.
+- DINOv2 (Lightly) is allowed to use timm ViT backbones internally and
+  through the public `source: timm` selector. There is no separate
+  "DINOv2-only timm path."
+- Inception-style auxiliary-logit handling remains out of scope for the
+  generic backbone path in phase 1 (unchanged from the existing design
+  doc).
+- `model.backbone.source: lightly` is not introduced as a public
+  backbone source. Lightly remains an SSL framework implementation
+  detail.
+
 ## Dependency Plan
 
 - Use a lightweight base install plus optional extras.
 - Base install should support config validation, inspection, storage/result
   access, schema handling, and artifact introspection without requiring Torch.
-- `amplify-db-utils` is a core dependency.
-- `amplify-storage-utils` remains a core dependency.
+- [amplify-db-utils](https://github.com/WHOIGit/amplify-db-utils) is a core dependency.
+- [amplify-storage-utils](https://github.com/WHOIGit/amplify-storage-utils) remains a core dependency.
 - Training, SSL, Aim, MLflow, ONNX, and IFCB support should live behind extras.
 
 Suggested dependency shape:
@@ -269,6 +571,151 @@ ordinal_logits
 Only per-sample records belong in result Parquet files. Per-class metrics,
 run-level metrics, and plots belong in `metrics/` and `figures/`.
 
+Result writer config example:
+
+```yaml
+outputs:
+  results:
+    enabled: true
+    backend: amplify_db_utils
+    uri: "{outputs.run_dir}/results"
+    format: parquet
+    partition_by: [stage, record_type, epoch]
+    dictionary_encode:
+      enabled: true
+      columns:
+        - split
+        - stage
+        - record_type
+        - head_name
+        - embedding_kind
+        - prediction_label
+        - resize_width_px
+        - resize_height_px
+    write_metadata_json: true
+```
+
+## IDs and Hashes
+
+Identity and content-equality are separate concerns and are represented
+separately:
+
+- A `*_hash` is derived deterministically from the object's content. Two
+  objects with equal hashable content produce the same hash. Hashes are
+  what compatibility checks compare on.
+- A `*_id` is either manually set (human-chosen) or generated as a
+  human-readable name. When generated, the id is a **seedname**: a
+  coolname produced by seeding `random.Random` with the corresponding
+  `*_hash`. Same hash → same seedname, so seednames are reproducible
+  identifiers, not random ones.
+
+Some objects have both a hash and an id; some have only one. See the
+table below.
+
+### Storage and truncation
+
+- Record **full hashes** by default (e.g. full SHA-256 hex). Truncation
+  is per-use-site and explicitly documented; the only standard
+  truncation is the **first 6 hex characters** embedded in checkpoint
+  filenames.
+- Result-row provenance columns carry both the `*_id` and the `*_hash`
+  where both exist, so downstream consumers can join either way.
+
+### Canonicalizer
+
+- Lives in `dojo.utils.artifact_hashing`.
+- One JSON normalization recipe used by every hash function:
+  - canonical UTF-8 JSON;
+  - sorted object keys;
+  - no insignificant whitespace;
+  - lists preserved in source order;
+  - floats serialized in a fixed normalized form;
+  - bytes/binary inputs hashed directly without JSON wrapping.
+- Each `*_hash` function selects a specific subset of fields from the
+  source object before canonicalization. The key-selection rules per
+  hash type are listed below; the **exact field lists are TBD** and
+  must be settled before implementation (see action items).
+
+### Per-field table
+
+| Field | Kind | Derivation | Default when not set |
+| --- | --- | --- | --- |
+| `run_id` | id only | manual override, else a template-string render | template default like `{experiment.name}-{timestamp}-{job_num}` or a coolname; template is configurable and may use post-resolve config values, timestamps, and helpers like `coolname` |
+| `config_id` | id (paired with `config_hash`) | manual override, else seedname from `config_hash` | seedname |
+| `config_hash` | hash | canonical hash of the resolved config, **excluding** runtime-resolved values, output paths, and the `outputs:` block | always derived |
+| `dataset_id` | id only | the dataset's self-name when the manifest provides one | null when the dataset does not self-name (no seedname fallback) |
+| `dataset_hash` | hash | URI + size + etag/last-modified (or full content hash when locally accessible and cheap), plus the data backend type | always derived |
+| `checkpoint_hash` | hash | SHA-256 of the `.ckpt` file bytes | always derived |
+| `model_id` | id (paired with `model_hash`) | manual override on the export command, else seedname from `model_hash` | seedname |
+| `model_hash` | hash | SHA-256 of the exported `.pt` / `.onnx` file bytes | always derived |
+| `ensemble_id` | id (paired with `ensemble_hash`) | manual override on the ensemble command, else seedname from `ensemble_hash` | seedname |
+| `ensemble_hash` | hash | canonical hash of the ensemble manifest JSON (selected members + combine config + selection config) | always derived |
+| `sweep_id` | id (paired with `sweep_hash`) | manual override on the sweep command, else seedname from `sweep_hash` | seedname |
+| `sweep_hash` | hash | canonical hash of the sweep definition (base config + sweep axes + value lists), **excluding** runtime-resolved values and per-job output paths | always derived |
+
+There is no `run_hash`. Runs are by construction per-invocation and are
+identified by `run_id` alone. Two runs with identical configs share
+`config_id` / `config_hash` but never share `run_id`.
+
+There is no `checkpoint_id`. Checkpoints are identified by
+`checkpoint_hash` plus their filename, which embeds the first 6 hex
+characters of the hash.
+
+### Checkpoint filename convention
+
+Checkpoint filenames embed the first 6 hex characters of
+`checkpoint_hash` between the descriptive stem and the extension:
+
+```text
+{stem}.{first6_hex}.{ext}
+```
+
+Examples:
+
+```text
+loss-1.23_epoch-003_f1score-88.7FF91A.ckpt
+last.A1B2C3.ckpt
+snapshot_cycle-02_epoch-100.0F0F0F.ckpt
+```
+
+The first-6 prefix is a disambiguation aid for humans inspecting a
+directory and is not a substitute for the full hash recorded in
+metadata.
+
+### Compatibility hashes (target_schema_hash, class_mapping_hash, etc.)
+
+For compatibility-check hashes used by ensembling and result-table
+joins, both the hash **and** the source sub-block are stored in the
+metadata sidecar. Fast path: compare hashes for equality. Slow path:
+when hashes differ, diff the source sub-blocks and present a
+human-readable mismatch report.
+
+Key-selection rules per hash (exact field lists TBD):
+
+- `target_schema_hash`: head names, head types, `num_classes`, ordinal
+  encoding/decoding rules, regression `output_dim`. **Excludes** loss
+  type, loss params, objective weights, and metrics — those are
+  training-time choices that do not affect output compatibility.
+- `class_mapping_hash`: per-classification-head ordered list of
+  `(index, label)` pairs.
+- `model_config_hash`: backbone source/name/weights, freeze policy,
+  embedding adapter shape, tabular encoder shape, fusion config, and
+  head shapes. **Excludes** optimizer, scheduler, training, logging,
+  and outputs blocks.
+- `preprocessing_hash`: transform pipeline ordering and parameters,
+  image mode, normalization mean/std, resize/bucket definitions, and
+  tabular feature normalization stats. **Excludes** training-only
+  augmentation toggles unless they alter the inference-time preprocess
+  contract.
+
+### Open work before implementation
+
+- Settle the exact field lists each compatibility hash consumes.
+- Settle the float normalization rule (rounding digits, NaN/Inf
+  policy).
+- Settle the `dataset_hash` policy for the case where size/etag are
+  unavailable (e.g. some `class_folder` inspection sources).
+
 ## Result Metadata
 
 - Keep `_metadata.json`.
@@ -296,14 +743,83 @@ Regression result columns should include:
 ```text
 target
 prediction_value
-target_transformed
-prediction_value_transformed
+target_internal
+prediction_value_internal
 prediction_uncertainty
+```
+
+Target/prediction naming convention (applies to regression, ordinal, and any
+head that uses a `target_transform`):
+
+- `target` and `prediction_value` are the **external** values, in the
+  original physical units the user thinks in. `prediction_value` is the
+  model output after inverse-transforming back from model-space.
+- `target_internal` and `prediction_value_internal` are the **model-space**
+  values: the transformed target that was actually fed into the loss, and
+  the raw pre-inverse-transform model output.
+- When no `target_transform` is configured, `target_internal` equals
+  `target` and `prediction_value_internal` equals `prediction_value`.
+  Writers may either populate both columns identically or leave the
+  `_internal` columns null in that case; the chosen behavior must be
+  documented in the metadata sidecar.
+- `prediction_uncertainty` is reported in the same space as
+  `prediction_value` (external units) unless the head explicitly defines
+  uncertainty in transformed space, in which case a parallel
+  `prediction_uncertainty_internal` column may be added.
+- The sidecar `_metadata.json` per-record-type block names the
+  `target_transform` so downstream tools can re-derive the relationship
+  between external and internal columns.
+
+Metadata sidecar sketch:
+
+```json
+{
+  "schema_name": "dojo.supervised_results",
+  "schema_version": "1.0.0",
+  "created_by": "dojo",
+  "run_id": "ifcb-green-river",
+  "record_types": {
+    "sample_metadata": {
+      "description": "One row per evaluated sample.",
+      "source_extra_json": {
+        "columns": ["cruise_id", "cast_id", "instrument_id"]
+      },
+      "tabular_features_json": {
+        "columns": ["depth_m", "temperature_c", "salinity_psu"]
+      }
+    },
+    "classification_output": {
+      "heads": {
+        "species": {
+          "target": "species",
+          "labels": ["A", "B", "C"],
+          "label_mappings": {"0": "A", "1": "B", "2": "C"}
+        }
+      }
+    },
+    "regression_output": {
+      "heads": {
+        "biovolume": {
+          "target": "biovolume",
+          "target_transform": "log1p"
+        }
+      }
+    }
+  }
+}
 ```
 
 ## Artifact Layout
 
 - Make `figures/` a first-class output directory.
+- `metrics/` holds numeric aggregates only: per-split metric JSON,
+  optional HDF metrics roll-up, and tabular confusion-matrix data
+  (JSON or CSV). No rendered images.
+- `figures/` holds rendered plots (PNG / SVG / HTML): training-curve
+  plots, confusion-matrix heatmaps, UMAP/t-SNE/PCA scatter plots,
+  retrieval panels, calibration plots, and ensemble comparison charts.
+- Ensemble-specific equivalents (`ensemble_metrics/`,
+  `ensemble_figures/`) follow the same metrics-vs-figures split.
 - Do not add a generic training-run `data/` folder; input dataset information is
   covered by configs and resolved config artifacts.
 - Use `ensemble_manifests/` for ensemble candidate manifests.
@@ -345,6 +861,27 @@ member artifacts locally.
   - `stage`: process that produced the row, such as `train_validation`,
     `holdout_eval`, `infer`, `representation_eval`, `ensemble_eval`
 
+Partitioning examples:
+
+```yaml
+outputs:
+  results:
+    partition_by: [stage, record_type]
+```
+
+```yaml
+outputs:
+  results:
+    partition_by: [stage, epoch, record_type]
+```
+
+```yaml
+ensemble:
+  outputs:
+    results:
+      partition_by: [stage, record_type, ensemble_member_id]
+```
+
 ## Runtime Controls
 
 Keep these runtime controls:
@@ -357,6 +894,28 @@ Keep these runtime controls:
 
 ONNX export does not need to be a runtime config item. It should be handled by
 the config-driven task orchestration/export system outside the training loop.
+
+Runtime/preflight example:
+
+```yaml
+runtime:
+  seed: 123
+  precision: bf16-mixed
+  num_workers: 8
+  fast_dev_run: false
+  autobatch:
+    enabled: true
+    mode: binsearch
+  preflight:
+    enabled: true
+    checks:
+      empty_train_classes: error
+      empty_eval_classes: warn
+      non_contiguous_class_indices: error
+      imbalance_ratio_gt:
+        severity: warn
+        threshold: 20.0
+```
 
 ## Logging and Diagnostics
 
@@ -404,6 +963,7 @@ ssl:
 ```
 
 - DINOv2 through Lightly is functional in the refactor.
+- see https://docs.lightly.ai/self-supervised-learning/examples/dinov2.html for example code. 
 - SimCLR, VICReg, PMSN, and original DINO are intentionally removed from the
   first refactor runtime. Defered to appendix.
 - Preserve config stubs for deferred SSL methods with clear errors.
@@ -416,6 +976,55 @@ ssl:
 - Supervised fine-tuning from an SSL pretrained backbone belongs under
   supervised transfer learning.
 - Supervised probes stay in SSL/representation-evaluation design.
+
+SSL training example:
+
+```yaml
+task:
+  type: ssl
+
+ssl:
+  method: DINOv2
+  framework: lightly
+  image_size: 224
+  projection_dim: 65536
+
+model:
+  backbone:
+    source: lightly
+    name: dinov2_vit_small
+
+representation_eval:
+  schedule:
+    every_n_epochs: 5
+    on_fit_end: true
+  embeddings:
+    enabled: true
+    split: val
+  projections:
+    methods: [umap, tsne]
+  clustering:
+    methods: [hdbscan]
+  probes:
+    classification:
+      enabled: true
+      heads: [species]
+    regression:
+      enabled: true
+      targets: [biovolume]
+    ordinal:
+      enabled: true
+      targets: [quality_grade]
+```
+
+Standalone representation evaluation example:
+
+```bash
+dojo eval representation \
+  experiment=ifcb/dinov2_repr_eval \
+  model.backbone.checkpoint_uri=./runs/dinov2/checkpoints/best.ckpt \
+  representation_eval.embeddings.split=holdout
+```
 
 ## Ensemble Architecture
 
@@ -486,6 +1095,57 @@ low/high extremes, and averaging the rest.
   - `force_inference`
 - Allow selecting target split, such as validation or holdout.
 
+Candidate discovery example:
+
+```yaml
+ensemble:
+  candidates:
+    sources:
+      - type: run_dir_glob
+        uri_glob: s3://dojo-runs/ifcb_species/*/
+      - type: explicit
+        artifacts:
+          - run_dir: ./runs/resnet50_a
+          - result_uri: ./runs/convnext_b/results
+    metadata_resolution:
+      policy: cascade
+      order:
+        - resolved_config
+        - result_metadata
+        - checkpoint
+        - exported_model
+      drift_check:
+        enabled: true
+        compare: [resolved_config, checkpoint, result_metadata]
+  target:
+    split: val
+    dataset_id: ifcb_species_v4
+  source_policy: inference_as_needed
+```
+
+Ensemble run example:
+
+```yaml
+ensemble:
+  candidates:
+    manifest_uri: ./shared_manifests/ifcb_candidates.json
+  target:
+    split: holdout
+  source_policy: strict_no_inference
+  selection:
+    strategy: greedy_forward_selection
+    metric: val/species/macro_f1
+    mode: max
+    max_members: 8
+  inference:
+    combine:
+      classification: probabilities_mean
+      regression: prediction_median
+      ordinal: ordinal_probabilities_mean
+  outputs:
+    materialize_members: symlink_local
+```
+
 ## Ensemble Outputs
 
 - Use ensemble-specific output folders:
@@ -518,11 +1178,79 @@ Example sweep output needs:
 - write comparison metrics CSV/json/HDF;
 - write comparison figures.
 
+Sweep output example:
+
+```yaml
+runtime:
+  sweep_id: "{hydra.job.id}"
+
+model:
+  backbone:
+    source: torchvision
+    name: resnet50  # swept: resnet50, efficientnet_b0, convnext_tiny
+
+training:
+  batch_size: 32  # swept: 32, 64
+
+optimizer:
+  lr: 0.0003  # swept: 0.0003, 0.0001
+
+outputs:
+  run_root: ./runs
+  run_dir_template: >-
+    {experiment.name}/sweep_runs/{model.backbone.name:slug}/bs{training.batch_size:03}/lr{optimizer.lr:slug}/
+  sweep_dir_template: >-
+    {experiment.name}/sweep_results/{runtime.sweep_id}
+
+sweep_outputs:
+  enabled: true
+  collect:
+    - metric: val/species/macro_f1
+      source: best
+      mode: max
+    - metric: val/species/per_class_f1
+      source: best
+      mode: max
+  metrics:
+    summary_csv: true
+    summary_json: true
+    summary_parquet: true
+  figures:
+    metric_rankings: true
+    per_class_heatmap: true
+```
+
+Hydra ensemble sweep example:
+
+```bash
+dojo ensemble -m \
+  experiment=ifcb/ensemble_search \
+  ensemble.selection.strategy=top_k,greedy_forward_selection \
+  ensemble.inference.combine.classification=probabilities_mean,logits_mean
+```
+
 ## Export
 
 - ONNX export remains supported but is outside runtime training config.
 - Export should be explicit through `outputs.export`, `dojo export`, or
   task-orchestration config.
+
+Export config example:
+
+```yaml
+outputs:
+  export:
+    enabled: true
+    artifacts:
+      - type: torchscript
+        name: model.pt
+        source: best_checkpoint
+      - type: onnx
+        name: model.onnx
+        source: best_checkpoint
+        opset: 18
+        dynamic_axes: true
+```
 
 ## Deferred Features Appendix
 
@@ -531,7 +1259,6 @@ Move deferred features out of the main design flow and into an appendix.
 Deferred features include:
 
 - SimCLR, VICReg, PMSN, and original DINO runtime implementations;
-- generic timm backbone support, subject to later timm/DINOv2 clarification;
 - MLflow runtime implementation;
 - model soup, greedy soup, uniform soup;
 - SWA and EMA workflows if not implemented in the first phase;
@@ -544,3 +1271,131 @@ Deferred features include:
 - Bayesian/AutoML HPO;
 - broad automatic registry-based cross-run discovery if not implemented in the
   first phase.
+
+## Remaining Revision Action Items
+
+- Update `REFACTOR-DESIGN-DOC.md` root config examples to match the canonical
+  top-level structure in this file.
+- Replace every `ssl_eval` reference with `representation_eval`.
+- Replace old command names and examples with the canonical `dojo train`,
+  `dojo infer`, `dojo eval`, `dojo inspect`, and `dojo ensemble` families.
+- Remove `dojo validate-config` and document `dojo inspect config`.
+- Remove `dojo tools make-manifest` and fold its behavior into
+  `dojo inspect dataset`.
+- Remove old listfile compatibility from dataset sections.
+- Rewrite dataset backend sections around `csv_manifest`, `parquet_manifest`,
+  `parquet_images`, and `ifcb_bins`.
+- Add explicit target/head/objective reference-chain documentation.
+- Replace generic `model.fusion` examples with `model.tabular.fusion`.
+- Rewrite dependency plan around lightweight core plus extras.
+- Add `amplify-db-utils` to core dependency and results backend sections.
+- Move `improv` integration/export to the deferred appendix.
+- Rewrite canonical result schemas around Arrow list columns, sidecar
+  `_metadata.json`, and configurable Parquet partitions.
+- Add first-class `figures/` and ensemble-specific output directories to run
+  layout sections.
+- Remove training-loop ONNX export behavior from runtime config.
+- Add layered validation and `runtime.preflight` semantics.
+- Rename SSL evaluation sections to representation evaluation.
+- Update SSL section to functional Lightly DINOv2 and deferred stubs for
+  SimCLR, VICReg, PMSN, and original DINO.
+- Add UMAP, t-SNE, HDBSCAN, regression probes, and ordinal probes to
+  representation evaluation.
+- Rewrite ensemble architecture around candidate manifests, prediction-space
+  combine modes, and selection strategies.
+- Remove or defer weight-space ensembling, model soups, SWA, EMA, weighted
+  combine modes, and `prediction_trimmed_mean`.
+- Add `dojo ensemble candidates` documentation, including compatibility/cache
+  reports and metadata resolution policy.
+- Add Hydra path-template and sweep-output documentation.
+- Move deferred/stubbed items out of the main design flow and into a deferred
+  features appendix.
+- Resolve the remaining timm/DINOv2 backbone boundary decision before editing
+  backbone dependency and implementation sections.
+- Update §1.1 core goals to drop or qualify items that are now deferred or
+  reframed (snapshot-bundling phrasing, HDF mention pending the HDF decision,
+  MLflow as a runtime sink). timm remains a first-class backbone source per
+  the Backbones section above.
+- Replace the §2.2 CLI command list with the new canonical command families:
+  `dojo train`, `dojo infer [predictions|embeddings]`,
+  `dojo eval [holdout|representation]`,
+  `dojo inspect [config|dataset|backbone|checkpoint]`,
+  `dojo ensemble [candidates]`, and `dojo export`. Remove
+  `dojo train supervised`, `dojo train ssl`, and
+  `dojo train-snapshot-ensemble`; training paradigm is selected via
+  `task.type` (see Task Types section).
+- Rewrite §13.12 "Snapshot ensemble command" to reflect that snapshot
+  ensembling is invoked as `dojo train` with
+  `task.type: snapshot_ensemble`. The internal orchestration steps
+  (train with snapshot scheduler, then ensemble against the
+  just-finished checkpoints in the same run directory) are unchanged;
+  only the entry point changes. Remove `train.skip=true` and move the
+  "re-run ensembling against a historical run" example into the
+  `dojo ensemble` documentation with a `run_checkpoints` candidate
+  source.
+- Rewrite §3 repo structure to match the new architecture: drop `tools/`,
+  drop separate `ensemble/soup.py` / `ensemble/swa.py` modules (deferred),
+  rename `tasks/eval/` and related modules to representation-evaluation,
+  align `config_schemas/` files with the new top-level groups
+  (`runtime`, `storage`, `outputs`, `representation_eval`, etc.), and
+  fold `dojo tools make-manifest` behavior into `cli/inspect.py`.
+- Update §10.3 "Tabular metadata as model input" so `tabular`, `fusion`, and
+  `embedding_adapter` are shown nested under `model:` rather than as
+  top-level groups.
+- Rewrite §20 migration phases to use new command and concept names:
+  `dojo inspect config` (not `dojo validate-config`), no
+  `dojo tools make-manifest`, `representation_eval` (not `ssl_eval`),
+  drop listfile-porting language, and refer to the new outputs/storage
+  config structure.
+- Correct the `dojo_deprecated` spelling everywhere it is referenced in
+  the design doc (the doc already uses the correct form; flag this so any
+  new edits do not regress).
+- Apply the IDs and Hashes section against the design doc. Every
+  reference to `config_id`, `dataset_id`, `model_id`, `checkpoint_id`,
+  `ensemble_id`, `target_schema_hash`, `class_mapping_hash`,
+  `model_config_hash`, and `preprocessing_hash` must align with the
+  new identity-vs-hash split. Affected sections include §10.5
+  (canonical result columns), §13.4 (candidate compatibility), §13.5
+  (candidate manifest columns), §13.11 (snapshot metadata), §13.13
+  (ensemble artifact format), §13.15 (ensemble result records), §15.3
+  (export metadata), and §18 (Hydra sweep / sweep_id usage). Replace
+  any uses of `checkpoint_id` with `checkpoint_hash` plus the
+  filename convention. Add `sweep_id` / `sweep_hash` to the result
+  schema and provenance columns where a row is produced as part of
+  a sweep.
+- Remove all "timm deferred / stubbed" language from the design doc.
+  Affected sections include §1.2 "Implemented-as-stub", §8.4 timm
+  backbones, §11 (any cross-reference), §17 / §19 testing language, and
+  Migration §20 phases 2 / 7 / 8. timm should be presented as a
+  functional first-class backbone source gated by the `timm` optional
+  extra, with a clear runtime error when the extra is missing. Also
+  remove timm from the post-Phase-8 backlog list.
+
+## Remaining Decisions To Resolve
+
+- Decide the final optional-extra layout around `ssl`, `timm`, and `ifcb`
+  dependencies.
+- Decide whether `model.backbone.source: lightly` is a real public backbone
+  source or whether Lightly is only an SSL framework implementation detail.
+- Decide exact names for ordinal classification head types, losses, and result
+  columns.
+- Decide final task taxonomy for supervised transfer learning from SSL
+  pretrained backbones.
+- Decide how much logger multi-sink behavior belongs in the first refactor
+  phase versus deferred implementation.
+- Decide final export artifact names and whether TorchScript should be named
+  `torchscript`, `pt`, or both in config.
+- Decide whether HDF remains a derived result export in the first phase or moves
+  to deferred features.
+- Decide how strongly `dojo inspect config` should validate remote artifact
+  availability versus only local/schema-level feasibility.
+- Decide whether broad cross-run candidate discovery is first-phase supported or
+  limited to explicit manifests, run globs, and result/checkpoint URIs.
+- Decide the testing-vs-stub policy for deferred features. The first refactor
+  phase stubs MLflow and non-DINOv2 SSL methods (timm is functional). Decide whether
+  §19.5 / §19.11 should:
+  - test these as functional when the corresponding extra is installed;
+  - assert only that the stubbed runtime raises a clear
+    `NotImplementedError`;
+  - or split tests into "schema-only" (always run) and "runtime"
+    (post-Phase-8 only).
