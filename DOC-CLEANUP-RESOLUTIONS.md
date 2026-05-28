@@ -6,7 +6,16 @@ pass is complete.
 
 ## Config Structure
 
-- Use a top-level `outputs` group for run paths, logging, results, and export.
+- Use top-level `output_root` (a single filepath string) as the base
+  for `training_outputs`, `ensemble_outputs`, and `sweep_outputs`
+  directories when those directories are rendered from `dir_template`.
+- Use top-level `training_outputs`, `ensemble_outputs`, and
+  `sweep_outputs` as **peer** output-config blocks, one per output
+  family. Each has its own `dir_template` (relative to `output_root`)
+  and its own `results`, `export`, `metrics`, and `figures`
+  sub-blocks as applicable (sweep has no `results`).
+- The old top-level `outputs:` group is replaced by
+  `training_outputs:`. There is no longer a single `outputs:` block.
 - Rename `ssl_eval` to `representation_eval`.
 - Keep `optimizer`, `scheduler`, and `checkpointing` as top-level config groups.
 - Keep `storage` top-level, separate from `runtime`.
@@ -15,7 +24,9 @@ pass is complete.
 - Remove `train.skip` / `runtime.skip_training`.
 - Group `backbone`, `tabular`, `embedding_adapter`, and `heads` under `model`.
 - Use `model.tabular.fusion`, not top-level `model.fusion`.
-- Use top-level `sweep_outputs` for multirun/model-comparison outputs.
+- `logging` lives under `training_outputs.logging` (training-time
+  sinks). Ensemble and sweep runs use the same sinks via the
+  training-output logging config of the run that owns them.
 
 Canonical root shape:
 
@@ -47,16 +58,38 @@ checkpointing:
 
 ensemble:
 
-outputs:
-  run_root:
-  run_dir_template:
-  sweep_dir_template:
+output_root:
+
+training_outputs:
+  dir:
+  dir_template:
   logging:
   results:
   export:
+  metrics:
+  figures:
+
+ensemble_outputs:
+  dir:
+  dir_template:
+  results:
+  export:
+  metrics:
+  figures:
 
 sweep_outputs:
+  dir:
+  dir_template:
+  export:
+  metrics:
+  figures:
 ```
+
+For a `task.type: snapshot_ensemble` run, both `training_outputs.dir_template`
+and `ensemble_outputs.dir_template` typically resolve to the same
+directory so training checkpoints and ensemble artifacts share one
+run directory. Defaulting `ensemble_outputs.dir_template` to match
+`training_outputs.dir_template` is the recommended pattern.
 
 Minimal supervised config example:
 
@@ -130,16 +163,31 @@ checkpointing:
   mode: max
   save_top_k: 3
 
-outputs:
-  run_root: ./runs
-  run_dir_template: "{experiment.name}/{runtime.run_id}"
+output_root: ./runs
+
+training_outputs:
+  dir_template: "{experiment.name}/{runtime.run_id}"
 ```
 
 ## Output Paths, Run IDs, and Config Artifacts
 
-- Split output path configuration into `outputs.run_root` and
-  `outputs.run_dir_template`.
-- Add `outputs.sweep_dir_template`.
+- Top-level `output_root` is a single filepath string used as the base
+  for `training_outputs.dir_template`, `ensemble_outputs.dir_template`,
+  and `sweep_outputs.dir_template` when direct `*_outputs.dir` values
+  are not supplied.
+- Each `*_outputs` block carries its own concrete `dir` or
+  `dir_template`:
+  - `training_outputs.dir`
+  - `training_outputs.dir_template`
+  - `ensemble_outputs.dir`
+  - `ensemble_outputs.dir_template`
+  - `sweep_outputs.dir`
+  - `sweep_outputs.dir_template`
+- When `dir_template` is used, the rendered template is joined under
+  `output_root` to produce the resolved `*_outputs.dir` (the actual
+  filesystem path written to). Tooling commands may set
+  `*_outputs.dir` directly when they need a concrete shared output
+  location.
 - Use Dojo-owned Python-style template syntax for paths, for example:
   - `{experiment.name}`
   - `{runtime.run_id}`
@@ -151,7 +199,12 @@ outputs:
 - Allow `runtime.run_id` to be static or generated, including generated
   coolname-style values.
 - Include generated runtime values in resolved config artifacts.
-- Warn or error on accidental output overwrite according to an explicit policy. 
+- Warn or error on accidental output overwrite according to an explicit
+  policy. The supported `existing_run_dir` values are:
+  - `error` — refuse to start when the resolved run directory already
+    exists. **Default.**
+  - `overwrite` — delete all extant content of the resolved run
+    directory before starting.
 
 Run config artifacts should include:
 
@@ -171,17 +224,30 @@ runtime:
   run_id: "{coolname}"
   sweep_id: "{hydra.job.id}"
 
-outputs:
-  run_root: ./runs
-  run_dir_template: >-
-    {experiment.name}/{model.backbone.name:slug}/bs{training.batch_size:03}/{runtime.run_id}
-  sweep_dir_template: "{experiment.name}/sweep_results/{runtime.sweep_id}"
+output_root: ./runs
+
+model:
+  backbone:
+    source: torchvision
+    name: efficientnet_b0,resnet50
+  ...
+
+training:
+  batch_size: 32,64
+
+training_outputs:
+  dir_template: >-
+    {experiment.name}/sweep_runs/{model.backbone.name:slug}/bs{training.batch_size:03}/
   existing_run_dir: error
+
+sweep_outputs:
+  dir_template: "{experiment.name}/sweep_results/{runtime.sweep_id}"
 ```
 
 ## CLI Structure
 
-- Canonical command families are `dojo train`,  `dojo infer` and `dojo eval`.
+- Canonical command families are `dojo train`, `dojo infer`, `dojo eval`,
+  `dojo inspect`, `dojo ensemble`, and `dojo export`.
 - Keep config-first commands; subcommands are shorthands that constrain the
   target output.
 - Use:
@@ -192,6 +258,14 @@ outputs:
   - `dojo eval`
   - `dojo eval holdout`
   - `dojo eval representation`
+  - `dojo inspect`
+  - `dojo inspect config`
+  - `dojo inspect dataset`
+  - `dojo inspect backbone`
+  - `dojo inspect checkpoint`
+  - `dojo ensemble`
+  - `dojo ensemble candidates`
+  - `dojo export`
 - `dojo train` dispatches on `task.type` (see Task Types section below):
   `supervised`, `ssl`, `snapshot_ensemble`. There are no
   `dojo train supervised` / `dojo train ssl` / `dojo train-snapshot-ensemble`
@@ -233,7 +307,7 @@ dojo inspect dataset data=ifcb/species_manifest output=./inspect_outputs/species
 dojo train experiment=ifcb/species_baseline
 dojo infer embeddings experiment=ifcb/species_baseline checkpoint=./runs/baseline/checkpoints/best.ckpt
 dojo eval representation experiment=ifcb/dinov2_repr_eval
-dojo ensemble candidates experiment=ifcb/ensemble_candidates output=./shared_manifests/ifcb_candidates.json
+dojo ensemble candidates experiment=ifcb/ensemble_candidates ensemble_outputs.dir=./shared_manifests
 dojo ensemble experiment=ifcb/ensemble_search ensemble.candidates.manifest_uri=./shared_manifests/ifcb_candidates.json
 ```
 
@@ -252,8 +326,11 @@ dojo ensemble experiment=ifcb/ensemble_search ensemble.candidates.manifest_uri=.
      ensemble pipeline.
 - The combined `task.type: snapshot_ensemble` run shares the run
   directory with both steps. Snapshot checkpoints land in
-  `runs/{run_id}/checkpoints/`; ensemble artifacts land in
-  `runs/{run_id}/ensemble_*` per the Artifact Layout section.
+  `<training_outputs.dir>/checkpoints/`; ensemble artifacts land under
+  the configured `ensemble_outputs` subdirectories. The default
+  ensemble result and figure directories are `ensemble_results/` and
+  `ensemble_figures/`, controlled by `ensemble_outputs.results.dir`
+  and `ensemble_outputs.figures.dir`.
 - The old top-level command `dojo train-snapshot-ensemble` is **dropped**.
   The canonical invocation is:
 
@@ -396,7 +473,11 @@ Ordinal naming:
 - Result columns: keep both `ordinal_logits` (raw cumulative logits
   for CORAL/CORN) and `probabilities` (per-bin probabilities). Both
   populated; downstream tools can use whichever is meaningful for the
-  loss/decode rule.
+  loss/decode rule. For CORAL/CORN, `probabilities` are derived by
+  differencing the cumulative probabilities decoded from
+  `ordinal_logits`; the writer is responsible for this derivation so
+  consumers always see per-bin probabilities in the `probabilities`
+  column regardless of loss family.
 
 Reference chain:
 
@@ -592,8 +673,8 @@ onnx = ["onnx", "onnxruntime"]
 s3 = ["amplify-storage-utils[s3]"]
 
 all = [
-  # union of train, timm, ssl, ifcb, repr_eval, aim, mlflow, onnx, s3
-  "image_classifier_dojo[train,timm,ssl,ifcb,repr_eval,aim,mlflow,onnx,s3]",
+  # union of functional extras: train, timm, ssl, ifcb, repr_eval, aim, onnx, s3
+  "image_classifier_dojo[train,timm,ssl,ifcb,repr_eval,aim,onnx,s3]",
 ]
 
 dev = [
@@ -616,7 +697,7 @@ Common install recipes:
   `pip install image_classifier_dojo[train,timm,ssl,repr_eval]`
 - IFCB bins over S3:
   `pip install image_classifier_dojo[train,ifcb,s3]`
-- Everything functional: `pip install image_classifier_dojo[all]`
+- All functional extras: `pip install image_classifier_dojo[all]`
 - Local development:
   `pip install -e .[all,dev]`
 
@@ -659,11 +740,11 @@ run-level metrics, and plots belong in `metrics/` and `figures/`.
 Result writer config example:
 
 ```yaml
-outputs:
+training_outputs:
   results:
     enabled: true
     backend: amplify_db_utils
-    uri: "{outputs.run_dir}/results"
+    dir: ./results  # relative to training_outputs.dir, which is in turn resolved from training_outputs.dir_template
     format: parquet
     partition_by: [stage, record_type, epoch]
     dictionary_encode:
@@ -679,6 +760,13 @@ outputs:
         - resize_height_px
     write_metadata_json: true
 ```
+
+The result write path defaults to `<training_outputs.dir>/results/`
+under the resolved training-output directory; no explicit `uri:` is
+required. The same `results:` sub-block exists under
+`ensemble_outputs:` for ensemble result writing, defaulting to
+`<ensemble_outputs.dir>/ensemble_results/` unless overridden by
+`ensemble_outputs.results.dir`.
 
 ## IDs and Hashes
 
@@ -729,9 +817,9 @@ table below.
 
 | Field | Kind | Derivation | Default when not set |
 | --- | --- | --- | --- |
-| `run_id` | id only | manual override, else a template-string render | template default like `{experiment.name}-{timestamp}-{job_num}` or a coolname; template is configurable and may use post-resolve config values, timestamps, and helpers like `coolname` |
+| `run_id` | id only | manual override, else a template-string render. The `{coolname}` template token expands to a fresh (unseeded) coolname per run — distinct from the **seedname** mechanism used for `*_id` fields paired with a `*_hash`. If `run_id` is unset or empty, it falls back to a coolname | template default like `{experiment.name}-{timestamp}-{job_num}` or `{coolname}`; template is configurable and may use post-resolve config values, timestamps, and helpers like `coolname` |
 | `config_id` | id (paired with `config_hash`) | manual override, else seedname from `config_hash` | seedname |
-| `config_hash` | hash | canonical hash of the resolved config, **excluding** runtime-resolved values, output paths, and the `outputs:` block | always derived |
+| `config_hash` | hash | canonical hash of the resolved config, **excluding** runtime-resolved values, output paths, `output_root`, and all `*_outputs` blocks | always derived |
 | `dataset_id` | id only | the dataset's self-name when the manifest provides one | null when the dataset does not self-name (no seedname fallback) |
 | `dataset_hash` | hash | URI + size + etag/last-modified (or full content hash when locally accessible and cheap), plus the data backend type. When size/etag are unavailable (e.g. some `class_folder` inspect sources), fall back to URI-only hashing and set `dataset_hash_provenance: uri_only` in the metadata sidecar | always derived |
 | `checkpoint_hash` | hash | SHA-256 of the `.ckpt` file bytes | always derived |
@@ -739,8 +827,9 @@ table below.
 | `model_hash` | hash | SHA-256 of the exported `.pt` / `.onnx` file bytes | always derived |
 | `ensemble_id` | id (paired with `ensemble_hash`) | manual override on the ensemble command, else seedname from `ensemble_hash` | seedname |
 | `ensemble_hash` | hash | canonical hash of the ensemble manifest JSON (selected members + combine config + selection config) | always derived |
-| `sweep_id` | id (paired with `sweep_hash`) | manual override on the sweep command, else seedname from `sweep_hash` | seedname |
-| `sweep_hash` | hash | canonical hash of the sweep definition (base config + sweep axes + value lists), **excluding** runtime-resolved values and per-job output paths | always derived |
+| `sweep_id` | id (paired with `sweep_hash`) | manual override, else a template-string render with the same semantics as `run_id` (may reference Hydra values like `{hydra.job.id}` or fall back to `{coolname}` / seedname). When unset, falls back to seedname from `sweep_hash` | seedname or `{coolname}` |
+| `sweep_hash` | hash | canonical hash of the sweep definition (base config + sweep axes + value lists), **excluding** runtime-resolved values and output paths | always derived |
+| `ensemble_member_id` | union column | for member-level result rows and partitioning. Value is the member's `checkpoint_hash` when the member is a checkpoint, or its `model_id` when the member is an exported model artifact. Always populated for member-level rows | derived per-row from the underlying member artifact |
 
 There is no `run_hash`. Runs are by construction per-invocation and are
 identified by `run_id` alone. Two runs with identical configs share
@@ -790,7 +879,7 @@ Key-selection rules per hash (exact field lists TBD):
 - `model_config_hash`: backbone source/name/weights, freeze policy,
   embedding adapter shape, tabular encoder shape, fusion config, and
   head shapes. **Excludes** optimizer, scheduler, training, logging,
-  and outputs blocks.
+  `output_root`, and `*_outputs` blocks.
 - `preprocessing_hash`: transform pipeline ordering and parameters,
   image mode, normalization mean/std, resize/bucket definitions, and
   tabular feature normalization stats. **Excludes** training-only
@@ -903,50 +992,103 @@ Metadata sidecar sketch:
 
 ## Artifact Layout
 
-- Make `figures/` a first-class output directory.
-- `metrics/` holds numeric aggregates only: per-split metric JSON,
-  optional HDF metrics roll-up, and tabular confusion-matrix data
-  (JSON or CSV). No rendered images.
-- `figures/` holds rendered plots (PNG / SVG / HTML): training-curve
-  plots, confusion-matrix heatmaps, UMAP/t-SNE/PCA scatter plots,
-  retrieval panels, calibration plots, and ensemble comparison charts.
-- Ensemble-specific equivalents (`ensemble_metrics/`,
-  `ensemble_figures/`) follow the same metrics-vs-figures split.
+- Each `*_outputs` block owns a set of sub-directories under its
+  resolved `dir`. The sub-directory names are stable; whether each is
+  written depends on the corresponding sub-block being enabled in
+  config.
+- `metrics/` holds numeric aggregates only: per-split metric JSON
+  and tabular confusion-matrix data (JSON or CSV). No rendered
+  images.
+- `figures/` is a **configurable output block** (not just a
+  directory). Config specifies which kinds of plots to render
+  (training curves, confusion-matrix heatmaps, UMAP/t-SNE/PCA
+  scatter, retrieval panels, calibration, ensemble comparison
+  charts) and plot styling. Output files are PNG / SVG / HTML.
+- The metrics-vs-figures split is the same across `training_outputs`,
+  `ensemble_outputs`, and `sweep_outputs`.
 - Do not add a generic training-run `data/` folder; input dataset information is
   covered by configs and resolved config artifacts.
-- Use `ensemble_manifests/` for ensemble candidate manifests.
+- Use `ensemble_outputs.dir/ensemble_manifests/` for ensemble candidate
+  manifests by default. Shared candidate manifests written outside a
+  normal run directory are handled by setting `ensemble_outputs.dir`
+  for the `dojo ensemble candidates` invocation.
 - Use JSON for ensemble manifests, not Parquet.
 
-Recommended run layout:
+Per-output-block contents under each `*_outputs.dir`:
 
 ```text
-runs/{run_id}/
+training_outputs.dir/
   config/
   checkpoints/
   exports/
   metrics/
   figures/
   results/
-  ensemble_results/
-  ensemble_metrics/
+
+ensemble_outputs.dir/
+  config/
+  exports/
+  metrics/
   ensemble_figures/
+  ensemble_results/
   ensemble_manifests/
   ensemble_members/
+
+sweep_outputs.dir/
+  config/
+  exports/
+  metrics/
+  figures/
 ```
 
-`ensemble_members/` is optional and only used when `dojo ensemble` materializes
-member artifacts locally.
+For a `task.type: snapshot_ensemble` run with
+`ensemble_outputs.dir_template` defaulted to the training value, both
+`training_outputs.dir` and `ensemble_outputs.dir` resolve to the
+same path and the directory carries the union of both layouts:
+
+```text
+<training_outputs.dir>/  # same path as <ensemble_outputs.dir> for snapshot_ensemble
+  config/
+  checkpoints/        # training_outputs
+  exports/            # union; both blocks write here
+  metrics/            # union; namespaced by block when needed
+  figures/            # union; namespaced by block when needed
+  results/            # union; namespaced by block when needed
+  ensemble_results/   # default ensemble_outputs.results.dir
+  ensemble_figures/   # default ensemble_outputs.figures.dir
+  ensemble_manifests/ # default ensemble manifest dir
+  ensemble_members/   # default ensemble member dir (optional)
+```
+
+These `ensemble_*` subdirectory names are defaults, not hard-coded
+paths. They are controlled by the corresponding `ensemble_outputs`
+sub-blocks, such as `ensemble_outputs.results.dir` and
+`ensemble_outputs.figures.dir`.
+
+`ensemble_members/` is optional and only used when `dojo ensemble`
+materializes member artifacts locally.
+
+When training and ensemble outputs share a directory, writers
+namespace their files within the shared sub-directories
+(e.g. result files include `stage=train_validation` vs
+`stage=ensemble_eval` partitions; metrics files include the producing
+block in their filenames).
 
 ## Result Partitioning
 
-- Support configurable Parquet partitioning via `outputs.results.partition_by`.
+- Support configurable Parquet partitioning via
+  `training_outputs.results.partition_by` and
+  `ensemble_outputs.results.partition_by`.
 - Partition fields may include values like:
   - `stage`
   - `epoch`
   - `ensemble_member_id`
   - `record_type`
-- Avoid awkward null-only ensemble member partitions when possible; existing
-  `checkpoint_id` and `model_id` usually identify source model/checkpoint.
+- `ensemble_member_id` is a union column whose value is the member's
+  `checkpoint_hash` (when the member is a checkpoint) or `model_id`
+  (when the member is an exported model). Keeping one partition
+  column with mixed-source values avoids null-only partitions and
+  keeps `partition_by` clean.
 - Include `sweep_id` when a row is produced as part of a Hydra sweep.
 - Distinguish:
   - `split`: source dataset split, such as `train`, `val`, `test`, `unlabeled`
@@ -956,22 +1098,21 @@ member artifacts locally.
 Partitioning examples:
 
 ```yaml
-outputs:
+training_outputs:
   results:
     partition_by: [stage, record_type]
 ```
 
 ```yaml
-outputs:
+training_outputs:
   results:
     partition_by: [stage, epoch, record_type]
 ```
 
 ```yaml
-ensemble:
-  outputs:
-    results:
-      partition_by: [stage, record_type, ensemble_member_id]
+ensemble_outputs:
+  results:
+    partition_by: [stage, record_type, ensemble_member_id]
 ```
 
 ## Runtime Controls
@@ -1028,8 +1169,8 @@ contract.
 
 Stubbed features in phase 1:
 
-- MLflow logger sink (`logging.sinks[].type: mlflow`);
-- non-DINOv2 SSL methods (`ssl.method: simclr | vicreg | pmsn | dino`);
+- MLflow logger sink (`training_outputs.logging.sinks[].type: mlflow`);
+- non-`dino_v2` SSL methods (`ssl.method: simclr | vicreg | pmsn | dino`);
 - weight-space ensembles (model soup, greedy soup, uniform soup, SWA,
   EMA);
 - cross-run and weighted ensemble types;
@@ -1042,7 +1183,7 @@ relevant extra is installed:
 - `model.backbone.source: timm` (functional per the Backbones section);
 - `model.backbone.source: torchvision` and `checkpoint`;
 - Aim logger sink;
-- DINOv2 SSL via Lightly;
+- `dino_v2` SSL via Lightly;
 - `ifcb_bins` dataset backend (with `[ifcb]` extra);
 - UMAP, t-SNE, HDBSCAN, regression/ordinal/classification probes (with
   `[repr_eval]` extra);
@@ -1058,7 +1199,7 @@ relevant extra is installed:
 - Keep Aim as a functional logging sink.
 - Keep Aim diagnostic figures.
 - MLflow config schema may exist, but runtime implementation will remain a clear
-  stub for the first refactor phase. As a defered feature, it gets put in the design-doc Defered appendix
+  stub for the first refactor phase. As a deferred feature, it gets put in the design-doc Deferred Features appendix.
 - Multi-sink composition is supported in phase 1: `local`, `aim`, and
   `local + aim` are all functional via a `CompositeExperimentLogger`.
   No artificial cap on sink count, but three-or-more-sink configs are
@@ -1100,18 +1241,25 @@ This should default to a warning, not an error.
 
 ```yaml
 ssl:
-  method: DINOv2
+  method: dino_v2
   framework: lightly
 ```
 
-- DINOv2 through Lightly is functional in the refactor.
+- `dino_v2` through Lightly is functional in the refactor.
 - see https://docs.lightly.ai/self-supervised-learning/examples/dinov2.html for example code. 
 - SimCLR, VICReg, PMSN, and original DINO are intentionally removed from the
-  first refactor runtime. Defered to appendix.
+  first refactor runtime. Deferred to appendix.
 - Preserve config stubs for deferred SSL methods with clear errors.
 - Rename SSL evaluation to representation evaluation.
 - `representation_eval` should support both training-integrated evaluation and
   standalone `dojo eval representation`.
+- `representation_eval` is **not SSL-only**. It is a top-level config
+  group usable with any task that produces image embeddings,
+  including `task.type: supervised` and `task.type: ssl`. A
+  supervised run may schedule representation evaluation against its
+  own encoder during training, and the standalone
+  `dojo eval representation` command works against checkpoints from
+  either task type.
 - UMAP and t-SNE are optional-extra features but not deferred.
 - HDBSCAN is optional-extra-backed but not deferred.
 - Regression and ordinal probes are included and not deferred.
@@ -1126,15 +1274,15 @@ task:
   type: ssl
 
 ssl:
-  method: DINOv2
+  method: dino_v2
   framework: lightly
   image_size: 224
   projection_dim: 65536
 
 model:
   backbone:
-    source: lightly
-    name: dinov2_vit_small
+    source: timm
+    name: vit_small_patch14_dinov2
 
 representation_eval:
   schedule:
@@ -1221,6 +1369,19 @@ low/high extremes, and averaging the rest.
   cross-run discovery is deferred (see Deferred Features Appendix).
 - Use `dojo ensemble candidates` for discovery, compatibility inspection, cache
   assessment, and manifest creation.
+- `dojo ensemble candidates` writes candidate manifests under
+  `ensemble_outputs.dir/ensemble_manifests/` by default. To write a
+  shared manifest outside a normal run directory, set
+  `ensemble_outputs.dir` directly:
+
+  ```bash
+  dojo ensemble candidates experiment=ifcb/candidate_search \
+    ensemble_outputs.dir=./shared_manifests
+  ```
+
+  The manifest filename is produced by the candidate-manifest writer
+  under that directory unless the relevant `ensemble_outputs` manifest
+  config overrides it.
 - Use `dojo ensemble` for actual ensemble evaluation/inference.
 - A manifest is the normalized output of candidate-source discovery unless a
   manifest is provided directly.
@@ -1265,7 +1426,7 @@ ensemble:
         compare: [resolved_config, checkpoint, result_metadata]
   target:
     split: val
-    dataset_id: ifcb_species_v4
+    dataset_id: ifcb_species_v4   # self-named dataset; use dataset_hash instead when the dataset does not self-name
   source_policy: inference_as_needed
 ```
 
@@ -1288,40 +1449,55 @@ ensemble:
       classification: probabilities_mean
       regression: prediction_median
       ordinal: ordinal_probabilities_mean
-  outputs:
-    materialize_members: symlink_local
+
+ensemble_outputs:
+  materialize_members: symlink_local
 ```
 
 ## Ensemble Outputs
 
-- Use ensemble-specific output folders:
-  - `ensemble_results/`
-  - `ensemble_metrics/`
-  - `ensemble_figures/`
-  - `ensemble_manifests/`
-- This allows ensemble artifacts to coexist with training artifacts in workflows
-  like train-snapshot-ensemble.
-- Optional `ensemble_members/` materialization is allowed only for
+- All ensemble output configuration lives under the top-level
+  `ensemble_outputs:` block, peer to `training_outputs:` and
+  `sweep_outputs:` (see Config Structure section).
+- `ensemble_outputs.dir_template` controls where ensemble artifacts
+  land. For a `task.type: snapshot_ensemble` run the recommended
+  default is to match `training_outputs.dir_template` so training
+  and ensemble outputs share one run directory.
+- Sub-blocks: `results`, `export`, `metrics`, `figures`. Their
+  on-disk sub-directory names follow the per-block layout in the
+  Artifact Layout section (`ensemble_results/`, `exports/`,
+  `metrics/`, `ensemble_figures/`, plus `ensemble_manifests/` and
+  optional `ensemble_members/` by default).
+- Optional member materialization to `ensemble_members/` is allowed only for
   `dojo ensemble` runs.
 - Local member files may be symlinked.
 - Remote member files may be cached through `storage` config and then symlinked.
 - Ensemble metrics and figures should compare member best/final metrics against
   the created ensemble model.
-- Ensemble-specific output controls may live under `ensemble.outputs`.
+- When training and ensemble outputs share a run directory, writers
+  namespace per-row data by `stage` (`train_validation` vs
+  `ensemble_eval`) so canonical result Parquet files coexist
+  without collision.
 
 ## Hydra Sweeps and Sweep Outputs
 
 - Use Hydra sweeps to explore ensemble strategy/combine-mode combinations.
-- Add top-level `sweep_outputs` for final model comparison metrics across sweep
-  jobs.
-- Use `outputs.sweep_dir_template` to control sweep output location.
-- `sweep_outputs` controls aggregation content.
+- Top-level `sweep_outputs:` is the peer output block for sweep-level
+  aggregation. It has `dir_template`, `export`, `metrics`, and
+  `figures` sub-blocks but **no** `results` sub-block (per-row data
+  comes from the underlying per-job `training_outputs` /
+  `ensemble_outputs`).
+- `sweep_outputs.dir_template` controls sweep aggregation output
+  location. Per-job training/ensemble outputs continue to land under
+  their own `*_outputs.dir_template`.
+- `sweep_outputs.metrics` and `sweep_outputs.figures` control which
+  aggregations are produced.
 
 Example sweep output needs:
 
 - compare best/final F1 across best/final epoch for output model trainings;
 - compare per-class F1 across best/final epoch for model trainings;
-- write comparison metrics CSV/json/HDF;
+- write comparison metrics CSV/JSON/Parquet;
 - write comparison figures.
 
 Sweep output example:
@@ -1341,14 +1517,15 @@ training:
 optimizer:
   lr: 0.0003  # swept: 0.0003, 0.0001
 
-outputs:
-  run_root: ./runs
-  run_dir_template: >-
+output_root: ./runs
+
+training_outputs:
+  dir_template: >-
     {experiment.name}/sweep_runs/{model.backbone.name:slug}/bs{training.batch_size:03}/lr{optimizer.lr:slug}/
-  sweep_dir_template: >-
-    {experiment.name}/sweep_results/{runtime.sweep_id}
 
 sweep_outputs:
+  dir_template: >-
+    {experiment.name}/sweep_results/{runtime.sweep_id}
   enabled: true
   collect:
     - metric: val/species/macro_f1
@@ -1378,8 +1555,9 @@ dojo ensemble -m \
 ## Export
 
 - ONNX export remains supported but is outside runtime training config.
-- Export should be explicit through `outputs.export`, `dojo export`, or
-  task-orchestration config.
+- Export is explicit through `training_outputs.export`,
+  `ensemble_outputs.export`, `sweep_outputs.export`, the
+  `dojo export` command, or task-orchestration config.
 - Export artifact `type` enum values in config: `torchscript`, `onnx`.
   There is no `pt` type. `.pt` is a file extension that TorchScript
   artifacts use by default; the `type` field names the artifact
@@ -1392,7 +1570,7 @@ dojo ensemble -m \
 Export config example:
 
 ```yaml
-outputs:
+training_outputs:
   export:
     enabled: true
     artifacts:
@@ -1405,6 +1583,10 @@ outputs:
         opset: 18
         dynamic_axes: true
 ```
+
+The same `export:` sub-block shape applies under `ensemble_outputs:`
+and `sweep_outputs:`. Each writes into its own `exports/`
+sub-directory under the resolved `*_outputs.dir`.
 
 ## Deferred Features Appendix
 
@@ -1449,8 +1631,8 @@ Deferred features include:
 - Move `improv` integration/export to the deferred appendix.
 - Rewrite canonical result schemas around Arrow list columns, sidecar
   `_metadata.json`, and configurable Parquet partitions.
-- Add first-class `figures/` and ensemble-specific output directories to run
-  layout sections.
+- Add first-class configurable `figures` blocks and per-output-block
+  directory layouts to run layout sections.
 - Remove training-loop ONNX export behavior from runtime config.
 - Add layered validation and `runtime.preflight` semantics.
 - Rename SSL evaluation sections to representation evaluation.
@@ -1467,12 +1649,10 @@ Deferred features include:
 - Add Hydra path-template and sweep-output documentation.
 - Move deferred/stubbed items out of the main design flow and into a deferred
   features appendix.
-- Resolve the remaining timm/DINOv2 backbone boundary decision before editing
-  backbone dependency and implementation sections.
 - Update §1.1 core goals to drop or qualify items that are now deferred or
-  reframed (snapshot-bundling phrasing, HDF mention pending the HDF decision,
-  MLflow as a runtime sink). timm remains a first-class backbone source per
-  the Backbones section above.
+  reframed (snapshot-bundling phrasing, HDF result export, MLflow as a
+  runtime sink). timm remains a first-class backbone source per the
+  Backbones section above.
 - Replace the §2.2 CLI command list with the new canonical command families:
   `dojo train`, `dojo infer [predictions|embeddings]`,
   `dojo eval [holdout|representation]`,
@@ -1494,7 +1674,8 @@ Deferred features include:
   drop separate `ensemble/soup.py` / `ensemble/swa.py` modules (deferred),
   rename `tasks/eval/` and related modules to representation-evaluation,
   align `config_schemas/` files with the new top-level groups
-  (`runtime`, `storage`, `outputs`, `representation_eval`, etc.), and
+  (`runtime`, `storage`, `output_root`, `training_outputs`,
+  `ensemble_outputs`, `sweep_outputs`, `representation_eval`, etc.), and
   fold `dojo tools make-manifest` behavior into `cli/inspect.py`.
 - Update §10.3 "Tabular metadata as model input" so `tabular`, `fusion`, and
   `embedding_adapter` are shown nested under `model:` rather than as
@@ -1502,8 +1683,8 @@ Deferred features include:
 - Rewrite §20 migration phases to use new command and concept names:
   `dojo inspect config` (not `dojo validate-config`), no
   `dojo tools make-manifest`, `representation_eval` (not `ssl_eval`),
-  drop listfile-porting language, and refer to the new outputs/storage
-  config structure.
+  drop listfile-porting language, and refer to the new `output_root`,
+  `*_outputs`, and `storage` config structure.
 - Correct the `dojo_deprecated` spelling everywhere it is referenced in
   the design doc (the doc already uses the correct form; flag this so any
   new edits do not regress).
@@ -1572,15 +1753,3 @@ Deferred features include:
   functional first-class backbone source gated by the `timm` optional
   extra, with a clear runtime error when the extra is missing. Also
   remove timm from the post-Phase-8 backlog list.
-
-## Remaining Decisions To Resolve
-
-All major and medium decisions are resolved. Remaining open items are
-implementation-level details captured in the relevant sections above:
-
-- IDs and Hashes "Open work before implementation": float normalization
-  edge cases (NaN/Inf already specified; rounding rule already
-  specified) and `dataset_hash` provenance fallback (already specified).
-  These are flagged in the IDs and Hashes section as low-risk
-  implementation choices that may be revisited if a concrete edge case
-  surfaces.
