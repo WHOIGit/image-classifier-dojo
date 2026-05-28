@@ -214,6 +214,17 @@ outputs:
 - show enabled outputs and deferred/stubbed features;
 - optionally emit machine-readable JSON for CI/tests.
 
+Remote-artifact validation strength:
+
+- Default behavior is **schema-and-local feasibility only**: resolve
+  paths, validate format of any locally-accessible artifacts, do not
+  require network access to remote URIs. CI-safe and offline-friendly.
+- Opt-in `--check-remote` flag (or `inspect.check_remote: true`)
+  performs HEAD requests / etag checks against remote URIs (S3
+  manifests, checkpoints, etc.) and reports availability and size.
+- Without `--check-remote`, missing-remote-artifact errors surface at
+  runtime, not at inspect time. This is intentional.
+
 CLI examples:
 
 ```bash
@@ -375,6 +386,18 @@ data:
 - Heads reference logical data targets, not raw manifest columns.
 - Objectives bind heads to losses, metrics, and weights.
 
+Ordinal naming:
+
+- Head type: `ordinal_classification`. (Not `ordinal_regression` — the
+  head predicts a discrete ordered bin, not a continuous value.)
+- Supported ordinal losses: `coral`, `corn`, `ordinal_cross_entropy`.
+- Result `record_type` values: `ordinal_output` for native ordinal
+  heads; `ordinal_probe_prediction` for ordinal probes.
+- Result columns: keep both `ordinal_logits` (raw cumulative logits
+  for CORAL/CORN) and `probabilities` (per-bin probabilities). Both
+  populated; downstream tools can use whichever is meaningful for the
+  loss/decode rule.
+
 Reference chain:
 
 ```text
@@ -480,7 +503,15 @@ objectives:
   doc).
 - `model.backbone.source: lightly` is not introduced as a public
   backbone source. Lightly remains an SSL framework implementation
-  detail.
+  detail; SSL configs select it via `ssl.framework: lightly`. The
+  backbone for an SSL run is still selected via
+  `model.backbone.source: timm|torchvision|checkpoint` as for
+  supervised training.
+- Supervised transfer learning from an SSL-pretrained encoder is not
+  a new task type. It is plain `task.type: supervised` with
+  `model.backbone.source: checkpoint` and `checkpoint_uri` pointing
+  at the SSL encoder export. Freeze policy, embedding adapter, and
+  head are configured exactly as for any supervised training run.
 
 ## Dependency Plan
 
@@ -491,7 +522,28 @@ objectives:
 - [amplify-storage-utils](https://github.com/WHOIGit/amplify-storage-utils) remains a core dependency.
 - Training, SSL, Aim, MLflow, ONNX, and IFCB support should live behind extras.
 
-Suggested dependency shape:
+Final optional-extra layout:
+
+- `train` — Torch stack required to run training/inference.
+- `timm` — first-class `model.backbone.source: timm` support.
+- `ssl` — Lightly only. SSL DINOv2 ViT backbones come from the `timm`
+  extra; install both for SSL.
+- `ifcb` — `ifcbkit` for the `ifcb_bins` dataset backend. Usable
+  outside SSL (supervised IFCB training, holdout eval, inspect).
+  Pulls `ifcbkit[s3]` so IFCB-via-S3 works when `s3` is also
+  installed.
+- `repr_eval` — UMAP, HDBSCAN, and scikit-learn for representation
+  evaluation (projections, clustering, linear/ridge probes, baseline
+  metrics). Usable against supervised encoders too, not SSL-only.
+- `aim` — Aim logger sink.
+- `mlflow` — MLflow logger sink (schema present; runtime stubbed in
+  phase 1).
+- `onnx` — ONNX export and runtime.
+- `s3` — S3 capability for storage (`amplify-storage-utils[s3]`).
+- `all` — convenience meta-extra that pulls every functional extra
+  above.
+- `dev` — testing and developer tooling (pytest, pytest-cov, ruff,
+  mypy, pre-commit).
 
 ```toml
 dependencies = [
@@ -516,24 +568,57 @@ train = [
   "torchvision",
   "lightning",
   "torchmetrics",
-  "scikit-learn",
   "numpy",
   "pandas",
   "pillow",
 ]
 
-ssl = [
-  "lightly",
+timm = ["timm"]
+
+ssl = ["lightly"]
+
+ifcb = ["ifcbkit[s3]"]
+
+repr_eval = [
   "umap-learn",
   "hdbscan",
-  "ifcbkit",
+  "scikit-learn",
 ]
 
-timm = ["timm"]
 aim = ["aim"]
 mlflow = ["mlflow"]
 onnx = ["onnx", "onnxruntime"]
+
+s3 = ["amplify-storage-utils[s3]"]
+
+all = [
+  # union of train, timm, ssl, ifcb, repr_eval, aim, mlflow, onnx, s3
+  "image_classifier_dojo[train,timm,ssl,ifcb,repr_eval,aim,mlflow,onnx,s3]",
+]
+
+dev = [
+  "pytest",
+  "pytest-cov",
+  "ruff",
+  "mypy",
+  "pre-commit",
+]
 ```
+
+Common install recipes:
+
+- Schema / config inspection / result reading only:
+  `pip install image_classifier_dojo`
+- Supervised training: `pip install image_classifier_dojo[train]`
+- Supervised + timm backbones:
+  `pip install image_classifier_dojo[train,timm]`
+- SSL DINOv2 with representation evaluation:
+  `pip install image_classifier_dojo[train,timm,ssl,repr_eval]`
+- IFCB bins over S3:
+  `pip install image_classifier_dojo[train,ifcb,s3]`
+- Everything functional: `pip install image_classifier_dojo[all]`
+- Local development:
+  `pip install -e .[all,dev]`
 
 ## Results Backend and Schemas
 
@@ -629,7 +714,11 @@ table below.
   - sorted object keys;
   - no insignificant whitespace;
   - lists preserved in source order;
-  - floats serialized in a fixed normalized form;
+  - floats rounded to **12 significant decimal digits** before
+    serialization (well within float64 precision of ~15.95, absorbs
+    roundtrip noise);
+  - `NaN`, `+Infinity`, and `-Infinity` serialize as the literal
+    strings `"NaN"`, `"Infinity"`, `"-Infinity"` (JSON-encoder-agnostic);
   - bytes/binary inputs hashed directly without JSON wrapping.
 - Each `*_hash` function selects a specific subset of fields from the
   source object before canonicalization. The key-selection rules per
@@ -644,7 +733,7 @@ table below.
 | `config_id` | id (paired with `config_hash`) | manual override, else seedname from `config_hash` | seedname |
 | `config_hash` | hash | canonical hash of the resolved config, **excluding** runtime-resolved values, output paths, and the `outputs:` block | always derived |
 | `dataset_id` | id only | the dataset's self-name when the manifest provides one | null when the dataset does not self-name (no seedname fallback) |
-| `dataset_hash` | hash | URI + size + etag/last-modified (or full content hash when locally accessible and cheap), plus the data backend type | always derived |
+| `dataset_hash` | hash | URI + size + etag/last-modified (or full content hash when locally accessible and cheap), plus the data backend type. When size/etag are unavailable (e.g. some `class_folder` inspect sources), fall back to URI-only hashing and set `dataset_hash_provenance: uri_only` in the metadata sidecar | always derived |
 | `checkpoint_hash` | hash | SHA-256 of the `.ckpt` file bytes | always derived |
 | `model_id` | id (paired with `model_hash`) | manual override on the export command, else seedname from `model_hash` | seedname |
 | `model_hash` | hash | SHA-256 of the exported `.pt` / `.onnx` file bytes | always derived |
@@ -710,11 +799,14 @@ Key-selection rules per hash (exact field lists TBD):
 
 ### Open work before implementation
 
-- Settle the exact field lists each compatibility hash consumes.
-- Settle the float normalization rule (rounding digits, NaN/Inf
-  policy).
-- Settle the `dataset_hash` policy for the case where size/etag are
-  unavailable (e.g. some `class_folder` inspection sources).
+- Freeze the exact field lists each compatibility hash consumes. The
+  narrative rules above ("includes head type, num_classes, …;
+  excludes loss type, weight, metrics") are the binding intent;
+  implementers mark the contributing fields in the Pydantic schemas
+  (e.g. via a `compatibility_hash_includes=True` field flag or an
+  equivalent registry in `dojo.utils.artifact_hashing`). Keeping the
+  field list in code next to the schema definitions is preferred
+  over freezing it in static documentation.
 
 ## Result Metadata
 
@@ -917,12 +1009,62 @@ runtime:
         threshold: 20.0
 ```
 
+## Testing Policy for Deferred Features
+
+For features that are stubbed in the first refactor phase, tests
+assert the stub behavior and nothing else. The stub itself is the
+contract.
+
+- Each stubbed runtime path has exactly one test that:
+  1. constructs a config that exercises the deferred feature;
+  2. invokes the runtime path;
+  3. asserts a `NotImplementedError` is raised;
+  4. asserts the error message names the deferred feature and points at
+     the post-Phase-8 backlog.
+- Stubbed features get no schema-only tests, no inspect-output
+  enumeration tests, and no scaffolded runtime tests.
+- When a deferred feature is later unstubbed, the stub-assertion test
+  is deleted and replaced with real functional tests.
+
+Stubbed features in phase 1:
+
+- MLflow logger sink (`logging.sinks[].type: mlflow`);
+- non-DINOv2 SSL methods (`ssl.method: simclr | vicreg | pmsn | dino`);
+- weight-space ensembles (model soup, greedy soup, uniform soup, SWA,
+  EMA);
+- cross-run and weighted ensemble types;
+- `prediction_trimmed_mean` and weighted combine modes;
+- WebDataset backend.
+
+Functional features that **do** get full functional tests when the
+relevant extra is installed:
+
+- `model.backbone.source: timm` (functional per the Backbones section);
+- `model.backbone.source: torchvision` and `checkpoint`;
+- Aim logger sink;
+- DINOv2 SSL via Lightly;
+- `ifcb_bins` dataset backend (with `[ifcb]` extra);
+- UMAP, t-SNE, HDBSCAN, regression/ordinal/classification probes (with
+  `[repr_eval]` extra);
+- ONNX export (with `[onnx]` extra);
+- S3 storage (with `[s3]` extra);
+- snapshot ensembles and prediction-space ensembles (selection
+  strategies `all`, `top_k`, `greedy_forward_selection`,
+  `cycle_end_snapshots`; combine modes per Ensemble Architecture
+  section).
+
 ## Logging and Diagnostics
 
 - Keep Aim as a functional logging sink.
 - Keep Aim diagnostic figures.
 - MLflow config schema may exist, but runtime implementation will remain a clear
   stub for the first refactor phase. As a defered feature, it gets put in the design-doc Defered appendix
+- Multi-sink composition is supported in phase 1: `local`, `aim`, and
+  `local + aim` are all functional via a `CompositeExperimentLogger`.
+  No artificial cap on sink count, but three-or-more-sink configs are
+  not specifically exercised in tests.
+- Multi-sink behavior involving MLflow inherits MLflow's stubbed
+  runtime per the Testing Policy for Deferred Features section.
 
 ## Validation and Preflight
 
@@ -1073,6 +1215,10 @@ low/high extremes, and averaging the rest.
 
 ## Ensemble Inputs, Manifests, and Commands
 
+- Candidate discovery in phase 1 is **limited to explicit sources**:
+  explicit artifact lists, run-directory globs, result-URI globs, and
+  pre-built candidate manifests. Broad automatic registry-based
+  cross-run discovery is deferred (see Deferred Features Appendix).
 - Use `dojo ensemble candidates` for discovery, compatibility inspection, cache
   assessment, and manifest creation.
 - Use `dojo ensemble` for actual ensemble evaluation/inference.
@@ -1234,6 +1380,14 @@ dojo ensemble -m \
 - ONNX export remains supported but is outside runtime training config.
 - Export should be explicit through `outputs.export`, `dojo export`, or
   task-orchestration config.
+- Export artifact `type` enum values in config: `torchscript`, `onnx`.
+  There is no `pt` type. `.pt` is a file extension that TorchScript
+  artifacts use by default; the `type` field names the artifact
+  format, not its filename suffix.
+- State-dict-only export is not a first-phase artifact type. Pickled
+  state dicts are training-internal artifacts produced by Lightning
+  checkpointing (`.ckpt`); portable exports go through `torchscript`
+  or `onnx`.
 
 Export config example:
 
@@ -1259,6 +1413,9 @@ Move deferred features out of the main design flow and into an appendix.
 Deferred features include:
 
 - SimCLR, VICReg, PMSN, and original DINO runtime implementations;
+- HDF / HDF5 derived result exports (`.h5` metrics rollups,
+  `results.h5`, and the corresponding `hdf` extra and `h5py`/`tables`
+  dependencies);
 - MLflow runtime implementation;
 - model soup, greedy soup, uniform soup;
 - SWA and EMA workflows if not implemented in the first phase;
@@ -1363,6 +1520,51 @@ Deferred features include:
   filename convention. Add `sweep_id` / `sweep_hash` to the result
   schema and provenance columns where a row is produced as part of
   a sweep.
+- Scrub the design doc (§8.2, §11, any SSL example configs) for any
+  reference to `model.backbone.source: lightly`. Lightly is not a
+  public backbone source; replace with `source: timm` (or
+  `torchvision` / `checkpoint`) as appropriate.
+- Update the §4 dependency plan to match the final optional-extra
+  layout (Dependency Plan section above): split `ifcb` out of `ssl`,
+  add `repr_eval`, fold `scikit-learn` from `train` into `repr_eval`,
+  remove `pyifcb`, simplify `s3` to `amplify-storage-utils[s3]`, and
+  add `all` and `dev` meta-extras. Update the README install
+  examples accordingly.
+- Apply the Testing Policy for Deferred Features section against
+  §19. Rewrite §19.5 and §19.11 (and any other subsection that
+  mentions testing a stubbed feature as functional) so each deferred
+  feature has only a stub-assertion test, no schema-only or
+  scaffolded runtime tests. Move full functional tests for timm,
+  Aim, DINOv2, ifcb_bins, repr_eval, ONNX, S3, and supported
+  ensemble strategies to their respective extras-gated test files.
+- Rename §9.5 "Ordinal regression head" to "Ordinal classification
+  head" and update the head `type` enum to `ordinal_classification`
+  in §9.1 and every example. Confirm result columns retain both
+  `ordinal_logits` and `probabilities` (per Model/Heads/Objectives
+  section); update §10.5 if needed.
+- Note in §8.6 (Checkpoint transfer learning) that transfer learning
+  from an SSL-pretrained encoder is plain `task.type: supervised`
+  with `model.backbone.source: checkpoint`. No new task type.
+- Update §17 to state that multi-sink composition (`local + aim`) is
+  functional in phase 1; three-or-more-sink configs are allowed but
+  not specifically tested. MLflow-involving multi-sink configs
+  inherit the MLflow stub.
+- Update §15 Export so artifact `type` values are limited to
+  `torchscript` and `onnx`. Remove `pt` as a config type
+  everywhere; `.pt` remains the default TorchScript filename
+  extension.
+- Remove the HDF result export from the canonical results pipeline
+  in §10.5 and §11.6. Remove the `hdf` optional extra from §4
+  dependencies. Remove `metrics.h5` and `results.h5` from run-layout
+  examples. Update §1.1 core goals to drop the HDF mention.
+- Update §6.7 / §2 documentation of `dojo inspect config` so the
+  default is offline schema-and-local validation, with an opt-in
+  `--check-remote` flag for remote-availability checks.
+- In §13 Ensemble Architecture, scope candidate discovery to
+  explicit sources only (explicit artifact lists, run-directory
+  globs, result-URI globs, pre-built manifests). Move any broad
+  registry-based cross-run discovery language to the deferred
+  appendix.
 - Remove all "timm deferred / stubbed" language from the design doc.
   Affected sections include §1.2 "Implemented-as-stub", §8.4 timm
   backbones, §11 (any cross-reference), §17 / §19 testing language, and
@@ -1373,29 +1575,12 @@ Deferred features include:
 
 ## Remaining Decisions To Resolve
 
-- Decide the final optional-extra layout around `ssl`, `timm`, and `ifcb`
-  dependencies.
-- Decide whether `model.backbone.source: lightly` is a real public backbone
-  source or whether Lightly is only an SSL framework implementation detail.
-- Decide exact names for ordinal classification head types, losses, and result
-  columns.
-- Decide final task taxonomy for supervised transfer learning from SSL
-  pretrained backbones.
-- Decide how much logger multi-sink behavior belongs in the first refactor
-  phase versus deferred implementation.
-- Decide final export artifact names and whether TorchScript should be named
-  `torchscript`, `pt`, or both in config.
-- Decide whether HDF remains a derived result export in the first phase or moves
-  to deferred features.
-- Decide how strongly `dojo inspect config` should validate remote artifact
-  availability versus only local/schema-level feasibility.
-- Decide whether broad cross-run candidate discovery is first-phase supported or
-  limited to explicit manifests, run globs, and result/checkpoint URIs.
-- Decide the testing-vs-stub policy for deferred features. The first refactor
-  phase stubs MLflow and non-DINOv2 SSL methods (timm is functional). Decide whether
-  §19.5 / §19.11 should:
-  - test these as functional when the corresponding extra is installed;
-  - assert only that the stubbed runtime raises a clear
-    `NotImplementedError`;
-  - or split tests into "schema-only" (always run) and "runtime"
-    (post-Phase-8 only).
+All major and medium decisions are resolved. Remaining open items are
+implementation-level details captured in the relevant sections above:
+
+- IDs and Hashes "Open work before implementation": float normalization
+  edge cases (NaN/Inf already specified; rounding rule already
+  specified) and `dataset_hash` provenance fallback (already specified).
+  These are flagged in the IDs and Hashes section as low-risk
+  implementation choices that may be revisited if a concrete edge case
+  surfaces.
