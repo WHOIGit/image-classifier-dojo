@@ -8,7 +8,8 @@ pass is complete.
 
 - Use top-level `output_root` (a single filepath string) as the base
   for `training_outputs`, `ensemble_outputs`, and `sweep_outputs`
-  directories when those directories are rendered from `dir_template`.
+  directories when those directories are rendered from `dir_template`
+  or supplied as bare relative `dir` values.
 - Use top-level `training_outputs`, `ensemble_outputs`, and
   `sweep_outputs` as **peer** output-config blocks, one per output
   family. Each has its own `dir_template` (relative to `output_root`)
@@ -24,9 +25,10 @@ pass is complete.
 - Remove `train.skip` / `runtime.skip_training`.
 - Group `backbone`, `tabular`, `embedding_adapter`, and `heads` under `model`.
 - Use `model.tabular.fusion`, not top-level `model.fusion`.
-- `logging` lives under `training_outputs.logging` (training-time
-  sinks). Ensemble and sweep runs use the same sinks via the
-  training-output logging config of the run that owns them.
+- `logging` lives under `training_outputs.logging` and applies only to
+  model-training runs. Standalone `dojo ensemble` and
+  `dojo ensemble candidates` invocations do not initialize experiment
+  logging.
 
 Canonical root shape:
 
@@ -76,6 +78,8 @@ ensemble_outputs:
   export:
   metrics:
   figures:
+  members:
+  manifests:
 
 sweep_outputs:
   dir:
@@ -174,7 +178,8 @@ training_outputs:
 - Top-level `output_root` is a single filepath string used as the base
   for `training_outputs.dir_template`, `ensemble_outputs.dir_template`,
   and `sweep_outputs.dir_template` when direct `*_outputs.dir` values
-  are not supplied.
+  are not supplied. It is also the base for bare relative top-level
+  `*_outputs.dir` values.
 - Each `*_outputs` block carries its own concrete `dir` or
   `dir_template`:
   - `training_outputs.dir`
@@ -188,6 +193,15 @@ training_outputs:
   filesystem path written to). Tooling commands may set
   `*_outputs.dir` directly when they need a concrete shared output
   location.
+- Design note for all `dir` keys:
+  - absolute paths are used as provided, for example `dir: /folder`;
+  - relative paths starting with `./` are resolved relative to the
+    process current working directory, for example `dir: ./folder`;
+  - bare relative paths are resolved relative to the parent object's
+    resolved `dir`; for top-level `*_outputs.dir` values, the parent
+    base is `output_root`; for sub-block values, such as
+    `results.dir: folder` under `training_outputs`, the parent base is
+    `training_outputs.dir`.
 - Use Dojo-owned Python-style template syntax for paths, for example:
   - `{experiment.name}`
   - `{runtime.run_id}`
@@ -205,6 +219,12 @@ training_outputs:
     exists. **Default.**
   - `overwrite` — delete all extant content of the resolved run
     directory before starting.
+- When multiple output blocks resolve to the same physical directory
+  (for example `training_outputs.dir` and `ensemble_outputs.dir` in a
+  `task.type: snapshot_ensemble` run), the overwrite policy is evaluated
+  once per resolved physical directory at command startup. Later phases
+  of the same command must not re-apply `overwrite` and delete artifacts
+  produced by earlier phases.
 
 Run config artifacts should include:
 
@@ -222,7 +242,7 @@ Output template example:
 ```yaml
 runtime:
   run_id: "{coolname}"
-  sweep_id: "{hydra.job.id}"
+  sweep_id: "{coolname}"
 
 output_root: ./runs
 
@@ -307,14 +327,14 @@ dojo inspect dataset data=ifcb/species_manifest output=./inspect_outputs/species
 dojo train experiment=ifcb/species_baseline
 dojo infer embeddings experiment=ifcb/species_baseline checkpoint=./runs/baseline/checkpoints/best.ckpt
 dojo eval representation experiment=ifcb/dinov2_repr_eval
-dojo ensemble candidates experiment=ifcb/ensemble_candidates ensemble_outputs.dir=./shared_manifests
+dojo ensemble candidates experiment=ifcb/ensemble_candidates ensemble_outputs.manifests.dir=./shared_manifests
 dojo ensemble experiment=ifcb/ensemble_search ensemble.candidates.manifest_uri=./shared_manifests/ifcb_candidates.json
 ```
 
 ## Task Types
 
 - `task.type` is the axis that determines what `dojo train` does. Supported
-  task types in phase 1:
+  task types in the initial implementation:
   - `supervised`
   - `ssl`
   - `snapshot_ensemble`
@@ -567,9 +587,9 @@ objectives:
 
 ## Backbones
 
-- `model.backbone.source: timm` is **functional** in the first refactor
-  phase (not deferred).
-- Supported user-facing backbone sources in phase 1:
+- `model.backbone.source: timm` is **functional** in the initial
+  implementation (not deferred).
+- Supported user-facing backbone sources in the initial implementation:
   - `torchvision`
   - `timm`
   - `checkpoint`
@@ -580,8 +600,8 @@ objectives:
   through the public `source: timm` selector. There is no separate
   "DINOv2-only timm path."
 - Inception-style auxiliary-logit handling remains out of scope for the
-  generic backbone path in phase 1 (unchanged from the existing design
-  doc).
+  generic backbone path in the initial implementation (unchanged from
+  the existing design doc).
 - `model.backbone.source: lightly` is not introduced as a public
   backbone source. Lightly remains an SSL framework implementation
   detail; SSL configs select it via `ssl.framework: lightly`. The
@@ -618,7 +638,7 @@ Final optional-extra layout:
   metrics). Usable against supervised encoders too, not SSL-only.
 - `aim` — Aim logger sink.
 - `mlflow` — MLflow logger sink (schema present; runtime stubbed in
-  phase 1).
+  the initial implementation).
 - `onnx` — ONNX export and runtime.
 - `s3` — S3 capability for storage (`amplify-storage-utils[s3]`).
 - `all` — convenience meta-extra that pulls every functional extra
@@ -721,7 +741,6 @@ Columns that benefit from dictionary encoding include:
 - `head_name`
 - `embedding_kind`
 - `prediction_label`
-- `diagnostic_scope`
 - `resize_width_px`
 - `resize_height_px`
 
@@ -744,7 +763,7 @@ training_outputs:
   results:
     enabled: true
     backend: amplify_db_utils
-    dir: ./results  # relative to training_outputs.dir, which is in turn resolved from training_outputs.dir_template
+    dir: results  # relative to training_outputs.dir, which is in turn resolved from training_outputs.dir_template
     format: parquet
     partition_by: [stage, record_type, epoch]
     dictionary_encode:
@@ -781,6 +800,14 @@ separately:
   coolname produced by seeding `random.Random` with the corresponding
   `*_hash`. Same hash → same seedname, so seednames are reproducible
   identifiers, not random ones.
+- Explicit exceptions:
+  - `run_id` identifies one invocation and may be generated from a
+    fresh, unseeded template token such as `{coolname}`;
+  - `dataset_id` is only a dataset self-name when one exists; it does
+    not fall back to a seedname;
+  - `sweep_id` may be generated like `run_id` for a concrete sweep
+    invocation, but falls back to a seedname from `sweep_hash` when no
+    explicit or template value is configured.
 
 Some objects have both a hash and an id; some have only one. See the
 table below.
@@ -827,7 +854,7 @@ table below.
 | `model_hash` | hash | SHA-256 of the exported `.pt` / `.onnx` file bytes | always derived |
 | `ensemble_id` | id (paired with `ensemble_hash`) | manual override on the ensemble command, else seedname from `ensemble_hash` | seedname |
 | `ensemble_hash` | hash | canonical hash of the ensemble manifest JSON (selected members + combine config + selection config) | always derived |
-| `sweep_id` | id (paired with `sweep_hash`) | manual override, else a template-string render with the same semantics as `run_id` (may reference Hydra values like `{hydra.job.id}` or fall back to `{coolname}` / seedname). When unset, falls back to seedname from `sweep_hash` | seedname or `{coolname}` |
+| `sweep_id` | id (paired with `sweep_hash`) | manual override, else a template-string render with the same semantics as `run_id` (for example `{coolname}`). When unset, falls back to seedname from `sweep_hash` | seedname or `{coolname}` |
 | `sweep_hash` | hash | canonical hash of the sweep definition (base config + sweep axes + value lists), **excluding** runtime-resolved values and output paths | always derived |
 | `ensemble_member_id` | union column | for member-level result rows and partitioning. Value is the member's `checkpoint_hash` when the member is a checkpoint, or its `model_id` when the member is an exported model artifact. Always populated for member-level rows | derived per-row from the underlying member artifact |
 
@@ -851,9 +878,9 @@ Checkpoint filenames embed the first 6 hex characters of
 Examples:
 
 ```text
-loss-1.23_epoch-003_f1score-88.7FF91A.ckpt
-last.A1B2C3.ckpt
-snapshot_cycle-02_epoch-100.0F0F0F.ckpt
+loss-1.23_epoch-003_f1score-88.7ff91a.ckpt
+last.a1b2c3.ckpt
+snapshot_cycle-02_epoch-100.0f0f0f.ckpt
 ```
 
 The first-6 prefix is a disambiguation aid for humans inspecting a
@@ -1008,10 +1035,13 @@ Metadata sidecar sketch:
   `ensemble_outputs`, and `sweep_outputs`.
 - Do not add a generic training-run `data/` folder; input dataset information is
   covered by configs and resolved config artifacts.
-- Use `ensemble_outputs.dir/ensemble_manifests/` for ensemble candidate
-  manifests by default. Shared candidate manifests written outside a
-  normal run directory are handled by setting `ensemble_outputs.dir`
-  for the `dojo ensemble candidates` invocation.
+- Use `ensemble_outputs.manifests.dir` for ensemble candidate
+  manifests; it defaults to
+  `{ensemble_outputs.dir}/ensemble_manifests`. Shared candidate
+  manifests written outside a normal run directory are handled by
+  setting `output_root`, `ensemble_outputs.dir`, or
+  `ensemble_outputs.manifests.dir` for the `dojo ensemble candidates`
+  invocation.
 - Use JSON for ensemble manifests, not Parquet.
 
 Per-output-block contents under each `*_outputs.dir`:
@@ -1118,12 +1148,25 @@ ensemble_outputs:
 ## Runtime Controls
 
 Keep these runtime controls:
-
+- `seed`
 - `fast_dev_run`
 - `precision`
 - `num_workers`
 - `autobatch`
-- early stopping
+
+Early stopping is a training-loop behavior and belongs under `training`,
+not `runtime`.
+
+Training early-stopping example:
+
+```yaml
+training:
+  early_stopping:
+    enabled: true
+    monitor: val/loss
+    mode: min
+    patience: 10
+```
 
 ONNX export does not need to be a runtime config item. It should be handled by
 the config-driven task orchestration/export system outside the training loop.
@@ -1152,7 +1195,7 @@ runtime:
 
 ## Testing Policy for Deferred Features
 
-For features that are stubbed in the first refactor phase, tests
+For features that are stubbed in the initial implementation, tests
 assert the stub behavior and nothing else. The stub itself is the
 contract.
 
@@ -1161,19 +1204,20 @@ contract.
   2. invokes the runtime path;
   3. asserts a `NotImplementedError` is raised;
   4. asserts the error message names the deferred feature and points at
-     the post-Phase-8 backlog.
+     the deferred-feature backlog.
 - Stubbed features get no schema-only tests, no inspect-output
   enumeration tests, and no scaffolded runtime tests.
 - When a deferred feature is later unstubbed, the stub-assertion test
   is deleted and replaced with real functional tests.
 
-Stubbed features in phase 1:
+Stubbed features in the initial implementation:
 
 - MLflow logger sink (`training_outputs.logging.sinks[].type: mlflow`);
 - non-`dino_v2` SSL methods (`ssl.method: simclr | vicreg | pmsn | dino`);
 - weight-space ensembles (model soup, greedy soup, uniform soup, SWA,
   EMA);
-- cross-run and weighted ensemble types;
+- weighted ensemble types;
+- broad automatic registry-based cross-run discovery;
 - `prediction_trimmed_mean` and weighted combine modes;
 - WebDataset backend.
 
@@ -1190,18 +1234,22 @@ relevant extra is installed:
 - ONNX export (with `[onnx]` extra);
 - S3 storage (with `[s3]` extra);
 - snapshot ensembles and prediction-space ensembles (selection
-  strategies `all`, `top_k`, `greedy_forward_selection`,
-  `cycle_end_snapshots`; combine modes per Ensemble Architecture
-  section).
+  strategies `all`, `best_candidate`, `top_k`,
+  `greedy_forward_selection`, `cycle_end_snapshots`; combine modes per
+  Ensemble Architecture section).
 
 ## Logging and Diagnostics
 
 - Keep Aim as a functional logging sink.
 - Keep Aim diagnostic figures.
 - MLflow config schema may exist, but runtime implementation will remain a clear
-  stub for the first refactor phase. As a deferred feature, it gets put in the design-doc Deferred Features appendix.
-- Multi-sink composition is supported in phase 1: `local`, `aim`, and
-  `local + aim` are all functional via a `CompositeExperimentLogger`.
+  stub for the initial implementation. As a deferred feature, it gets
+  put in the design-doc Deferred Features appendix.
+- Experiment logging applies only to model training. `dojo ensemble
+  candidates` does not initialize experiment logging.
+- Multi-sink composition is supported in the initial implementation:
+  `local`, `aim`, and `local + aim` are all functional via a
+  `CompositeExperimentLogger`.
   No artificial cap on sink count, but three-or-more-sink configs are
   not specifically exercised in tests.
 - Multi-sink behavior involving MLflow inherits MLflow's stubbed
@@ -1248,7 +1296,7 @@ ssl:
 - `dino_v2` through Lightly is functional in the refactor.
 - see https://docs.lightly.ai/self-supervised-learning/examples/dinov2.html for example code. 
 - SimCLR, VICReg, PMSN, and original DINO are intentionally removed from the
-  first refactor runtime. Deferred to appendix.
+  initial implementation runtime. Deferred to appendix.
 - Preserve config stubs for deferred SSL methods with clear errors.
 - Rename SSL evaluation to representation evaluation.
 - `representation_eval` should support both training-integrated evaluation and
@@ -1363,24 +1411,26 @@ low/high extremes, and averaging the rest.
 
 ## Ensemble Inputs, Manifests, and Commands
 
-- Candidate discovery in phase 1 is **limited to explicit sources**:
+- Candidate discovery in the initial implementation is **limited to explicit sources**:
   explicit artifact lists, run-directory globs, result-URI globs, and
   pre-built candidate manifests. Broad automatic registry-based
   cross-run discovery is deferred (see Deferred Features Appendix).
 - Use `dojo ensemble candidates` for discovery, compatibility inspection, cache
   assessment, and manifest creation.
+- `dojo ensemble candidates` is an artifact-inspection/manifest-writing
+  command and does not initialize experiment logging.
 - `dojo ensemble candidates` writes candidate manifests under
   `ensemble_outputs.dir/ensemble_manifests/` by default. To write a
-  shared manifest outside a normal run directory, set
-  `ensemble_outputs.dir` directly:
+  shared manifest outside a normal run directory, set the manifest
+  directory directly:
 
   ```bash
   dojo ensemble candidates experiment=ifcb/candidate_search \
-    ensemble_outputs.dir=./shared_manifests
+    ensemble_outputs.manifests.dir=./shared_manifests
   ```
 
   The manifest filename is produced by the candidate-manifest writer
-  under that directory unless the relevant `ensemble_outputs` manifest
+  under that directory unless the relevant `ensemble_outputs.manifests`
   config overrides it.
 - Use `dojo ensemble` for actual ensemble evaluation/inference.
 - A manifest is the normalized output of candidate-source discovery unless a
@@ -1451,7 +1501,7 @@ ensemble:
       ordinal: ordinal_probabilities_mean
 
 ensemble_outputs:
-  materialize_members: symlink_local
+   ...
 ```
 
 ## Ensemble Outputs
@@ -1463,11 +1513,11 @@ ensemble_outputs:
   land. For a `task.type: snapshot_ensemble` run the recommended
   default is to match `training_outputs.dir_template` so training
   and ensemble outputs share one run directory.
-- Sub-blocks: `results`, `export`, `metrics`, `figures`. Their
-  on-disk sub-directory names follow the per-block layout in the
-  Artifact Layout section (`ensemble_results/`, `exports/`,
-  `metrics/`, `ensemble_figures/`, plus `ensemble_manifests/` and
-  optional `ensemble_members/` by default).
+- Sub-blocks: `results`, `export`, `metrics`, `figures`,
+  `manifests`, and `members`. Their on-disk sub-directory names
+  follow the per-block layout in the Artifact Layout section
+  (`ensemble_results/`, `exports/`, `metrics/`, `ensemble_figures/`,
+  `ensemble_manifests/`, and optional `ensemble_members/` by default).
 - Optional member materialization to `ensemble_members/` is allowed only for
   `dojo ensemble` runs.
 - Local member files may be symlinked.
@@ -1504,7 +1554,7 @@ Sweep output example:
 
 ```yaml
 runtime:
-  sweep_id: "{hydra.job.id}"
+  sweep_id: "{coolname}"
 
 model:
   backbone:
@@ -1562,7 +1612,7 @@ dojo ensemble -m \
   There is no `pt` type. `.pt` is a file extension that TorchScript
   artifacts use by default; the `type` field names the artifact
   format, not its filename suffix.
-- State-dict-only export is not a first-phase artifact type. Pickled
+- State-dict-only export is not an initial-implementation artifact type. Pickled
   state dicts are training-internal artifacts produced by Lightning
   checkpointing (`.ckpt`); portable exports go through `torchscript`
   or `onnx`.
@@ -1600,7 +1650,7 @@ Deferred features include:
   dependencies);
 - MLflow runtime implementation;
 - model soup, greedy soup, uniform soup;
-- SWA and EMA workflows if not implemented in the first phase;
+- SWA and EMA workflows;
 - weighted ensemble combine modes;
 - `prediction_trimmed_mean`;
 - generic multimodal/multibranch fusion outside `model.tabular.fusion`;
@@ -1608,8 +1658,7 @@ Deferred features include:
 - Prefect flows;
 - WebDataset;
 - Bayesian/AutoML HPO;
-- broad automatic registry-based cross-run discovery if not implemented in the
-  first phase.
+- broad automatic registry-based cross-run discovery.
 
 ## Remaining Revision Action Items
 
@@ -1649,6 +1698,9 @@ Deferred features include:
 - Add Hydra path-template and sweep-output documentation.
 - Move deferred/stubbed items out of the main design flow and into a deferred
   features appendix.
+- Remove phase terminology from `REFACTOR-DESIGN-DOC.md`; use
+  "initial implementation", "deferred-feature backlog", and
+  "migration plan" language instead.
 - Update §1.1 core goals to drop or qualify items that are now deferred or
   reframed (snapshot-bundling phrasing, HDF result export, MLflow as a
   runtime sink). timm remains a first-class backbone source per the
@@ -1680,7 +1732,7 @@ Deferred features include:
 - Update §10.3 "Tabular metadata as model input" so `tabular`, `fusion`, and
   `embedding_adapter` are shown nested under `model:` rather than as
   top-level groups.
-- Rewrite §20 migration phases to use new command and concept names:
+- Rewrite §20 migration plan to use new command and concept names:
   `dojo inspect config` (not `dojo validate-config`), no
   `dojo tools make-manifest`, `representation_eval` (not `ssl_eval`),
   drop listfile-porting language, and refer to the new `output_root`,
@@ -1727,9 +1779,9 @@ Deferred features include:
   from an SSL-pretrained encoder is plain `task.type: supervised`
   with `model.backbone.source: checkpoint`. No new task type.
 - Update §17 to state that multi-sink composition (`local + aim`) is
-  functional in phase 1; three-or-more-sink configs are allowed but
-  not specifically tested. MLflow-involving multi-sink configs
-  inherit the MLflow stub.
+  functional in the initial implementation; three-or-more-sink configs
+  are allowed but not specifically tested. MLflow-involving multi-sink
+  configs inherit the MLflow stub.
 - Update §15 Export so artifact `type` values are limited to
   `torchscript` and `onnx`. Remove `pt` as a config type
   everywhere; `.pt` remains the default TorchScript filename
@@ -1749,7 +1801,7 @@ Deferred features include:
 - Remove all "timm deferred / stubbed" language from the design doc.
   Affected sections include §1.2 "Implemented-as-stub", §8.4 timm
   backbones, §11 (any cross-reference), §17 / §19 testing language, and
-  Migration §20 phases 2 / 7 / 8. timm should be presented as a
+  the §20 migration plan. timm should be presented as a
   functional first-class backbone source gated by the `timm` optional
   extra, with a clear runtime error when the extra is missing. Also
-  remove timm from the post-Phase-8 backlog list.
+  remove timm from the deferred-feature backlog list.
