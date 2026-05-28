@@ -1,0 +1,143 @@
+# Image Classifier Dojo — Refactor Design Doc
+
+## Purpose
+
+Top-level entry point and reading guide for the modular design doc. Each
+section below links to its dedicated file. New readers should follow the
+sections in order; returning readers should jump directly to the topic
+they need.
+
+## Architectural shape
+
+Dojo is a Hydra + Pydantic configuration-first toolkit for training,
+evaluating, ensembling, exporting, and inspecting image classification /
+regression / ordinal / SSL models. Key shape:
+
+- **Config-first.** Hydra composes; Pydantic validates and is the
+  runtime contract.
+- **Modular model composition.** Backbone (`torchvision` / `timm` /
+  `checkpoint`) + optional tabular encoder + optional `tabular.fusion` +
+  optional `embedding_adapter` + one-or-more heads. Objectives bind heads
+  to losses, metrics, and weights.
+- **Canonical results.** Per-row Parquet via `amplify-db-utils` with a
+  `_metadata.json` sidecar. Configurable partitioning, dictionary
+  encoding, and Arrow list columns for vectors.
+- **Three peer output blocks** at the top of the config tree:
+  `training_outputs`, `ensemble_outputs`, and `sweep_outputs`, all
+  rooted under a single `output_root`.
+- **Task selection via `task.type`** (`supervised`, `ssl`,
+  `snapshot_ensemble`) — there are no `train supervised` / `train ssl`
+  subcommands.
+- **Representation evaluation** (`representation_eval`) is a top-level
+  block, usable against supervised or SSL encoders, training-integrated
+  or standalone.
+- **Ensembling** is prediction-space only in the initial implementation:
+  explicit candidate discovery, candidate manifests, supported selection
+  strategies, and combine modes. Snapshot ensembles share a run
+  directory with their training step.
+- **Lightweight base install + extras.** Base install supports config /
+  schema / storage / result reading without Torch.
+
+## Design principles
+
+- Pydantic schemas are the runtime contract.
+- Keep task logic separate from model composition.
+- Prefer canonical internal representations (single-head normalizes to
+  the multi-head shape).
+- Results are first-class artifacts; tall Parquet with a sidecar.
+- Avoid generic metadata junk drawers; use explicit columns.
+- Keep storage behind a Dojo interface (`amplify-storage-utils`
+  underneath).
+- Use `ifcbkit` for IFCB raw-bin handling.
+- Make embeddings first-class.
+- Optimize for external orchestration — entry points return structured
+  results; no Prefect dependency in core.
+
+## File map
+
+Read in order:
+
+- [01. Goals and Scope](01-goals-and-scope.md) — what's in, what's out,
+  what's deferred.
+- [02. CLI and Task Types](02-cli-and-task-types.md) — canonical command
+  surface; `dojo train` / `infer` / `eval` / `inspect` / `ensemble` /
+  `export`; `task.type` semantics.
+- [03. Configuration](03-configuration.md) — canonical config tree;
+  `output_root` and the three peer `*_outputs` blocks; path-template
+  syntax; existing-run-dir policy.
+- [04. Data and Storage](04-data-and-storage.md) — supported dataset
+  backends (`csv_manifest`, `parquet_manifest`, `parquet_images`,
+  `ifcb_bins`); shared sample contract; `dojo inspect dataset`;
+  storage resolver.
+- [05. Models, Training, and Heads](05-models-training-and-heads.md) —
+  transforms, backbones, freeze policies, heads, objectives, supervised
+  training, optimizer / scheduler / checkpointing, transfer learning.
+- [06. Results, Artifacts, and Metadata](06-results-artifacts-and-metadata.md)
+  — canonical result schemas; identifiers and hashes;
+  `_metadata.json` sidecar; partitioning; on-disk artifact layout;
+  logging and diagnostics.
+- [07. SSL and Representation Evaluation](07-ssl-and-representation-eval.md)
+  — Lightly DINOv2 (functional); `representation_eval`; probes,
+  projections, clustering, diagnostics.
+- [08. Ensembles](08-ensembles.md) — prediction-space ensembling;
+  candidate discovery; manifests; selection strategies; combine modes;
+  `ensemble_outputs:` layout; snapshot-ensemble integration.
+- [09. Sweeps and Batch Runs](09-sweeps-and-batch-runs.md) — Hydra
+  multirun; `sweep_outputs:` block; sweep-id provenance; sweeps as
+  candidate-source feeders.
+- [10. Export](10-export.md) — TorchScript and ONNX exports;
+  `*_outputs.export` sub-blocks; `dojo export` command; export
+  metadata; bucket-aware ONNX.
+- [11. Dependencies](11-dependencies.md) — base install plus optional
+  extras (`train`, `timm`, `ssl`, `ifcb`, `repr_eval`, `aim`,
+  `mlflow`, `onnx`, `s3`, `all`, `dev`).
+- [12. Validation, Testing, and Preflight](12-validation-testing-and-preflight.md)
+  — layered validation; `runtime.preflight` controls; stub-test policy
+  for deferred features; test scope by area; fixture tiers.
+- [13. Migration Plan](13-migration-plan.md) — incremental porting from
+  `src/dojo_deprecated/`; term replacements; deferred-feature backlog.
+
+Appendices and reference:
+
+- [Appendix — Deferred Features](appendix-deferred-features.md) — every
+  stubbed feature with its `NotImplementedError` test obligation.
+- [Glossary](glossary.md) — config keys, identifiers, hashes, record
+  taxonomies; the single source of truth for terminology.
+
+## Tightly-coupled cross-cutting links
+
+Bookmark these pairs:
+
+- `03-configuration.md` ↔ `06-results-artifacts-and-metadata.md` —
+  `output_root`, the `*_outputs` blocks, and path templating connect
+  to result writing and the artifact layout.
+- `06-results-artifacts-and-metadata.md` ↔ `08-ensembles.md` — cached
+  result files feed ensembles; ensemble result rows reuse the standard
+  schema with `stage=ensemble_eval` and the `ensemble_member_id` union
+  column.
+- `05-models-training-and-heads.md` ↔
+  `07-ssl-and-representation-eval.md` — supervised training can
+  schedule representation evaluation; representation eval also runs
+  standalone against checkpoints from either task type.
+- `09-sweeps-and-batch-runs.md` ↔ `03-configuration.md` /
+  `06-results-artifacts-and-metadata.md` / `08-ensembles.md` —
+  `sweep_outputs:` schema; `sweep_id` provenance on result rows;
+  sweeps that feed ensemble candidate discovery.
+- `12-validation-testing-and-preflight.md` ↔
+  `appendix-deferred-features.md` — each deferred-feature entry names
+  the `NotImplementedError` test it owns.
+
+## Open items carried forward
+
+- The exact field lists each compatibility hash consumes
+  (`target_schema_hash`, `class_mapping_hash`, `model_config_hash`,
+  `preprocessing_hash`) are TBD before implementation; the narrative
+  inclusion rules in `06-results-artifacts-and-metadata.md` are
+  binding intent. Implementers mark contributing fields in the
+  Pydantic schemas (e.g. via a `compatibility_hash_includes=True`
+  field flag).
+- Result partitioning interaction with ensemble result rows (exact
+  partitioning of member-level vs. ensemble-level rows when training
+  and ensemble outputs share a directory) is under-specified. See
+  the open-item callouts in `06-results-artifacts-and-metadata.md`
+  and `08-ensembles.md`.
