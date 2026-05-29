@@ -257,6 +257,53 @@ Ordinal: average ordinal logits (or ordinal probabilities) then decode
 through the configured ordinal decoding rule. The ensemble artifact
 records the decoding rule used per ordinal head.
 
+### Using cached results correctly
+
+Cached-result ensembling (`source_policy: strict_no_inference`, or
+`inference_as_needed` when all rows are present in cache) reads member
+predictions from existing result Parquet files instead of re-running
+inference. The combine math is identical; what changes is that each
+chosen combine mode imposes a column requirement on every member's
+cached results.
+
+Required columns per combine mode (column definitions live in
+`06-results-artifacts-and-metadata.md`):
+
+| Combine mode | Required cached columns |
+|---|---|
+| `logits_mean` (classification) | `logits` |
+| `probabilities_mean` (classification) | `probabilities` (or `logits` to derive) |
+| `majority_vote` (classification) | `prediction_index` |
+| `soft_vote` (classification) | `probabilities` |
+| `prediction_mean` / `prediction_median` (regression) | `prediction_value` (use `prediction_value_internal` if combining in transformed space) |
+| `ordinal_logits_mean` | `ordinal_logits` |
+| `ordinal_probabilities_mean` | `probabilities` (per-bin) |
+
+Every member must also carry the standard provenance columns
+(`sample_id`, `head_name`, `target`) and the partition keys needed to
+locate its rows; see `06-results-artifacts-and-metadata.md` for the full
+schema.
+
+Notes and limitations:
+
+- Cached rows are joined across members by `sample_id` at the configured
+  target split. Members missing rows under `strict_no_inference` fail
+  the run; under `inference_as_needed` the runner fills gaps by running
+  that member's inference.
+- A member whose cached results omit a column required by the chosen
+  combine mode (e.g. only `prediction_index` logged, but the ensemble
+  asks for `logits_mean`) cannot participate from cache; either switch
+  combine mode, drop the member, or use `inference_as_needed` /
+  `force_inference` to re-derive the needed columns.
+- Compatibility checks (`target_schema_hash`, `class_mapping_hash`,
+  ordinal encoding rule, regression units) apply identically to cached
+  and fresh-inference ensembling.
+- Per-member preprocessing differences do not matter for cached-result
+  combine — predictions already reflect each member's preprocessing.
+- For regression, choose `prediction_value` vs. `prediction_value_internal`
+  deliberately and consistently across members; mixing external- and
+  internal-space combines is not supported.
+
 ## Ensemble run example
 
 ```yaml

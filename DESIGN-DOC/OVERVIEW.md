@@ -101,6 +101,9 @@ Appendices and reference:
 
 - [Appendix — Deferred Features](appendix-deferred-features.md) — every
   stubbed feature with its `NotImplementedError` test obligation.
+- [Appendix — Repository Structure](appendix-repository-structure.md) —
+  proposed `configs/`, `src/dojo/`, and `tests/` tree derived from the
+  canonical decisions above.
 - [Glossary](glossary.md) — config keys, identifiers, hashes, record
   taxonomies; the single source of truth for terminology.
 
