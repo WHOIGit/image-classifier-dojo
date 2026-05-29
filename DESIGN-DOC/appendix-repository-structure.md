@@ -145,9 +145,8 @@ configs/
     onnx_model.yaml
 
   logging/
-    local.yaml
-    aim.yaml
-    local_and_aim.yaml
+    local.yaml                 # only functional sink
+    # aim.yaml is provided but stubbed at runtime
     # mlflow.yaml is provided but stubbed at runtime
 
   hydra/
@@ -409,8 +408,8 @@ src/dojo/
     __init__.py
     base.py
     factory.py                   # multi-sink composition
-    local.py                     # functional
-    aim.py                       # functional
+    local.py                     # functional (only functional sink)
+    aim.py                       # stubbed; raises NotImplementedError at runtime
     mlflow.py                    # stubbed; raises NotImplementedError at runtime
 
   runtime/
@@ -499,6 +498,7 @@ tests/
     test_sweep_outputs.py
 
   deferred_stubs/                # NotImplementedError contract tests
+    test_aim_logger_stub.py
     test_mlflow_logger_stub.py
     test_non_dinov2_ssl_stubs.py
     test_weight_space_ensemble_stubs.py

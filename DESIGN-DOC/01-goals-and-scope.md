@@ -35,8 +35,10 @@ explain how each goal is satisfied; this file just names them.
 - **Export.** TorchScript and ONNX via `*_outputs.export` blocks or
   `dojo export`.
 - **Lightweight base install plus optional extras.** `train`, `timm`,
-  `ssl`, `ifcb`, `repr_eval`, `aim`, `mlflow`, `onnx`, `s3`, `all`,
-  `dev`.
+  `ssl`, `ifcb`, `repr_eval`, `onnx`, `all`, `dev`. (`aim` is commented
+  out and `mlflow` / `s3` extras are not currently declared — Aim/MLflow
+  logging is deferred; S3 rides on the base `amplify-storage-utils`
+  dependency.)
 
 ## Non-goals for the initial implementation
 
@@ -59,6 +61,9 @@ test that asserts a `NotImplementedError` at the relevant runtime path.
 See `appendix-deferred-features.md` and
 `12-validation-testing-and-preflight.md`.
 
+- Aim logger sink (schema present; runtime stubbed). Only the `local`
+  sink is functional; metrics and figures are recorded locally for the
+  foreseeable future.
 - MLflow logger sink (schema present; runtime stubbed).
 - Non-`dino_v2` SSL methods (SimCLR, VICReg, PMSN, original DINO).
 - Weight-space ensembles (model soup, greedy soup, uniform soup, SWA,

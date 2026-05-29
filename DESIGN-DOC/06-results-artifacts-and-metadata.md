@@ -524,17 +524,18 @@ and `dojo ensemble candidates` do not initialize experiment logging.
 
 Sinks:
 
-- `local` — functional.
-- `aim` — functional. Aim diagnostic figures are supported.
+- `local` — functional. **The only functional sink for the foreseeable
+  future**; metrics and figures are recorded locally.
+- `aim` — schema present; **runtime stubbed**. See
+  `appendix-deferred-features.md`.
 - `mlflow` — schema present; **runtime stubbed** in the initial
   implementation. See `appendix-deferred-features.md`.
 
-Multi-sink composition is supported via `CompositeExperimentLogger`.
-`local`, `aim`, and `local + aim` are all functional. There is no
-artificial cap on sink count, but three-or-more-sink configs are not
-specifically exercised in tests. Multi-sink behavior involving MLflow
-inherits MLflow's stubbed runtime per
-`12-validation-testing-and-preflight.md`.
+Multi-sink composition is supported via `CompositeExperimentLogger`, but
+`local` is the only functional sink, so functional configurations use
+`local` alone. There is no artificial cap on sink count. Any
+configuration involving `aim` or `mlflow` inherits their stubbed runtime
+per `12-validation-testing-and-preflight.md`.
 
 `logging` lives under `training_outputs.logging`:
 
@@ -543,9 +544,6 @@ training_outputs:
   logging:
     sinks:
       - type: local
-      - type: aim
-        repo: ./aim
-        experiment_name: ifcb
 ```
 
 The logger abstraction:
@@ -581,8 +579,8 @@ system.
   columns and `sweep_outputs/` layout.
 - `10-export.md` — `exports/` sub-directory and export metadata.
 - `12-validation-testing-and-preflight.md` — testing policy for the
-  stubbed MLflow sink.
-- `appendix-deferred-features.md` — MLflow runtime stub; HDF / `.h5`
-  result exports.
+  stubbed Aim and MLflow sinks.
+- `appendix-deferred-features.md` — Aim and MLflow runtime stubs; HDF /
+  `.h5` result exports.
 - `glossary.md` — `split`, `stage`, `record_type`, `embedding_kind`,
   `head_name`, identifier / hash vocabulary.

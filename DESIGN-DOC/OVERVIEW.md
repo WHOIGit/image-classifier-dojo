@@ -89,8 +89,10 @@ Read in order:
   `*_outputs.export` sub-blocks; `dojo export` command; export
   metadata; bucket-aware ONNX.
 - [11. Dependencies](11-dependencies.md) — base install plus optional
-  extras (`train`, `timm`, `ssl`, `ifcb`, `repr_eval`, `aim`,
-  `mlflow`, `onnx`, `s3`, `all`, `dev`).
+  extras (`train`, `timm`, `ssl`, `ifcb`, `repr_eval`, `onnx`, `all`,
+  `dev`). The `aim` extra is commented out and no `mlflow` / `s3` extra
+  is currently declared (Aim/MLflow logging is deferred; S3 rides on the
+  base `amplify-storage-utils` dependency).
 - [12. Validation, Testing, and Preflight](12-validation-testing-and-preflight.md)
   — layered validation; `runtime.preflight` controls; stub-test policy
   for deferred features; test scope by area; fixture tiers.

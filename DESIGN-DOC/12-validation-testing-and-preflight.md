@@ -91,6 +91,9 @@ deleted and replaced with real functional tests.
 
 ### Stubbed features in the initial implementation
 
+- Aim logger sink (`training_outputs.logging.sinks[].type: aim`). Only
+  the `local` sink is functional; metrics and figures are recorded
+  locally for the foreseeable future.
 - MLflow logger sink (`training_outputs.logging.sinks[].type: mlflow`).
 - Non-`dino_v2` SSL methods (`ssl.method: simclr | vicreg | pmsn |
   dino`).
@@ -111,21 +114,22 @@ When the relevant extra is installed:
 
 - `model.backbone.source: timm` (functional);
 - `model.backbone.source: torchvision` and `checkpoint`;
-- Aim logger sink;
+- `local` logger sink (the only functional sink);
 - `dino_v2` SSL via Lightly;
 - `ifcb_bins` dataset backend (with `[ifcb]`);
 - UMAP, t-SNE, HDBSCAN, regression / ordinal / classification probes
   (with `[repr_eval]`);
 - ONNX export (with `[onnx]`);
-- S3 storage (with `[s3]`);
+- S3 storage (via the base `amplify-storage-utils` dependency);
 - snapshot ensembles and prediction-space ensembles (selection
   strategies `all`, `best_candidate`, `top_k`,
   `greedy_forward_selection`, `cycle_end_snapshots`; combine modes per
   `08-ensembles.md`).
 
-Multi-sink logging composition (`local + aim`) is functional. Three-or-more
-sink configurations are allowed but are not specifically exercised in
-tests. MLflow-involving multi-sink configs inherit the MLflow stub.
+The `local` sink is the only functional logging sink, so functional
+logging tests exercise `local` alone. Multi-sink composition is
+supported structurally, but any config involving `aim` or `mlflow`
+inherits their stubbed runtime.
 
 ## Test scope by area
 
@@ -157,7 +161,8 @@ tests. MLflow-involving multi-sink configs inherit the MLflow stub.
   `dojo ensemble candidates`; supported selection strategies and
   combine modes; cached-result and live-inference paths.
 - **Export tests** — TorchScript and ONNX exports; metadata embedding.
-- **Logging tests** — local + Aim functional; MLflow stub-assertion.
+- **Logging tests** — `local` functional; Aim and MLflow
+  stub-assertions.
 
 ## Test fixtures
 

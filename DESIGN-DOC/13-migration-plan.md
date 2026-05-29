@@ -15,6 +15,8 @@ meantime per the testing policy
 
 ## Step 1 — Deprecation move
 
+Status: COMPLETE
+
 1. `git mv src/dojo src/dojo_deprecated`.
 2. Create an empty `src/dojo/` package skeleton (`__init__.py`,
    `cli/__init__.py`, `config_schemas/__init__.py`).
@@ -50,8 +52,8 @@ future head types.
 5. Add local / amplify storage resolver.
 6. Add result config schemas (per
    `06-results-artifacts-and-metadata.md`).
-7. Add logger abstraction (local + Aim functional; MLflow stubbed per
-   `appendix-deferred-features.md`).
+7. Add logger abstraction (local sink functional; Aim and MLflow stubbed
+   per `appendix-deferred-features.md`).
 8. Add `dojo inspect dataset` — built early because it is the cheapest
    gate against bad manifests. Folds in the old `dojo tools
    make-manifest` behavior.
@@ -82,14 +84,21 @@ future head types.
 
 ## Step 5 — Logging sinks
 
-1. Wire up the Aim logger (port `AimLoggerConfig.artifacts_location`
-   URI handling from `src/dojo_deprecated/schemas/core.py`, including
-   `file:///absolute/path` normalization).
+1. Wire up the local logger — metrics and figures recorded locally. This
+   is the only functional sink for the foreseeable future.
 2. Add the composite logger.
-3. MLflow logger: **stubbed** per
+3. Aim logger: **stubbed** per `12-validation-testing-and-preflight.md` —
+   config schema present, runtime raises `NotImplementedError`. Aim is
+   deferred (see `appendix-deferred-features.md`); its dependency also
+   has no installable build on current Python (`aimrocks` ships no
+   3.13/3.14 wheel). The `AimLoggerConfig.artifacts_location` URI
+   handling in `src/dojo_deprecated/schemas/core.py` (including
+   `file:///absolute/path` normalization) is the porting cue when Aim is
+   later unstubbed.
+4. MLflow logger: **stubbed** per
    `12-validation-testing-and-preflight.md` — config schema present,
    runtime raises `NotImplementedError`.
-4. Ensure result / artifact config works across the functional sinks.
+5. Ensure result / artifact config works across the local sink.
 
 ## Step 6 — Export
 
@@ -143,10 +152,10 @@ future head types.
 10. **Delete `src/dojo_deprecated/`** once a green CI run on Tier 1
     fixtures (`12-validation-testing-and-preflight.md`) confirms no
     remaining dependencies.
-11. Verify all stubbed paths (MLflow, non-DINOv2 SSL, weight-space
-    ensembles, weighted combine modes, registry-based candidate
-    discovery, WebDataset) raise clear `NotImplementedError` messages
-    that name the feature and point at the backlog.
+11. Verify all stubbed paths (Aim logger, MLflow, non-DINOv2 SSL,
+    weight-space ensembles, weighted combine modes, registry-based
+    candidate discovery, WebDataset) raise clear `NotImplementedError`
+    messages that name the feature and point at the backlog.
 12. Commit fixture Parquet under `tests/fixtures/parquet/` via git LFS
     — pending explicit owner approval.
 
@@ -154,6 +163,8 @@ future head types.
 
 Carried as separate work items, in no particular order:
 
+- Aim logger runtime (deferred; also blocked by `aimrocks` lacking a
+  current-Python wheel);
 - MLflow logger runtime;
 - non-DINOv2 SSL methods (SimCLR, VICReg, PMSN, original DINO);
 - weight-space ensembles: model soup / greedy soup, SWA, EMA;

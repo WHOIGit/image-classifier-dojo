@@ -11,34 +11,61 @@ requires-python = ">=3.11"
 authors = [{ name = "Sidney Batchelder", email = "sbatchelder@whoi.edu" }]
 
 # --- Base dependencies ---
+# Config validation, inspection, storage / result access, schema handling,
+# and artifact introspection — no Torch required (see DESIGN-DOC/11-dependencies.md).
 dependencies = [
-  "pydantic~=2.11.1",
-  "humanize~=4.12.2",
-  "coolname~=2.2.0",
-  "tqdm~=4.67.0",
-  "pydantic-settings~=2.11.0",
+  "pydantic",
+  "pydantic-settings",
+  "hydra-core",
+  "omegaconf",
+  "pyarrow",
+  "duckdb",
+  "amplify-storage-utils @ git+https://github.com/WHOIGit/amplify-storage-utils.git",
+  "amplify-db-utils @ git+https://github.com/WHOIGit/amplify-db-utils.git",
+  "typer",
+  "rich",
+  "coolname",
+  "humanize",
+  "tqdm",
 ]
 
-# Optional dev and examples extras
+# --- Optional extras, gated by functional area ---
 [project.optional-dependencies]
 train = [
-  "numpy~=2.2.0",
-  "torch~=2.9.0",
-  "torchvision~=0.24.0",
-  "lightning~=2.5.5",
-  "torchmetrics[visual]~=1.6.0",
-  "onnx~=1.17.0",
-  "plotly~=5.24.1",
-  "aim~=3.27.0",
-  "h5py~=3.10",
-  "scipy~=1.13.1",
+  "torch",
+  "torchvision",
+  "lightning",
+  "torchmetrics[visual]",
+  "numpy",
+  "pandas",
+  "pillow",
 ]
-ssl = [
-  "lightly~=1.5.15",
-  "pyifcb @ git+https://github.com/joefutrelle/pyifcb.git@v1.2.1",
+timm = ["timm"]
+ssl = ["lightly"]
+ifcb = ["ifcbkit @ git+https://github.com/WHOIGit/ifcbkit.git"]
+repr_eval = [
+  "umap-learn",
+  "hdbscan",
+  "scikit-learn",
 ]
-homo = [
-  "torchensemble~=0.2.0",
+# aim: disabled on Python 3.14. aim pins aimrocks==0.5.*, which only ships
+# wheels for cp36-cp312 (no 3.13/3.14, no buildable sdist). Use the local
+# logger sink on 3.14; re-enable once aimrocks publishes a 3.14 wheel, or run
+# under Python <=3.12 if the Aim sink is required.
+#aim = ["aim"]
+onnx = [
+  "onnx",
+  "onnxruntime-gpu",
+]
+all = [
+  "image_classifier_dojo[train,timm,ssl,ifcb,repr_eval,onnx]",
+]
+dev = [
+  "pytest",
+  "pytest-cov",
+  "ruff",
+  "mypy",
+  "pre-commit",
 ]
 
 [project.scripts]

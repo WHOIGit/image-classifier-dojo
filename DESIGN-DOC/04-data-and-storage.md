@@ -127,8 +127,9 @@ storage:
   local_cache_dir: ./.cache/dojo
 ```
 
-S3 capability is gated by the `s3` optional extra
-(`amplify-storage-utils[s3]`).
+S3 capability comes through the base `amplify-storage-utils` dependency
+(installed as a git reference). There is no separate `s3` optional extra
+in the current `pyproject.toml`; see `11-dependencies.md`.
 
 ## `dojo inspect dataset`
 
@@ -167,7 +168,8 @@ Training runs the dataset preflight checks listed in
   reference chain, tabular fusion.
 - `06-results-artifacts-and-metadata.md` — `source_extra_json` and
   `tabular_features_json` on `sample_metadata` rows.
-- `11-dependencies.md` — `ifcb` and `s3` optional extras.
+- `11-dependencies.md` — `ifcb` optional extra; S3 via the base
+  `amplify-storage-utils` dependency.
 - `12-validation-testing-and-preflight.md` — preflight checks.
 - `appendix-deferred-features.md` — WebDataset.
 - `glossary.md` — `split`, `sample_id`, dataset-backend vocabulary.

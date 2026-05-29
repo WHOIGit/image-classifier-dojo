@@ -24,6 +24,21 @@ tests.
 
 ## Deferred features
 
+### Aim logger sink
+
+- Config slot: `training_outputs.logging.sinks[].type: aim`.
+- Schema is present. Runtime is stubbed.
+- Rationale: for the foreseeable future the project records metrics and
+  figures **locally only** (the `local` sink). Aim was previously
+  planned as functional but is deferred; the `aim` dependency also has
+  no installable build on current Python (`aimrocks` ships no 3.13/3.14
+  wheel), which reinforces deferring the runtime.
+- Stub-test obligation: configure a training run with an Aim sink;
+  invoke training entry point; assert `NotImplementedError` naming
+  "Aim logger sink".
+- Extra: `aim` (commented out in `pyproject.toml` while undeliverable on
+  current Python).
+
 ### MLflow logger sink
 
 - Config slot: `training_outputs.logging.sinks[].type: mlflow`.
@@ -31,7 +46,8 @@ tests.
 - Stub-test obligation: configure a training run with an MLflow sink;
   invoke training entry point; assert `NotImplementedError` naming
   "MLflow logger sink".
-- Extra: `mlflow`.
+- Extra: `mlflow` — **not currently declared** in `pyproject.toml`;
+  re-add the extra when the runtime is unstubbed.
 
 ### Non-DINOv2 SSL methods
 
