@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "image_classifier_dojo"
-version = "0.2.2"
+version = "0.3.0.dev0"
 description = "Image-Classifier-Dojo model training package"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -41,21 +41,24 @@ homo = [
   "torchensemble~=0.2.0",
 ]
 
+[project.scripts]
+dojo = "dojo.cli.main:main"
+
 [tool.hatch.metadata]
 allow-direct-references = true
 
 [project.urls]
 Homepage = "https://github.com/WHOIGit/image_classifier_dojo"
 
-# Build only our 'src' code path
+
 [tool.hatch.build.targets.wheel]
-packages = ["src/dojo", "src/image_classifier_dojo"]
+packages = ["src/dojo"]
 
 # Keep sdist lean but include configs and scripts if you want them in source tarballs
 [tool.hatch.build.targets.sdist]
 include = [
   "pyproject.toml",
   "README.md",
-  "src/**",
+  "src/dojo",
+  "configs/",
 ]
-
