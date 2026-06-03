@@ -1,3 +1,4 @@
+
 # 13. Migration Plan
 
 ## Purpose
@@ -46,7 +47,7 @@ future head types.
    `03-configuration.md`).
 2. Add `config_schemas` (Pydantic) — the validated contract per
    `03-configuration.md`.
-3. Add Hydra ↔ `output_root` / `*_outputs` reconciliation defaults per
+3. Add Hydra & `output_root` / `*_outputs` reconciliation defaults per
    `09-sweeps-and-batch-runs.md`.
 4. Add `dojo inspect config` (replaces `dojo validate-config`).
 5. Add local / amplify storage resolver.

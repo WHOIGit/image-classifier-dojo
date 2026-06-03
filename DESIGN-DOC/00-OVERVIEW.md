@@ -1,3 +1,4 @@
+
 # Image Classifier Dojo — Refactor Design Doc
 
 ## Purpose
@@ -113,22 +114,22 @@ Appendices and reference:
 
 Bookmark these pairs:
 
-- `03-configuration.md` ↔ `06-results-artifacts-and-metadata.md` —
+- `03-configuration.md` & `06-results-artifacts-and-metadata.md` —
   `output_root`, the `*_outputs` blocks, and path templating connect
   to result writing and the artifact layout.
-- `06-results-artifacts-and-metadata.md` ↔ `08-ensembles.md` — cached
+- `06-results-artifacts-and-metadata.md` & `08-ensembles.md` — cached
   result files feed ensembles; ensemble result rows reuse the standard
   schema with `stage=ensemble_eval` and the `ensemble_member_id` union
   column.
-- `05-models-training-and-heads.md` ↔
+- `05-models-training-and-heads.md` &
   `07-ssl-and-representation-eval.md` — supervised training can
   schedule representation evaluation; representation eval also runs
   standalone against checkpoints from either task type.
-- `09-sweeps-and-batch-runs.md` ↔ `03-configuration.md` /
+- `09-sweeps-and-batch-runs.md` & `03-configuration.md` /
   `06-results-artifacts-and-metadata.md` / `08-ensembles.md` —
   `sweep_outputs:` schema; `sweep_id` provenance on result rows;
   sweeps that feed ensemble candidate discovery.
-- `12-validation-testing-and-preflight.md` ↔
+- `12-validation-testing-and-preflight.md` &
   `appendix-deferred-features.md` — each deferred-feature entry names
   the `NotImplementedError` test it owns.
 
