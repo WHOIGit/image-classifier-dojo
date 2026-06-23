@@ -21,10 +21,11 @@ reading) from extras gated by functional area.
 
 ## Base dependencies
 
-The two `amplify-*` packages and `ifcbkit` are hosted on the WHOIGit
+The two `amplify-*` packages are base dependencies hosted on the WHOIGit
 GitHub organization and installed as direct git references (unpinned,
-tracking the default branch); `allow-direct-references = true` is set in
-`pyproject.toml`.
+tracking the default branch). `ifcbkit` is also installed from a WHOIGit
+direct git reference, but only through the optional `ifcb` extra.
+`allow-direct-references = true` is set in `pyproject.toml`.
 
 ```toml
 dependencies = [
@@ -172,7 +173,8 @@ pip install -e .[all,dev]
 ## Cross-References
 
 - `01-goals-and-scope.md` — non-goals and deferred features.
-- `04-data-and-storage.md` — `ifcb` and `s3` extras.
+- `04-data-and-storage.md` — `ifcb` extra and S3 through the base
+  `amplify-storage-utils` dependency.
 - `05-models-training-and-heads.md` — `train` and `timm` extras.
 - `06-results-artifacts-and-metadata.md` — `aim`, `mlflow` extras.
 - `07-ssl-and-representation-eval.md` — `ssl` and `repr_eval` extras.
