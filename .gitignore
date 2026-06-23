@@ -23,3 +23,5 @@ sbatchs/
 logs/
 *.ckpt
 
+DESIGN-DOC-as-pdf.sh
+*.pdf
