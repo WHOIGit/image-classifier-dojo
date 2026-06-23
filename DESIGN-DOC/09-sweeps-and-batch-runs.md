@@ -317,18 +317,25 @@ active sweep.
       6. `config/sweep_values.txt` for sweep runs.
    2. For active sweeps, write sweep-level config artifacts under
       `sweep_outputs.dir/config/`, including:
-      1. sweep launcher / base config;
-      2. sweep axes and value lists;
-      3. finalized `sweep_id`;
-      4. `sweep_hash`;
-      5. generated run IDs and resolved per-run output dirs.
+      1. `sweep_base.yaml` — composed base config before per-run sweep
+         values;
+      2. `sweep_definition.yaml` — normalized `sweep.mode`, axes /
+         search params, conflict policy, finalized `sweep_id`, and
+         `sweep_hash`;
+      3. `sweep_manifest.json` — concrete run index containing generated
+         run IDs, config hashes, realized sweep values, resolved per-run
+         output dirs, and resolved per-run config artifact paths;
+      4. `cli.txt`;
+      5. `overrides.txt`.
 6. **Execute runs and sweep aggregation**
    1. Execute each concrete run.
    2. Result rows include `run_id`, `config_hash`, and related run
       provenance.
    3. Sweep-produced result rows also include `sweep_id` and
       `sweep_hash`.
-   4. After all sweep runs finish, execute configured
+   4. If `sweep_outputs.enabled: false`, stop after run execution; the
+      sweep happened, but sweep-level aggregation outputs are skipped.
+   5. After all sweep runs finish, execute configured
       `sweep_outputs` aggregation:
       1. collect per-run metrics / artifacts;
       2. write sweep-level metrics and figures;
@@ -339,15 +346,56 @@ active sweep.
 Peer to `training_outputs:` and `ensemble_outputs:`. Holds **sweep-level
 aggregation** outputs.
 
-Sub-blocks: `dir_template`, `export`, `metrics`, `figures`. There is
-**no** `results` sub-block — per-row data comes from the underlying
-per-job `training_outputs` / `ensemble_outputs`.
+Sub-blocks: `dir_template`, `enabled`, `collect`, `export`, `metrics`,
+`figures`. There is **no** `results` sub-block — per-row data comes from
+the underlying per-job `training_outputs` / `ensemble_outputs`.
+
+`sweep_outputs.enabled` defaults to `true`. When `false`, Dojo still
+expands and executes the sweep runs, but skips sweep-level collection,
+summary metrics, aggregate figures, and sweep exports.
+
+`sweep_outputs.collect` is a list of metric / artifact collection specs.
+Each item names what to collect from every concrete run and which
+per-run source to read. For metric specs, optional `mode` is `min` or
+`max` and controls sweep-level ranking / best-run selection for that
+collected metric:
+
+```yaml
+sweep_outputs:
+  collect:
+    - metric: val/species/macro_f1
+      source: best
+      mode: max
+```
+
+Initial `source` values:
+
+- `best` — collect the value associated with the run's best checkpoint.
+  By default this uses the run's `checkpointing.monitor` /
+  `checkpointing.mode`; an explicit collect `mode` may be supplied for
+  aggregation ranking.
+- `last` — collect the final recorded value for the run.
+- `all` — collect all recorded values for that metric across epochs /
+  steps, for trend plots or post-hoc summaries.
+
+Sweep aggregation does not discover runs by scanning directories. During
+sweep expansion, Dojo writes `sweep_outputs.dir/config/sweep_manifest.json`
+as the run index. The manifest records each concrete run's `run_id`,
+`config_hash`, realized sweep values, resolved `training_outputs.dir` /
+`ensemble_outputs.dir`, and resolved config artifact paths. Aggregation
+reads the manifest, then reads each run's `config/resolved.yaml` and
+metric artifacts from those recorded locations.
 
 Default on-disk sub-directories under the resolved `sweep_outputs.dir`:
 
 ```text
 sweep_outputs.dir/
   config/
+    sweep_base.yaml
+    sweep_definition.yaml
+    sweep_manifest.json
+    cli.txt
+    overrides.txt
   exports/
   metrics/
   figures/

@@ -70,6 +70,8 @@ ensemble_outputs:
 sweep_outputs:
   dir:
   dir_template:
+  enabled:
+  collect:
   export:
   metrics:
   figures:
@@ -233,6 +235,42 @@ physical directory at command startup. Later phases of the same command
 must not re-apply `overwrite` and delete artifacts the earlier phases just
 wrote.
 
+## Sweep output aggregation
+
+`sweep_outputs.enabled` controls sweep-level aggregation only. Default:
+`true`. When `false`, Dojo still expands and executes the sweep runs, but
+skips sweep-level collection, summary metrics, aggregate figures, and
+sweep exports.
+
+`sweep_outputs.collect` is a list of metric / artifact collection specs
+used by the sweep aggregator. Each item names the metric or artifact to
+collect from every concrete run and the per-run source to read. For
+metric specs, optional `mode` is `min` or `max` and controls sweep-level
+ranking / best-run selection for that collected metric:
+
+```yaml
+sweep_outputs:
+  enabled: true
+  collect:
+    - metric: val/species/macro_f1
+      source: best
+      mode: max
+```
+
+Initial `source` values:
+
+- `best` — collect the value associated with the run's best checkpoint.
+- `last` — collect the final recorded value for the run.
+- `all` — collect all recorded values for that metric across epochs /
+  steps.
+
+Sweep aggregation uses the persisted sweep manifest written during sweep
+expansion as its run index. The manifest records each concrete run's
+resolved output directories and resolved config artifact paths. The
+aggregator reads those per-run resolved configs and metric artifacts from
+the recorded locations rather than discovering runs by scanning
+directories.
+
 ## Run config artifacts
 
 Every run writes its resolved configuration into `config/` under the
@@ -274,6 +312,11 @@ training_outputs:
 
 sweep_outputs:
   dir_template: "{experiment.name}/sweep_results/{runtime.sweep_id}"
+  enabled: true
+  collect:
+    - metric: val/species/macro_f1
+      source: best
+      mode: max
 ```
 
 ## Cross-References

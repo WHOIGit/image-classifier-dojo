@@ -501,6 +501,11 @@ ensemble_outputs.dir/
 
 sweep_outputs.dir/
   config/
+    sweep_base.yaml
+    sweep_definition.yaml
+    sweep_manifest.json
+    cli.txt
+    overrides.txt
   exports/
   metrics/
   figures/
