@@ -104,8 +104,9 @@ tests.
 
 - Initial sweeps are Hydra multirun (grid / explicit value lists). See
   `09-sweeps-and-batch-runs.md`.
-- Stub-test obligation: configure a Bayesian / Optuna-style sweep
-  selector; invoke; assert `NotImplementedError`.
+- Config slot: `sweep.mode: bayesian` with `sweep.bayesian`.
+- Stub-test obligation: configure a Bayesian / Optuna-style sweep;
+  invoke; assert `NotImplementedError`.
 
 ### HDF / HDF5 derived result exports
 

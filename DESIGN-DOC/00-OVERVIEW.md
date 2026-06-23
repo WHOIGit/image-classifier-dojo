@@ -36,6 +36,10 @@ regression / ordinal / SSL models. Key shape:
   explicit candidate discovery, candidate manifests, supported selection
   strategies, and combine modes. Snapshot ensembles share a run
   directory with their training step.
+- **Sweeps** normalize into a top-level `sweep:` block. Functional
+  `mode: grid` supports ordinary hyperparameter sweeps and
+  batch-run-style seed sweeps; `mode: bayesian` is a deferred schema
+  slot.
 - **Lightweight base install + extras.** Base install supports config /
   schema / storage / result reading without Torch.
 
@@ -83,9 +87,10 @@ Read in order:
 - [08. Ensembles](08-ensembles.md) — prediction-space ensembling;
   candidate discovery; manifests; selection strategies; combine modes;
   `ensemble_outputs:` layout; snapshot-ensemble integration.
-- [09. Sweeps and Batch Runs](09-sweeps-and-batch-runs.md) — Hydra
-  multirun; `sweep_outputs:` block; sweep-id provenance; sweeps as
-  candidate-source feeders.
+- [09. Sweeps and Batch Runs](09-sweeps-and-batch-runs.md) — top-level
+  `sweep:` block; grid sweeps; batch-run-style seed sweeps; deferred
+  Bayesian schema; `sweep_outputs:` block; sweep-id provenance; sweeps
+  as candidate-source feeders.
 - [10. Export](10-export.md) — TorchScript and ONNX exports;
   `*_outputs.export` sub-blocks; `dojo export` command; export
   metadata; bucket-aware ONNX.

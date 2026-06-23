@@ -85,10 +85,29 @@ both exist.
   Top-level training config blocks.
 - **`ensemble`** — Ensemble selection/combine/candidate config for the
   `dojo ensemble` family and `task.type: snapshot_ensemble`.
+- **`sweep`** — Sweep-generation config. `sweep.mode: grid` is
+  functional; `sweep.mode: bayesian` is a deferred schema slot. Sweep
+  axes normalize into this block before concrete runs are expanded.
 - **`output_root`** — Single filepath string used as the base for rendered
   `*_outputs.dir_template` values and bare-relative `*_outputs.dir` values.
 - **`training_outputs`**, **`ensemble_outputs`**, **`sweep_outputs`** — Peer
   output-config blocks (see `03-configuration.md`).
+
+## Sweep terminology
+
+- **Grid sweep** — A sweep with `sweep.mode: grid`, where each entry in
+  `sweep.grid` maps a target config path to a YAML list of values. The
+  concrete runs are the cartesian product of those lists.
+- **Batch run** — A batch-run-style grid sweep where the only intentional
+  run-varying parameter is `runtime.seed`. Used to measure sensitivity
+  to random initialization, data order, and other seeded behavior while
+  holding model / training settings fixed.
+- **Bayesian sweep** — A deferred `sweep.mode: bayesian` schema slot for
+  search engines such as Optuna. Runtime support is stubbed in the
+  initial implementation.
+- **`sweep.active_run`** — Generated resolved-config metadata for one
+  concrete run in a sweep. It records the realized sweep-axis values for
+  that run and is not written in source configs.
 
 ## Path resolution
 
@@ -103,7 +122,7 @@ For any `dir` key:
 
 `dir_template` uses Dojo-owned Python-style template syntax:
 `{experiment.name}`, `{runtime.run_id}`, `{model.backbone.name:slug}`,
-`{training.batch_size:03}`. Rendered after config composition, validation,
+`{training.batch_size:03}`. Resolved after config composition, validation,
 and runtime-value generation.
 
 ## Result taxonomy

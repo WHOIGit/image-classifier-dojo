@@ -44,6 +44,8 @@ checkpointing:
 
 ensemble:
 
+sweep:
+
 output_root:
 
 training_outputs:
@@ -90,6 +92,9 @@ Notes:
   `dojo ensemble candidates` do not.
 - `ensemble` is the algorithmic block (selection / combine / candidate
   config); `ensemble_outputs` is the corresponding output block.
+- `sweep` is the algorithmic block for sweep generation / search
+  (`mode: grid` or deferred `mode: bayesian`); `sweep_outputs` is the
+  corresponding sweep-level aggregation output block.
 
 ## Minimal supervised example
 
@@ -177,8 +182,8 @@ training_outputs:
 `*_outputs.dir` values.
 
 Each `*_outputs` block has its own concrete `dir` or `dir_template`. When
-`dir_template` is used, the rendered template is joined under
-`output_root` to produce the resolved `*_outputs.dir`.
+`dir_template` is used, the template resolves to the corresponding
+`*_outputs.dir` value under `output_root`.
 
 For any `dir` key (top-level or sub-block):
 
@@ -198,9 +203,11 @@ Dojo-owned Python-style template tokens:
 - `{model.backbone.name:slug}`
 - `{training.batch_size:03}`
 
-Templates are rendered **after** config composition, validation, and
+Templates resolve **after** config composition, validation, and
 runtime-value generation (so generated `run_id` / `sweep_id` values are
 available). Prefer this syntax over OmegaConf `${...}` for output paths.
+See `09-sweeps-and-batch-runs.md` for the unified runtime ID and output
+resolution order.
 
 ### Snapshot ensemble directory sharing
 
@@ -278,5 +285,6 @@ sweep_outputs:
   `training:`, `optimizer:`, `scheduler:`, `checkpointing:`, `objectives:`.
 - `07-ssl-and-representation-eval.md` — `ssl:` and `representation_eval:`.
 - `08-ensembles.md` — `ensemble:` and `ensemble_outputs:`.
-- `09-sweeps-and-batch-runs.md` — `sweep_outputs:` and Hydra integration.
+- `09-sweeps-and-batch-runs.md` — `sweep:`, `sweep_outputs:`, and Hydra
+  integration.
 - `glossary.md` — config-key vocabulary.

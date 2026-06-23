@@ -50,7 +50,9 @@ configs/
       representation_eval_standalone.yaml
     hydra_sweeps/
       grid_lr_wd.yaml
+      batch_seed_5.yaml
       ensemble_axis_sweep.yaml
+      bayesian_optuna_stub.yaml
       
   data/
     csv_local.yaml
@@ -122,6 +124,12 @@ configs/
     local_only.yaml
     s3.yaml
 
+  sweep/
+    disabled.yaml
+    grid.yaml
+    batch_seed_5.yaml              # grid sweep over runtime.seed only
+    bayesian_optuna_stub.yaml      # schema present; runtime stubbed
+
   training_outputs/
     default.yaml
     sweep_aware.yaml
@@ -192,6 +200,7 @@ src/dojo/
     ssl.py
     representation_eval.py
     ensemble.py
+    sweep.py
     outputs.py                 # training_outputs, ensemble_outputs, sweep_outputs
     logging.py
     export.py
