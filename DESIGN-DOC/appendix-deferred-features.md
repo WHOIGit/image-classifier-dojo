@@ -116,37 +116,6 @@ tests.
   `*_outputs.export` block; assert `NotImplementedError` naming
   "HDF result exports".
 
-### `improv` export / integration
-
-- Initial canonical result schemas remain compatible with `improv`
-  concepts in spirit (tall Parquet, per-row provenance), but the
-  `improv` integration / export path is deferred.
-- Stub-test obligation: configure an `improv` export target; assert
-  `NotImplementedError`.
-
-### Generic multimodal / multibranch fusion
-
-- Out of scope outside the supported `model.tabular.fusion` (initially
-  `concat` / `concat_mlp`).
-- Stub-test obligation: configure a fusion module outside
-  `model.tabular.fusion`; assert `NotImplementedError`.
-
-### Prefect flows
-
-- Not a core dependency. External orchestration is supported by
-  returning structured results from Python entry points (see
-  `01-goals-and-scope.md`). Prefect flow integrations are out of scope.
-- No runtime stub test needed; this is an architectural non-goal.
-
-### Inception-style auxiliary-logit handling
-
-- Inception is a special case. The initial implementation does not
-  overfit the generic backbone path to Inception aux-logit behavior.
-  Basic feature extraction is acceptable.
-- Stub-test obligation: only if a config explicitly enables
-  Inception-aux-logit-aware training behavior; otherwise, no stub test
-  is required.
-
 ## Cross-References
 
 - `01-goals-and-scope.md` — scope and non-goals.

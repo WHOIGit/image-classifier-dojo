@@ -497,7 +497,8 @@ dojo ensemble candidates \
   ensemble_outputs.manifests.dir=./shared_manifests
 dojo ensemble \
   experiment=ifcb/post_sweep_ensemble \
-  ensemble.candidates.manifest_uri=./shared_manifests/ifcb_post_sweep_candidates.json
+  ensemble.candidates.sources.0.type=manifest \
+  ensemble.candidates.sources.0.manifest_uri=./shared_manifests/ifcb_post_sweep_candidates.json
 ```
 
 This is the supported pattern for "use a sweep's outputs as ensemble

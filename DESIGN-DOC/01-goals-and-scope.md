@@ -49,10 +49,7 @@ explain how each goal is satisfied; this file just names them.
 - Porting `torchensemble`'s Bagging / Boosting / Fusion / Adversarial /
   FastGeometric strategies.
 - Cross-run ensembling as a distinct algorithm type (it is just
-  `dojo ensemble` with `run_checkpoints` candidate sources).
-- Generic multimodal / multibranch fusion outside `model.tabular.fusion`.
-- Prefect-style orchestration as a core dependency.
-- Inception-style auxiliary-logit handling in the generic backbone path.
+  `dojo ensemble` with explicit candidate sources).
 
 ## Deferred-feature backlog
 
@@ -77,24 +74,20 @@ See `appendix-deferred-features.md` and
   mechanism**; cross-run ensembling itself is functional via explicit
   candidate sources).
 - HDF / HDF5 derived result exports.
-- `improv` export integration.
-- Generic multimodal fusion outside `model.tabular.fusion`.
 
-## Migration framing
+## Workplan framing
 
 Use **"initial implementation"**, **"deferred-feature backlog"**, and
-**"migration plan"** language consistently. Do not use "phase 1",
-"first refactor phase", or "post-Phase-8" except in the migration plan
-when explicitly describing old wording being removed
-(`13-migration-plan.md`).
+**"workplan"** language consistently. Do not use "phase 1", "first
+refactor phase", or "post-Phase-8".
 
 ## Cross-References
 
 - `02-cli-and-task-types.md` — canonical CLI surface.
 - `03-configuration.md` — canonical config tree.
 - `11-dependencies.md` — base + extras layout.
-- `13-migration-plan.md` — porting strategy from
-  `src/dojo_deprecated/`.
+- `13-workplan.md` — priority order for the new `src/dojo`
+  implementation.
 - `appendix-deferred-features.md` — deferred features with their
   stub-test obligations.
 - `glossary.md` — terminology.

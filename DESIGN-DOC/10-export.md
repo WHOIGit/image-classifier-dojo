@@ -143,5 +143,4 @@ training and ensemble phases; per-artifact `name` values disambiguate.
   `model_id` / `model_hash`, compatibility-hash field selection.
 - `08-ensembles.md` — exported ensemble artifacts.
 - `11-dependencies.md` — `onnx` optional extra.
-- `appendix-deferred-features.md` — `improv` export integration.
 - `glossary.md` — `model_id`, `model_hash` definitions.

@@ -105,6 +105,8 @@ deleted and replaced with real functional tests.
 - Broad automatic registry-based cross-run candidate discovery.
 - `prediction_trimmed_mean`.
 - WebDataset dataset backend.
+- Bayesian / AutoML HPO (`sweep.mode: bayesian`).
+- HDF / HDF5 result exports.
 
 See `appendix-deferred-features.md` for the full list with stub-test
 obligations.

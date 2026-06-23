@@ -92,8 +92,8 @@ where the experiment config sets `task.type: snapshot_ensemble`.
 
 **Re-running ensembling against a historical training run is not a
 `task.type: snapshot_ensemble` invocation.** It is a regular
-`dojo ensemble` invocation with a `run_checkpoints` candidate source
-pointing at the historical run directory.
+`dojo ensemble` invocation with a `run_dir` or `run_dir_glob` candidate
+source pointing at the historical run directory.
 
 Example `task.type: snapshot_ensemble` config:
 
@@ -218,7 +218,8 @@ the initial implementation; that functionality lives inside
   command. Does not initialize experiment logging.
 
 Cross-run ensembling is not a distinct mode — it works via `dojo
-ensemble` with `run_checkpoints` candidate sources. See `08-ensembles.md`.
+ensemble` with explicit candidate sources such as `run_dir` and
+`run_dir_glob`. See `08-ensembles.md`.
 
 ## `dojo export`
 
@@ -236,7 +237,10 @@ dojo train experiment=ifcb/species_baseline
 dojo infer embeddings experiment=ifcb/species_baseline checkpoint=./runs/baseline/checkpoints/best.ckpt
 dojo eval representation experiment=ifcb/dinov2_repr_eval
 dojo ensemble candidates experiment=ifcb/ensemble_candidates ensemble_outputs.manifests.dir=./shared_manifests
-dojo ensemble experiment=ifcb/ensemble_search ensemble.candidates.manifest_uri=./shared_manifests/ifcb_candidates.json
+dojo ensemble \
+  experiment=ifcb/ensemble_search \
+  ensemble.candidates.sources.0.type=manifest \
+  ensemble.candidates.sources.0.manifest_uri=./shared_manifests/ifcb_candidates.json
 ```
 
 ## Cross-References

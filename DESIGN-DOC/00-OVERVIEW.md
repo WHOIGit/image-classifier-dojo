@@ -56,7 +56,7 @@ regression / ordinal / SSL models. Key shape:
 - Use `ifcbkit` for IFCB raw-bin handling.
 - Make embeddings first-class.
 - Optimize for external orchestration — entry points return structured
-  results; no Prefect dependency in core.
+  results.
 
 ## File map
 
@@ -102,8 +102,8 @@ Read in order:
 - [12. Validation, Testing, and Preflight](12-validation-testing-and-preflight.md)
   — layered validation; `runtime.preflight` controls; stub-test policy
   for deferred features; test scope by area; fixture tiers.
-- [13. Migration Plan](13-migration-plan.md) — incremental porting from
-  `src/dojo_deprecated/`; term replacements; deferred-feature backlog.
+- [13. Workplan](13-workplan.md) — priority order for the new
+  `src/dojo` implementation; thin-slice gate; deferred runtime stubs.
 
 Appendices and reference:
 

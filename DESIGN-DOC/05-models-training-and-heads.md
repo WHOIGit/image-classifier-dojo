@@ -120,9 +120,6 @@ while the backbone is still selected through `torchvision`, `timm`, or
 `checkpoint`. DINOv2 (Lightly) is allowed to use timm ViT backbones
 internally and through the public `source: timm` selector.
 
-Inception-style auxiliary-logit handling is out of scope for the generic
-backbone path — see `appendix-deferred-features.md`.
-
 ### Examples
 
 Torchvision:
@@ -261,8 +258,7 @@ model:
 ```
 
 `model.tabular.fusion` is the nested key — there is no top-level
-`model.fusion`. Initial fusion type: `concat` / `concat_mlp`. More
-complex fusion lives in the deferred backlog.
+`model.fusion`. Initial fusion type: `concat` / `concat_mlp`.
 
 Model flow:
 

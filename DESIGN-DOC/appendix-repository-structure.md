@@ -25,7 +25,7 @@ image-classifier-dojo/
 
   configs/
   src/dojo/
-  src/dojo_deprecated/       # during migration only; deleted at end
+  src/dojo_deprecated/       # reference during refactor; deleted at end
   tests/
   DESIGN-DOC/
   REFACTOR-DESIGN-DOC.md     # historical; superseded by DESIGN-DOC/
@@ -451,10 +451,10 @@ src/dojo/
 
 ## `src/dojo_deprecated/`
 
-The pre-refactor package, moved verbatim during Step 1 of the migration
-(see `13-migration-plan.md`). Importable for reference during the port,
-deleted once Tier 1 CI is green on the new package. No new code added
-here.
+The pre-refactor package, already moved out of the new `src/dojo` path.
+Importable for reference during the clean-break refactor, deleted once
+Tier 1 CI is green on the new package and no imports remain. No new code
+added here.
 
 ## `tests/`
 
@@ -602,6 +602,5 @@ supervised task).
   `tasks/ssl/`, IFCB, etc.
 - `12-validation-testing-and-preflight.md` — `runtime/preflight.py` and
   the `tests/` tree.
-- `13-migration-plan.md` — order of operations for populating this tree
-  from `src/dojo_deprecated/`.
+- `13-workplan.md` — priority order for populating this tree.
 - `appendix-deferred-features.md` — modules deliberately absent.
