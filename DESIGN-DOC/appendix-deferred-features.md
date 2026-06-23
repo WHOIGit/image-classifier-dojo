@@ -86,8 +86,8 @@ tests.
 
 - Broad automatic registry-based cross-run candidate discovery.
 - Note: cross-run ensembling itself is **functional** via explicit
-  candidate sources (`run_checkpoints`, run-directory globs, result-URI
-  globs, pre-built manifests). Only the registry-driven discovery is
+  candidate sources (`explicit`, `run_dir_glob`, `checkpoint_glob`,
+  `result_uri_glob`, `manifest`). Only the registry-driven discovery is
   deferred. The term "cross-run ensemble" is no longer used as a
   distinct mode (see `08-ensembles.md`).
 - Stub-test obligation: configure a registry-type candidate source;

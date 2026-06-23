@@ -39,22 +39,24 @@ strategies are not ported.
 - `dojo ensemble candidates` — artifact-inspection / manifest-writing
   command. Does not initialize experiment logging.
 
-Cross-run ensembling works via `dojo ensemble` with `run_checkpoints`
-candidate sources. Snapshot ensembling against a brand-new training run
-is `task.type: snapshot_ensemble` (see `02-cli-and-task-types.md`).
-Re-running ensembling against a historical training run is a plain
-`dojo ensemble` invocation with a `run_checkpoints` source pointing at
-that run directory.
+Cross-run ensembling works via `dojo ensemble` with `run_dir_glob` or
+explicit `run_dir` candidates. Snapshot ensembling against a brand-new
+training run is `task.type: snapshot_ensemble` (see
+`02-cli-and-task-types.md`). Re-running ensembling against a historical
+training run is a plain `dojo ensemble` invocation with a `run_dir`
+candidate, or a `run_dir_glob` source that matches one or more run
+directories.
 
 ## Candidate discovery
 
-Candidate discovery in the initial implementation is **limited to
-explicit sources**:
+Candidate discovery in the initial implementation is **limited to these
+explicit source types**:
 
-- explicit artifact lists;
-- run-directory globs;
-- result-URI globs;
-- pre-built candidate manifests.
+- `explicit` — inline candidate list.
+- `run_dir_glob` — Dojo training-run directories.
+- `checkpoint_glob` — raw checkpoint files.
+- `result_uri_glob` — cached result / prediction directories.
+- `manifest` — pre-built candidate manifest.
 
 Broad automatic registry-based cross-run discovery is deferred — see
 `appendix-deferred-features.md`.
@@ -69,12 +71,36 @@ dojo ensemble candidates experiment=ifcb/candidate_search \
   ensemble_outputs.manifests.dir=./shared_manifests
 ```
 
-### Candidate types
+### Candidate source types and artifact kinds
 
-Member sources may be `.ckpt` files, exported `.pt` / `.onnx` models,
-run-directory references, or pre-discovered manifest entries. Each
-member-level row carries an `ensemble_member_id` union column equal to
-the member's `checkpoint_hash` (checkpoint member) or `model_id`
+`sources[].type` says how Dojo discovers candidates. Candidate `kind`
+says what artifact each discovered candidate represents.
+
+Canonical source enum:
+
+```text
+explicit
+run_dir_glob
+checkpoint_glob
+result_uri_glob
+manifest
+```
+
+Candidate artifact kinds:
+
+- `run_dir` — Dojo training-run directory. Preferred for normal
+  historical-run ensembling because Dojo can read resolved config,
+  checkpoint metadata, validation metrics, and cached result artifacts.
+- `checkpoint` — raw model checkpoint file. Requires enough config
+  metadata to rebuild the model; Dojo may need to run validation /
+  inference to produce comparable per-model metrics.
+- `result_uri` — cached predictions / result rows. Useful when model
+  files are unavailable or inference should not be rerun.
+- `exported_model` — portable `.pt` / `.onnx` export with enough config
+  metadata to run inference if needed.
+
+Each member-level row carries an `ensemble_member_id` union column equal
+to the member's `checkpoint_hash` (checkpoint member) or `model_id`
 (exported model member). See `06-results-artifacts-and-metadata.md`.
 
 ### Discovery example
@@ -85,10 +111,25 @@ ensemble:
     sources:
       - type: run_dir_glob
         uri_glob: s3://dojo-runs/ifcb_species/*/
+      - type: checkpoint_glob
+        uri_glob: ./checkpoints/*.ckpt
+        config_uri: ./configs/ensemble_member_base.yaml
+      - type: result_uri_glob
+        uri_glob: ./cached_predictions/*/results/
+      - type: manifest
+        manifest_uri: ./shared_manifests/ifcb_candidates.json
       - type: explicit
-        artifacts:
-          - run_dir: ./runs/resnet50_a
-          - result_uri: ./runs/convnext_b/results
+        candidates:
+          - kind: run_dir
+            uri: ./runs/resnet50_a
+          - kind: checkpoint
+            uri: ./checkpoints/convnext_b.ckpt
+            config_uri: ./configs/convnext_b.yaml
+          - kind: result_uri
+            uri: ./runs/convnext_b/results
+          - kind: exported_model
+            uri: ./exports/efficientnet_d/model.pt
+            config_uri: ./exports/efficientnet_d/config/resolved.yaml
     metadata_resolution:
       policy: cascade
       order:
@@ -104,6 +145,38 @@ ensemble:
     dataset_id: ifcb_species_v4   # use dataset_hash when dataset does not self-name
   source_policy: inference_as_needed
 ```
+
+### Metadata resolution
+
+Candidate source type controls discovery. `metadata_resolution` controls
+where Dojo reads candidate metadata after candidates are discovered.
+Metadata includes target schema, class mapping, preprocessing /
+transform config, model config, dataset identity, checkpoint provenance,
+and cached-result provenance.
+
+Initial `metadata_resolution.policy` values:
+
+- `cascade` — read metadata sources in `order` and use the first
+  available authoritative value for each field. **Default.**
+- `strict` — require all configured / available metadata sources for a
+  candidate to agree on compatibility-critical fields.
+
+Initial metadata source names:
+
+- `resolved_config` — Dojo `config/resolved.yaml` or `resolved.json`
+  from a run directory or explicit `config_uri`.
+- `result_metadata` — metadata stored alongside cached result /
+  prediction files.
+- `checkpoint` — metadata embedded in or adjacent to a `.ckpt` member.
+- `exported_model` — metadata embedded in or adjacent to a portable
+  `.pt` / `.onnx` export.
+
+`drift_check` is a validation pass, not a discovery mechanism. When
+enabled, Dojo compares the listed metadata sources if more than one is
+available for a candidate. Any mismatch in compatibility-critical fields
+is reported according to the policy; for the initial implementation,
+drift in target schema, class mapping, preprocessing, or model-output
+shape is an error.
 
 ## Compatibility
 
@@ -310,7 +383,9 @@ Notes and limitations:
 ```yaml
 ensemble:
   candidates:
-    manifest_uri: ./shared_manifests/ifcb_candidates.json
+    sources:
+      - type: manifest
+        manifest_uri: ./shared_manifests/ifcb_candidates.json
   target:
     split: holdout
   source_policy: strict_no_inference
