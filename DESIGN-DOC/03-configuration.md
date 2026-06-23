@@ -142,6 +142,8 @@ model:
       type: multiclass_classification
       target: species
       num_classes: 42
+      network:
+        type: linear
 
 objectives:
   species:

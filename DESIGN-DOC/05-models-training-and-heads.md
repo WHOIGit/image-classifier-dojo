@@ -305,13 +305,19 @@ multiclass) is not ported. Multi-head multiclass uses one
 `multiclass_classification` head per target. The old module is preserved
 under `dojo_deprecated` for reference.
 
-### Required head fields
+### Required head fields and network defaults
+
+Authored configs must provide:
 
 ```text
 type               # one of the head types above
 target             # logical data target key from data.targets
-network            # head sub-network spec (e.g. {type: linear})
 ```
+
+`network` is optional in authored configs. If omitted, config
+compilation injects the head type's default network spec. Resolved
+configs, saved config artifacts, and runtime objects always include
+`network`.
 
 Type-specific required fields:
 
@@ -331,6 +337,40 @@ distributional_regression:
 count_regression:
   output_dim     (default: 1)
 ```
+
+Initial supported head network types:
+
+| Head type | Allowed `network.type` | Default `network.type` |
+| --- | --- | --- |
+| `multiclass_classification` | `linear`, `mlp` | `linear` |
+| `binary_classification` | `linear`, `mlp` | `linear` |
+| `multilabel_classification` | `linear`, `mlp` | `linear` |
+| `regression` | `linear`, `mlp` | `linear` |
+| `ordinal_classification` | `linear`, `mlp` | `linear` |
+| `distributional_regression` | `linear`, `mlp` | `linear` |
+| `count_regression` | `linear`, `mlp` | `linear` |
+
+`network.type: linear` means there are no hidden layers between the
+head input embedding and the final head-specific projection. The head
+type still determines output shape and interpretation: classification
+heads emit logits, regression heads emit continuous values,
+ordinal heads emit ordinal logits / bins, distributional regression
+heads emit distribution parameters, and count regression heads emit
+count/rate parameters.
+
+`network.type: mlp` adds "MultiLayer Perceptron" hidden layers before the same head-specific
+final projection. Initial MLP head-network config:
+
+```yaml
+network:
+  type: mlp
+  hidden_dims: [512]      # required; one or more hidden layer widths
+  activation: gelu        # default: gelu
+  dropout: 0.0            # default: 0.0
+```
+
+Head MLP networks do not set `output_dim`; the head type and its
+type-specific fields determine the final projection size.
 
 Pydantic validation ensures the resolved `target` exists in
 `data.targets` and has a compatible dtype.
@@ -370,6 +410,7 @@ model:
     species:
       type: multiclass_classification
       target: species
+      num_classes: 42
       network:
         type: linear
 

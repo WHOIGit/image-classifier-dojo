@@ -173,7 +173,7 @@ Three tiers:
   deterministic data used by unit and integration tests. Parquet
   manifests with **image bytes inlined** (`parquet_images` mode).
   Tracked via git LFS. Fixture parquet content is added separately,
-  pending owner approval; this design doc only specifies the format
+  by the developer; this design doc only specifies the format
   and pipeline.
 - **Tier 2 — local development fixture.** Not committed. Lives at
   `/home/sbatchelder/Projects/ifcbNN/datasets/miniset/` or similar;
