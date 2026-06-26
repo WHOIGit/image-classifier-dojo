@@ -80,7 +80,11 @@ target → head → objective reference chain. Per-target fields:
   `ordinal_classification`, etc.).
 - `class_names` — optional URI to a class-label JSON.
 - `missing_policy` — `error` (default), `drop_sample`, etc.
-- `transform` — optional target transform (e.g. `log1p` for regression).
+- `transform` — optional target transform for regression / ordinal targets
+  (e.g. `log1p`, `log1p_standardize`). Authored as the functional form;
+  resolved configs add any fitted statistics (e.g. standardize mean / std)
+  frozen at fit time. This is the single home for target transforms —
+  objectives carry none.
 
 ## IFCB bins
 

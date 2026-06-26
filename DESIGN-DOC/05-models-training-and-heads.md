@@ -558,7 +558,7 @@ data:
     biovolume:
       column: biovolume_um3
       type: regression
-      transform: log1p
+      transform: log1p_standardize
       missing_policy: drop_sample
 
 model:
@@ -610,8 +610,6 @@ objectives:
     loss:
       type: huber
       delta: 1.0
-    target_transform:
-      type: log1p_standardize
     metrics: [mae, rmse, r2]
     weight: 0.25
 ```
@@ -633,6 +631,16 @@ Common transforms (regression / ordinal heads): `identity`, `standardize`,
 `log1p`, `log1p_standardize`, `power` / Box-Cox / Yeo-Johnson. See
 `06-results-artifacts-and-metadata.md` for the external vs. internal
 column convention.
+
+Target transforms are configured once, on the data target
+(`data.targets.<t>.transform`) — not on the objective. The functional form
+is authored; config compilation freezes any fitted statistics (standardize
+mean / std, Box-Cox λ) into the resolved transform — the same
+authored-vs-resolved pattern used for normalization and imputation stats.
+The inverse is applied to predictions at inference to recover external
+units, so the resolved transform must survive without an `objectives`
+block: it is carried in export metadata and contributes to
+`target_schema_hash` by value.
 
 ### Total loss
 
