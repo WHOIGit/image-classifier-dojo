@@ -189,14 +189,16 @@ Tier 1 — image headers only (`imagesize` / lazy open, no pixel decode):
 
 | Flag | Computes | Kind |
 |---|---|---|
-| `--bucket-histogram` | aspect-ratio + long-side distribution; suggested bucket boundaries | advisory |
+| `--dimensions` | per-sample native width / height (→ aspect ratio, long side), cached as the primitive for bucket design and assignment | frozen (structural) |
+| `--bucket-histogram` | aspect-ratio + long-side distribution; suggested bucket boundaries — derived from cached `--dimensions` (reads headers only if absent) | advisory |
 | `--bit-depth` | resolve `input_bit_depth`; flag heterogeneous depths | frozen value + advisory warning |
 
-Tier 2 — full pixel decode (opt-in, expensive):
+Tier 2 — full pixel decode / full byte read (opt-in, expensive):
 
 | Flag | Computes | Kind |
 |---|---|---|
 | `--normalization` | per-channel mean / std (streaming) for `normalize: {mode: dataset}` | frozen |
+| `--content-hash` | true `dataset_content_hash` over all image bytes; folds into any full pass for free (see `04-data-and-storage.md`) | frozen (verification) |
 
 Backend-specific:
 
@@ -218,6 +220,12 @@ Compound and control flags:
 - `--sample N|FRACTION` — estimate from a subsample. Permitted for advisory
   aspects; for frozen aspects it marks the result `estimated: true` so a
   sampled statistic is never silently frozen into the contract.
+- `--format text|chart|json` — advisory output rendering. `chart` (default
+  in an interactive terminal) draws in-terminal bar charts / histograms for
+  distributions (`--bucket-histogram`, `--class-counts`, `--imbalance`,
+  target / tabular distributions); `text` is plain tabular; `json` is
+  machine-readable. Frozen values are always written to the cache
+  regardless of `--format`.
 - `output=PATH` — write a canonical manifest (incl. `class_folder` scan).
 
 When tiers stack (e.g. `--normalization --bit-depth --bucket-histogram`),

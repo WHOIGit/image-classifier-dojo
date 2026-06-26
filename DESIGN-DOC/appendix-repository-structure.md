@@ -67,7 +67,7 @@ configs/
   transforms/
     supervised_default.yaml
     letterbox_square.yaml
-    bucketed_aspect_size.yaml
+    aspect_bucket.yaml
     ssl_dino_v2_plankton.yaml
 
   backbone/
@@ -240,7 +240,6 @@ src/dojo/
       builder.py
       letterbox.py
       aspect_bucket.py
-      size_bucket.py
       foreground_crop.py
       grayscale.py
       normalization.py
@@ -253,7 +252,7 @@ src/dojo/
       __init__.py
       factory.py
       class_balanced.py
-      aspect_bucket.py
+      batch_aspect_buckets.py
       weighted.py
 
     manifests/                  # dataset manifest IO + dojo inspect dataset
@@ -397,7 +396,7 @@ src/dojo/
     torchscript.py
     onnx.py
     metadata.py
-    bucketing.py                 # ONNX + aspect/size buckets
+    bucketing.py                 # ONNX + aspect_bucket shapes
 
   results/
     __init__.py

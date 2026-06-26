@@ -61,6 +61,8 @@ ensemble_outputs:
   dir:
   dir_template:
   results:
+    member_results:
+      mode:
   export:
   metrics:
   figures:
@@ -94,6 +96,9 @@ Notes:
   `dojo ensemble candidates` do not.
 - `ensemble` is the algorithmic block (selection / combine / candidate
   config); `ensemble_outputs` is the corresponding output block.
+- `ensemble_outputs.results.member_results.mode` controls whether selected
+  member prediction rows are materialized into `ensemble_results/`; the
+  ensemble manifest is written regardless.
 - `sweep` is the algorithmic block for sweep generation / search
   (`mode: grid` or deferred `mode: bayesian`); `sweep_outputs` is the
   corresponding sweep-level aggregation output block.
@@ -204,6 +209,8 @@ Dojo-owned Python-style template tokens:
 
 - `{experiment.name}`
 - `{runtime.run_id}`
+- `{runtime.sweep_id}`
+- `{ensemble_id}`
 - `{model.backbone.name:slug}`
 - `{training.batch_size:03}`
 
@@ -212,6 +219,13 @@ runtime-value generation (so generated `run_id` / `sweep_id` values are
 available). Prefer this syntax over OmegaConf `${...}` for output paths.
 See `09-sweeps-and-batch-runs.md` for the unified runtime ID and output
 resolution order.
+
+For ensemble runs that use `{ensemble_id}`,
+`ensemble_outputs.dir_template` resolves after candidate discovery,
+compatibility validation, selection, and selected-ensemble identity
+generation. The discovered candidate audit and selected member list are
+execution artifacts recorded in the ensemble manifest, not authored-config
+entries.
 
 ### Snapshot ensemble directory sharing
 

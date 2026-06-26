@@ -45,7 +45,7 @@ explain how each goal is satisfied; this file just names them.
 
 - Maintaining backward compatibility with old listfile dataset formats.
 - Porting the old `multilabel` module (it was multi-head multiclass, not
-  true multilabel).
+  multilabel).
 - Porting `torchensemble`'s Bagging / Boosting / Fusion / Adversarial /
   FastGeometric strategies.
 - Cross-run ensembling as a distinct algorithm type (it is just

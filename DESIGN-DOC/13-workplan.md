@@ -77,9 +77,10 @@ sweeps are layered on top.
 - Preflight checks: `empty_train_classes`,
   `non_contiguous_class_indices`, `imbalance_ratio_gt`.
 - `dojo inspect dataset` aspect flags (tiered manifest / header / decode
-  passes) and the `dataset_hash`-keyed stats cache producing the frozen
-  normalization / tabular / target / class-count / bit-depth / bin-length
-  values consumed at config resolution.
+  passes, terminal chart rendering) and the `dataset_hash`-keyed stats cache
+  producing the frozen normalization / tabular / target / class-count /
+  bit-depth / dimension / bin-length values consumed at config resolution,
+  plus the separate `dataset_content_hash` on full passes.
 
 ### P2.3 Model composition
 
@@ -99,6 +100,9 @@ sweeps are layered on top.
 - Per-step `train_only` flag and the derived, resolved-only
   `inference_pipeline` consumed by non-train stages, export, and
   `preprocessing_hash`.
+- `aspect_bucket` assignment as a working-manifest `aspect_bucket` column
+  (derived from cached dimensions × scheme) and the `batch_aspect_buckets`
+  bucket-aware sampler yielding size-homogeneous batches.
 - Record scale metadata columns.
 
 ### P2.5 Results hardening
@@ -129,9 +133,6 @@ Needed for downstream serving and for ensembling exported models.
 - Combine modes.
 - Cached-result path.
 - `task.type: snapshot_ensemble`.
-
-Resolve the flagged open item on member-vs-ensemble row partitioning
-before finalizing.
 
 ### P3.3 Sweeps
 

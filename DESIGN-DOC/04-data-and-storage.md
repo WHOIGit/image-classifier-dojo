@@ -168,7 +168,8 @@ Several resolved values are dataset-derived statistics computed once and
 frozen: image normalization mean / std (`normalize: {mode: dataset}`),
 tabular normalization stats and imputation fill values, fitted target
 transform statistics, per-class counts, the resolved class map, the
-resolved `input_bit_depth`, and `ifcb_bins` bin lengths. `dojo inspect
+resolved `input_bit_depth`, per-sample native dimensions, and `ifcb_bins`
+bin lengths. `dojo inspect
 dataset --stats[=URI]` is the **producer**: it computes the fit statistics
 on the `train` split (structural properties such as bit depth and bin
 lengths across all splits) and writes them to a stats cache.
@@ -186,6 +187,36 @@ content (`06-results-artifacts-and-metadata.md`); the cache is a production
 and reuse mechanism, not the hash input. A stale or missing cache is a
 performance concern, never a correctness one — resolution recomputes when
 the cache is absent.
+
+`dataset_hash` itself stays cheap and always-available — manifest content
+(or URI + size + etag), computable without reading image pixels — so it
+remains a stable identity for the cache key, result rows, and ensemble
+compatibility. Because a `--normalization` / `--content-hash` pass already
+reads every image byte, `dojo inspect dataset` additionally records a
+separate **`dataset_content_hash`** (a true hash over all image bytes) for
+integrity / drift verification. It is recorded alongside, never folded into,
+`dataset_hash`: the cheap identity must not change value depending on
+whether a full pass happened to run. `dataset_content_hash` catches in-place
+pixel mutation that manifest-level identity cannot see.
+
+### Aspect-bucket assignment
+
+When `aspect_bucket` is enabled, every sample's bucket is a deterministic
+function of its native dimensions and the resolved bucket scheme. Per-sample
+dimensions are the cached primitive (`dojo inspect dataset --dimensions`),
+so candidate bucket schemes are evaluated from cache without re-reading
+images, and at run setup the resolved `aspect_bucket` assignment is
+materialized as a working-manifest column — computed from cached dimensions
+× the scheme, with no image I/O at run time. Changing the bucket scheme
+re-derives the column from the same cached dimensions; it never requires a
+rescan.
+
+Batches must be tensor-stackable (identical H × W), so bucketing requires
+batching **within** a bucket. The `batch_aspect_buckets` sampler groups
+samples by the `aspect_bucket` column to yield size-homogeneous batches (see
+`05-models-training-and-heads.md`). The bucket scheme is part of
+`preprocessing_hash` via `inference_pipeline`, so assignments are
+reproducible.
 
 ### Preflight in `dojo train`
 

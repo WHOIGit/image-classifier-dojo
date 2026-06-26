@@ -17,11 +17,17 @@ referenced by every other file. When in doubt, the terms below win.
   `output_root`, and the `*_outputs` blocks. `config_id` is either manually
   set or generated as a **seedname** from `config_hash` (a coolname produced
   by seeding `random.Random` with `config_hash`).
-- **`dataset_id` / `dataset_hash`** — `dataset_hash` is derived from URI plus
+- **`dataset_id` / `dataset_hash`** — `dataset_hash` is a cheap, always-available
+  identity that never reads image pixels: manifest content or URI plus
   size/etag/last-modified plus backend type; falls back to URI-only hashing
   with `dataset_hash_provenance: uri_only` when size/etag are unavailable.
   `dataset_id` is only present when the manifest provides a self-name; there
   is no seedname fallback.
+- **`dataset_content_hash`** — a separate, optional true hash over all image
+  bytes, recorded only when `dojo inspect dataset` runs a full pass
+  (`--content-hash` / `--normalization`). It is integrity / drift verification
+  and is never folded into `dataset_hash`, which must stay stable regardless
+  of whether a full pass ran.
 - **`checkpoint_hash`** — SHA-256 of the `.ckpt` file bytes. The first 6 hex
   characters appear in the checkpoint filename
   (`{stem}.{first6_hex}.{ext}`). There is no `checkpoint_id`.
@@ -29,16 +35,20 @@ referenced by every other file. When in doubt, the terms below win.
   artifacts (`.pt` / `.onnx`). `model_hash` is SHA-256 of the exported file
   bytes; `model_id` is either manual or seedname.
 - **`ensemble_id` / `ensemble_hash`** — `ensemble_hash` is canonical hash of
-  the ensemble manifest JSON (members + selection + combine config);
-  `ensemble_id` is either manual or seedname.
+  the selected-ensemble identity block (selected members + selection +
+  combine config), excluding candidate-audit metadata; `ensemble_id` is
+  either manual or seedname.
 - **`sweep_id` / `sweep_hash`** — `sweep_hash` is canonical hash of the
   sweep definition (base config + axes + value lists), excluding
   runtime-resolved values and output paths. `sweep_id` may be a template
   render (e.g. `{coolname}`) or seedname fallback from `sweep_hash`.
 - **`ensemble_member_id`** — Union column for ensemble member-level
   result rows. Equals the member's `checkpoint_hash` (for checkpoint
-  members) or `model_id` (for exported-model members). Always populated
-  on member-level rows so a single partition column has no nulls.
+  members) or `model_id` (for exported-model members). Populated only when
+  `ensemble_result_scope=member`.
+- **`ensemble_result_scope`** — Ensemble result-row scope. `member` means a
+  retained selected-member prediction row; `ensemble` means the combined
+  ensemble prediction row.
 - **Compatibility hashes** — `target_schema_hash`, `class_mapping_hash`,
   `model_config_hash`, `preprocessing_hash`. Both the hash and the source
   sub-block are stored in `_metadata.json` so consumers can fast-compare on

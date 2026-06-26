@@ -36,6 +36,7 @@ training_outputs:
         - split
         - stage
         - record_type
+        - ensemble_result_scope
         - head_name
         - embedding_kind
         - prediction_label
@@ -64,6 +65,7 @@ ordinal_logits
 split
 stage
 record_type
+ensemble_result_scope
 head_name
 embedding_kind
 prediction_label
@@ -119,12 +121,13 @@ source object before canonicalization.
 | `config_id` | id (paired with `config_hash`) | manual, else seedname from `config_hash` | seedname |
 | `config_hash` | hash | canonical hash of resolved config, **excluding** runtime-resolved values, output paths, `output_root`, and all `*_outputs` blocks | always derived |
 | `dataset_id` | id only | the dataset's self-name when the manifest provides one | null (no seedname fallback) |
-| `dataset_hash` | hash | URI + size + etag/last-modified (or full content hash when locally cheap), plus backend type. When size/etag unavailable, falls back to URI-only with `dataset_hash_provenance: uri_only` in metadata | always derived |
+| `dataset_hash` | hash | cheap, always-available identity (never reads image pixels): manifest content or URI + size + etag/last-modified, plus backend type. Basis recorded in `dataset_hash_provenance` (`manifest_content` / `uri_etag` / `uri_only` fallback) | always derived |
+| `dataset_content_hash` | hash | true hash over all image bytes; recorded separately when a full pass runs (`dojo inspect dataset --content-hash` / `--normalization`). Integrity / drift verification only — **not** the cache key, identity, or a compatibility hash | derived when a full pass runs, else null |
 | `checkpoint_hash` | hash | SHA-256 of the `.ckpt` file bytes | always derived |
 | `model_id` | id (paired with `model_hash`) | manual on export, else seedname from `model_hash` | seedname |
 | `model_hash` | hash | SHA-256 of the exported `.pt` / `.onnx` file bytes | always derived |
 | `ensemble_id` | id (paired with `ensemble_hash`) | manual on ensemble, else seedname from `ensemble_hash` | seedname |
-| `ensemble_hash` | hash | canonical hash of ensemble manifest JSON (members + combine + selection) | always derived |
+| `ensemble_hash` | hash | canonical hash of the selected-ensemble identity block (selected members + combine + selection). Candidate-audit metadata in the manifest is excluded. | always derived |
 | `sweep_id` | id (paired with `sweep_hash`) | manual, else template render (e.g. `{coolname}`); falls back to seedname from `sweep_hash` when unset | seedname or `{coolname}` |
 | `sweep_hash` | hash | canonical hash of sweep definition (base config + sweep axes + value lists), excluding runtime-resolved values and output paths | always derived |
 | `ensemble_member_id` | union column | for member-level rows / partitioning; member's `checkpoint_hash` (checkpoint member) or `model_id` (exported model member) | derived per-row |
@@ -386,6 +389,20 @@ schema_version
 `model_hash` are populated when the row was produced by an exported model
 artifact.
 
+Ensemble result records additionally carry:
+
+```text
+ensemble_id
+ensemble_hash
+ensemble_result_scope    # member | ensemble
+ensemble_member_id       # populated only for member rows
+```
+
+Rows written by the ensemble pipeline use `stage=ensemble_eval`. Cached
+source rows keep their original stage in their source result dataset; if
+they are transcribed into `ensemble_outputs.results.dir`, they are rewritten
+as ensemble-produced rows with `stage=ensemble_eval`.
+
 For representation-evaluation rows, add `evaluation_name` to identify the
 specific probe / retrieval / clustering / projection / diagnostic pass.
 
@@ -434,7 +451,7 @@ native_height_px
 resize_width_px
 resize_height_px
 microns_per_pixel
-resize_bucket
+aspect_bucket
 bin_id
 bin_uri
 roi_number
@@ -632,15 +649,19 @@ field options include:
 ```text
 stage
 epoch
+ensemble_result_scope
 ensemble_member_id
 record_type
 sweep_id
 ```
 
 Include `sweep_id` automatically when a row is produced as part of a Hydra
-sweep. `ensemble_member_id` is a union column whose value is the
-member's `checkpoint_hash` (checkpoint members) or `model_id` (exported
-model members), so a single partition column has no nulls.
+sweep. `ensemble_result_scope` distinguishes combined ensemble rows
+(`ensemble`) from retained member-level rows (`member`).
+`ensemble_member_id` is a union column whose value is the member's
+`checkpoint_hash` (checkpoint members) or `model_id` (exported model
+members). It is populated only for `ensemble_result_scope=member`, so it is
+not a default partition key for mixed member / ensemble result datasets.
 
 Examples:
 
@@ -659,15 +680,13 @@ training_outputs:
 ```yaml
 ensemble_outputs:
   results:
-    partition_by: [stage, record_type, ensemble_member_id]
+    partition_by: [stage, record_type, ensemble_result_scope]
 ```
 
-> **Open item.** Result partitioning interaction with ensemble result rows
-> (which rows are `stage=ensemble_eval` vs. `stage=train_validation` when
-> training and ensemble outputs share a directory) is under-specified. The
-> intent is that writers namespace by `stage`, but the exact partitioning
-> of member-level vs. ensemble-level rows is not yet pinned down. See
-> `08-ensembles.md`.
+`ensemble_member_id` may be added as an opt-in partition key for member-only
+analysis outputs, but mixed ensemble/member outputs should partition by
+`ensemble_result_scope` first or leave `ensemble_member_id` as a filter
+column.
 
 ## Artifact layout
 
@@ -724,10 +743,11 @@ sweep_outputs.dir/
 For `task.type: snapshot_ensemble` with
 `ensemble_outputs.dir_template` defaulted to the training value, both
 blocks resolve to the same path and the directory holds the union of both
-layouts. Writers namespace files within shared sub-directories — for
-example, result rows include `stage=train_validation` vs.
-`stage=ensemble_eval` partitions, and metrics files include the
-producing block in their filenames.
+layouts. Training rows are written under `results/`; ensemble rows are
+written under `ensemble_results/`. Row `stage` still records provenance
+(`train_validation` vs. `ensemble_eval`), but separate result directories
+are the primary collision-avoidance boundary. Metrics files include the
+producing block in their filenames when namespacing is needed.
 
 `ensemble_members/` is only used when `dojo ensemble` materializes
 member artifacts locally. Local member files may be symlinked; remote
@@ -789,8 +809,9 @@ system.
   transforms inform record types and sidecar `record_types` blocks.
 - `07-ssl-and-representation-eval.md` — representation-evaluation
   record types and `evaluation_name`.
-- `08-ensembles.md` — `ensemble_member_id`, `stage=ensemble_eval`
-  rows, namespacing in shared directories, manifest JSON files.
+- `08-ensembles.md` — `ensemble_result_scope`, `ensemble_member_id`,
+  `stage=ensemble_eval` rows, namespacing in shared directories, manifest
+  JSON files.
 - `09-sweeps-and-batch-runs.md` — `sweep_id` / `sweep_hash` provenance
   columns and `sweep_outputs/` layout.
 - `10-export.md` — `exports/` sub-directory and export metadata.

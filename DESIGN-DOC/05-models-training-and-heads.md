@@ -25,7 +25,6 @@ Initial transform modules:
 ```text
 letterbox
 aspect_bucket
-size_bucket
 foreground_crop
 grayscale
 normalization
@@ -47,7 +46,7 @@ transforms:
       method: threshold_bbox
       expand_margin_fraction: 0.15
 
-    - name: bucketed_resize
+    - name: aspect_bucket
       bucket_by:
         - aspect_ratio
         - native_long_side
@@ -82,13 +81,32 @@ transforms:
       std: [0.18, 0.18, 0.18]
 ```
 
-Aspect / size bucketing should support both `aspect_ratio` buckets
-(preserve morphology for elongated organisms) and `size`-aware buckets
-(avoid artificially upscaling tiny ROIs). Scale-related fields are
-recorded as `sample_metadata` columns (`native_width_px`,
-`native_height_px`, `resize_width_px`, `resize_height_px`,
-`resize_bucket`, `microns_per_pixel`) — see
+The `aspect_bucket` transform buckets by aspect ratio and/or native size
+(`bucket_by`), supporting both aspect-ratio buckets (preserve morphology for
+elongated organisms) and size-aware buckets (avoid artificially upscaling
+tiny ROIs). Scale-related fields are recorded as `sample_metadata` columns
+(`native_width_px`, `native_height_px`, `resize_width_px`,
+`resize_height_px`, `aspect_bucket`, `microns_per_pixel`) — see
 `06-results-artifacts-and-metadata.md`.
+
+### Bucketed batching (`batch_aspect_buckets`)
+
+`aspect_bucket` produces variable canvas sizes *across* buckets but a fixed
+size *within* a bucket. Tensors in a batch must stack to identical H × W, so
+a bucketed run batches **within** a single bucket rather than across —
+otherwise the whole point of bucketing (avoiding letterbox padding waste) is
+lost.
+
+The `batch_aspect_buckets` sampler is the consumer that makes this work: it
+groups samples by their `aspect_bucket` assignment and emits
+size-homogeneous batches. That assignment is a deterministic function of
+each sample's native dimensions and the resolved bucket scheme, materialized
+as a working-manifest column at run setup from cached dimensions — so the
+sampler is a column lookup with **no per-batch image I/O**, and changing the
+bucket scheme only re-derives the column (see `04-data-and-storage.md`). The
+chain reads: the `aspect_bucket` transform assigns each sample an
+`aspect_bucket` column value, and the `batch_aspect_buckets` sampler groups
+batches by it.
 
 ### Train-only vs. always-on steps
 

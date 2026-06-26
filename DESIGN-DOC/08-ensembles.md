@@ -63,8 +63,18 @@ Broad automatic registry-based cross-run discovery is deferred — see
 
 Manifest output is JSON (not Parquet) under
 `ensemble_outputs.manifests.dir`, default
-`{ensemble_outputs.dir}/ensemble_manifests/`. To write a shared manifest
-outside a normal run directory:
+`{ensemble_outputs.dir}/ensemble_manifests/`. Every `dojo ensemble` run
+writes a manifest for provenance, even when member prediction rows are not
+materialized into `ensemble_results/`. The manifest records discovered
+candidates, compatibility status, exclusion reasons when available,
+selected members, assigned `ensemble_member_id` values, source result
+selectors / URIs, compatibility hashes, combine config, and selection
+config. Candidate-audit metadata is useful for inspection, but
+`ensemble_hash` is derived from the selected-ensemble identity block
+(selected members + combine + selection), not from every discovered
+candidate.
+
+To write a shared manifest outside a normal run directory:
 
 ```bash
 dojo ensemble candidates experiment=ifcb/candidate_search \
@@ -101,7 +111,9 @@ Candidate artifact kinds:
 
 Each member-level row carries an `ensemble_member_id` union column equal
 to the member's `checkpoint_hash` (checkpoint member) or `model_id`
-(exported model member). See `06-results-artifacts-and-metadata.md`.
+(exported model member). Combined ensemble rows have
+`ensemble_result_scope=ensemble` and no `ensemble_member_id`. See
+`06-results-artifacts-and-metadata.md`.
 
 ### Discovery example
 
@@ -145,6 +157,25 @@ ensemble:
     dataset_id: ifcb_species_v4   # use dataset_hash when dataset does not self-name
   source_policy: inference_as_needed
 ```
+
+### Authored config vs. runtime artifacts
+
+Authored config describes candidate sources, target split, source policy,
+selection strategy, combine modes, and output-retention policy. It should
+not enumerate discovered compatible candidates, selected members, assigned
+`ensemble_member_id` values, measured cost fields, or row selectors unless
+the user is explicitly providing an `explicit` candidate source.
+
+Resolved config fills defaults and concrete output paths. When
+`ensemble_outputs.dir_template` contains `{ensemble_id}`, that path
+resolves after candidate discovery, compatibility validation, selection,
+and selected-ensemble identity generation.
+
+The ensemble manifest is the execution artifact that records what the run
+actually found and selected: all discovered candidates, compatible
+candidates, incompatible candidates with reasons when practical, selected
+members, source result selectors, hashes, cost metadata when known, and the
+selection / combine config snapshot.
 
 ### Metadata resolution
 
@@ -234,6 +265,10 @@ Controls behavior when candidate-result coverage is partial:
 
 Ensemble commands default to using existing result files as inputs when
 input dataset and output target match (`inference_as_needed`).
+Cached-result inputs must match the ensemble target by `dataset_hash`, or
+by explicit `dataset_id` plus `split` when the dataset self-names and a
+content hash is unavailable. Compatibility hashes still govern target
+schema, class mapping, model-output shape, and preprocessing compatibility.
 
 ## Selection strategies
 
@@ -272,6 +307,16 @@ ensemble:
     max_members: 8
     stop_if_no_improvement: true
 ```
+
+Selection config is normal Hydra config and can be swept. For example,
+Hydra may sweep `ensemble.selection.strategy`,
+`ensemble.selection.max_members`, or combine-mode settings to compare which
+candidate subsets contribute most to ensemble quality.
+
+Candidate metadata may include optional cost fields such as inference
+latency, parameter count, FLOPs, and peak memory when known. Initial
+metrics / figures can compare quality against these costs; cost-aware
+selection objectives are an extension on top of the same manifest fields.
 
 ## Combine modes
 
@@ -403,6 +448,9 @@ ensemble:
 
 ensemble_outputs:
   dir_template: "{experiment.name}/ensembles/{ensemble_id}"
+  results:
+    member_results:
+      mode: none
 ```
 
 ## `ensemble_outputs:` block
@@ -435,29 +483,63 @@ For `task.type: snapshot_ensemble`, `ensemble_outputs.dir_template`
 defaults to match `training_outputs.dir_template` so training and
 ensemble outputs share one run directory. In that shared directory:
 
-- writers namespace per-row data by `stage`
-  (`train_validation` vs. `ensemble_eval`) so canonical result Parquet
-  files coexist without collision;
+- training result rows are written under `results/` and ensemble result
+  rows are written under `ensemble_results/`, so the two writers do not
+  collide even when the top-level output directory is shared;
+- row `stage` remains semantic provenance (`train_validation` vs.
+  `ensemble_eval`), not the primary collision-avoidance mechanism;
 - metrics / figures filenames include the producing block when
   namespacing is needed;
 - the existing-run-dir overwrite policy is evaluated **once** per
   resolved physical directory at startup so the ensemble step does not
   delete training artifacts.
 
+### Member result retention
+
+`ensemble.source_policy` controls how member predictions are obtained for
+ensemble math. `ensemble_outputs.results.member_results.mode` controls
+whether selected member prediction rows are retained under
+`ensemble_outputs.results.dir`.
+
+Initial modes:
+
+- `none` — default. Write combined ensemble rows and the always-written
+  ensemble manifest only. Do not materialize member-level rows into
+  `ensemble_results/`.
+- `transcribe` — require source result rows for every selected member,
+  validate dataset / split and compatibility hashes, then rewrite those
+  rows into canonical ensemble form with `stage=ensemble_eval`,
+  `ensemble_result_scope=member`, `ensemble_id`, `ensemble_hash`, and
+  `ensemble_member_id`. This mode does not run inference just to retain
+  rows.
+- `inference` — require `ensemble.source_policy: force_inference`; run
+  selected member inference and write fresh member-level rows into
+  `ensemble_results/`.
+
+Retention applies only to selected ensemble members, not every discovered
+compatible candidate. With `mode: none`, member identity is still known at
+execution time from the selected-member manifest, but no member-level
+result rows or `ensemble_member_id` values are persisted in
+`ensemble_results/`.
+
 ### Ensemble result records
 
-Ensemble result rows use the standard result schema. Member-level rows
-carry `ensemble_member_id` (union column with `checkpoint_hash` or
-`model_id`). Ensemble-level rows use `stage=ensemble_eval`.
+Ensemble result rows use the standard result schema plus ensemble
+provenance columns.
 
-> **Open item.** The exact partitioning of member-level vs.
-> ensemble-level rows (which rows are tagged `stage=ensemble_eval` vs.
-> `stage=train_validation`, and how `ensemble_member_id` flows through
-> partition keys when training and ensemble outputs share a directory)
-> is under-specified. Writers should namespace by `stage`, but the full
-> partitioning recipe is not yet pinned down. See
-> `06-results-artifacts-and-metadata.md` for the partition-key
-> vocabulary.
+- All rows written by the ensemble pipeline use `stage=ensemble_eval`.
+- Combined ensemble rows use `ensemble_result_scope=ensemble` and leave
+  `ensemble_member_id` null.
+- Retained member rows use `ensemble_result_scope=member` and populate
+  `ensemble_member_id` with the member's `checkpoint_hash` or `model_id`.
+- Cached source rows that remain in their source result dataset keep their
+  original `stage`; if transcribed into `ensemble_results/`, they are
+  rewritten as ensemble-produced rows.
+
+Default `ensemble_outputs.results.partition_by` is
+`[stage, record_type, ensemble_result_scope]`. `ensemble_member_id` remains
+available as a filter column and may be used as an opt-in partition key for
+member-only analysis outputs.
 
 ## Cross-References
 
@@ -467,9 +549,9 @@ carry `ensemble_member_id` (union column with `checkpoint_hash` or
   `ensemble_outputs:`, snapshot-ensemble directory sharing.
 - `05-models-training-and-heads.md` — snapshot-cycle scheduler and
   checkpointing.
-- `06-results-artifacts-and-metadata.md` — `ensemble_member_id`,
-  `stage=ensemble_eval` rows, compatibility hashes,
-  `ensemble_manifests/` JSON manifests, open item on partitioning.
+- `06-results-artifacts-and-metadata.md` — `ensemble_result_scope`,
+  `ensemble_member_id`, `stage=ensemble_eval` rows, compatibility hashes,
+  `ensemble_manifests/` JSON manifests, partitioning.
 - `09-sweeps-and-batch-runs.md` — Hydra sweeps over ensemble selection
   / combine axes; sweeps as candidate-source feeders.
 - `10-export.md` — `ensemble_outputs.export` and ensemble model

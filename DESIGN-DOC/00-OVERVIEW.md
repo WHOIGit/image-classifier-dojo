@@ -124,8 +124,8 @@ Bookmark these pairs:
   to result writing and the artifact layout.
 - `06-results-artifacts-and-metadata.md` & `08-ensembles.md` — cached
   result files feed ensembles; ensemble result rows reuse the standard
-  schema with `stage=ensemble_eval` and the `ensemble_member_id` union
-  column.
+  schema with `stage=ensemble_eval`, `ensemble_result_scope`, and the
+  `ensemble_member_id` union column for retained member rows.
 - `05-models-training-and-heads.md` &
   `07-ssl-and-representation-eval.md` — supervised training can
   schedule representation evaluation; representation eval also runs
@@ -137,11 +137,3 @@ Bookmark these pairs:
 - `12-validation-testing-and-preflight.md` &
   `appendix-deferred-features.md` — each deferred-feature entry names
   the `NotImplementedError` test it owns.
-
-## Open items carried forward
-
-- Result partitioning interaction with ensemble result rows (exact
-  partitioning of member-level vs. ensemble-level rows when training
-  and ensemble outputs share a directory) is under-specified. See
-  the open-item callouts in `06-results-artifacts-and-metadata.md`
-  and `08-ensembles.md`.
