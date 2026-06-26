@@ -79,7 +79,7 @@ tests.
   `NotImplementedError` naming the SSL method.
 - The functional method is `dino_v2` via Lightly.
 
-### P4.6 Weight-space ensembles
+### P4.6a Weight-space ensembles
 
 - Model soup, greedy soup, uniform soup, SWA, EMA.
 - These produce a single exported model artifact (not a prediction-space
@@ -87,7 +87,7 @@ tests.
 - Stub-test obligation: one test per selection / averaging strategy
   asserting `NotImplementedError`.
 
-### P4.6 Weighted ensemble combine modes
+### P4.6b Weighted ensemble combine modes
 
 - Weighted variants: weighted_logits_mean, weighted_probabilities_mean,
   weighted_vote, weighted_prediction_mean, weighted_ordinal_logits_mean,
@@ -96,7 +96,7 @@ tests.
   ensemble path; assert `NotImplementedError` naming
   "weighted combine modes".
 
-### P4.6 `prediction_trimmed_mean`
+### P4.6c `prediction_trimmed_mean`
 
 - Sort member predictions, drop configured low / high extremes, average
   the rest.
@@ -114,10 +114,10 @@ tests.
 
 ### P4.8 Deprecated package removal
 
-- Cleanup milestone, not a runtime feature and not a `NotImplementedError`
-  stub.
-- Remove `src/dojo_deprecated/` after the new `src/dojo` implementation
-  covers up to and including P4.8, per `13-workplan.md`.
+- Cleanup milestone, not a runtime feature or stub.
+- Remove `src/dojo_deprecated/` once the new `src/dojo` implementation
+  covers everything through P4.7 and nothing imports from it, per
+  `13-workplan.md`.
 - Verification obligation: no imports from `src/dojo_deprecated/`, no
   tests depending on it, and any remaining useful behavior has either
   been reimplemented in `src/dojo` or intentionally dropped.

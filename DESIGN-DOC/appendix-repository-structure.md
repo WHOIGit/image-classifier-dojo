@@ -28,11 +28,9 @@ image-classifier-dojo/
 
   configs/
   src/dojo/
-  src/dojo_deprecated/       # reference during refactor; removal governed by 13-workplan.md
+  src/dojo_deprecated/       # reference during refactor; removal governed by 13-workplan.md. No new code to be developed here. Exists temporarily for historical reference only.
   tests/
   DESIGN-DOC/
-  REFACTOR-DESIGN-DOC.md     # historical; superseded by DESIGN-DOC/
-  DOC-CLEANUP-RESOLUTIONS.md # historical; superseded by DESIGN-DOC/
 ```
 
 ## `configs/`
@@ -41,7 +39,7 @@ image-classifier-dojo/
 configs/
   config.yaml                # top-level Hydra entrypoint
 
-  example_experiments/
+  experiment/                # Hydra experiment group; selected via experiment=<name>
     ifcb/
       baseline_resnet50.yaml
       experimentA.yaml
@@ -455,8 +453,8 @@ src/dojo/
 
 The pre-refactor package, already moved out of the new `src/dojo` path.
 Importable for reference during the clean-break refactor, deleted once
-the new `src/dojo` implementation covers up to and including P4.8, per
-`13-workplan.md`. No code added here.
+the new `src/dojo` implementation covers everything through P4.7 and
+nothing imports from it, per `13-workplan.md`. No code added here.
 
 ## `tests/`
 

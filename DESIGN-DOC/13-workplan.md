@@ -179,11 +179,10 @@ stub-test obligations.
 - P4.3 Aim runtime logging.
 - P4.4 MLflow runtime logging.
 - P4.5 Non-DINOv2 SSL: SimCLR, VICReg, PMSN, original DINO.
-- P4.6 Weight-space ensembles, weighted combine modes, and
-  `prediction_trimmed_mean`.
+- P4.6 Weight-space ensembles (P4.6a), weighted combine modes (P4.6b),
+  and `prediction_trimmed_mean` (P4.6c).
 - P4.7 HDF / HDF5 result exports.
-- P4.8 Deprecated package removal after the new `src/dojo`
-  implementation covers up to and including P4.8.
+- P4.8 Deprecated package `src/dojo_deprecated/` removal.
 - P4.9 WebDataset.
 - P4.10 Registry-based ensemble candidate discovery.
 
@@ -208,8 +207,9 @@ Likely useful reference areas:
   training-loop behavior worth preserving.
 
 Deprecated code should not receive new features. Once the new `src/dojo`
-implementation covers up to and including P4.8, `src/dojo_deprecated/`
-can be deleted.
+implementation covers everything through P4.7 and nothing (code or test)
+imports from `src/dojo_deprecated/`, the deprecated package can be
+deleted (the P4.8 cleanup milestone).
 
 ## Cross-References
 
