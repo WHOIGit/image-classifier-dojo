@@ -92,6 +92,9 @@ deleted and replaced with real functional tests.
 
 ### Stubbed features in the initial implementation
 
+- Bayesian / AutoML HPO (`sweep.mode: bayesian`).
+- Multilabel support (`model.heads.<name>.type:
+  multilabel_classification`).
 - Aim logger sink (`training_outputs.logging.sinks[].type: aim`). Only
   the `local` sink is functional; metrics and figures are recorded
   locally for the foreseeable future.
@@ -102,11 +105,13 @@ deleted and replaced with real functional tests.
   EMA).
 - Weighted ensemble combine modes (weighted logits / probabilities /
   vote / mean).
-- Broad automatic registry-based cross-run candidate discovery.
 - `prediction_trimmed_mean`.
-- WebDataset dataset backend.
-- Bayesian / AutoML HPO (`sweep.mode: bayesian`).
 - HDF / HDF5 result exports.
+- WebDataset dataset backend.
+- Broad automatic registry-based cross-run candidate discovery.
+
+Deprecated package removal is a P4 cleanup milestone, not a runtime stub,
+so it does not have a `NotImplementedError` test.
 
 See `appendix-deferred-features.md` for the full list with stub-test
 obligations.

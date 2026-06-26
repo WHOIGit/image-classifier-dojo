@@ -3,12 +3,15 @@
 
 ## Purpose
 
-Concrete proposed directory layout for the initial implementation. The
-tree is derived from the canonical decisions in `03-configuration.md`,
+Concrete proposed target directory layout. The tree is derived from the
+canonical decisions in `03-configuration.md`,
 `04-data-and-storage.md`, `05-models-training-and-heads.md`,
 `06-results-artifacts-and-metadata.md`, `07-ssl-and-representation-eval.md`,
 `08-ensembles.md`, `09-sweeps-and-batch-runs.md`, `10-export.md`,
-`11-dependencies.md`, and `12-validation-testing-and-preflight.md`.
+`11-dependencies.md`, `12-validation-testing-and-preflight.md`, and
+`13-workplan.md`. It is populated according to the priority order in the
+workplan; modules shown here may start as stubs or remain unimplemented
+until their priority is reached.
 
 This is intent, not contract. Implementers may collapse, split, or
 rename leaf modules to fit emergent code shape; the *areas of
@@ -25,7 +28,7 @@ image-classifier-dojo/
 
   configs/
   src/dojo/
-  src/dojo_deprecated/       # reference during refactor; deleted at end
+  src/dojo_deprecated/       # reference during refactor; removal governed by 13-workplan.md
   tests/
   DESIGN-DOC/
   REFACTOR-DESIGN-DOC.md     # historical; superseded by DESIGN-DOC/
@@ -174,8 +177,8 @@ src/dojo/
     __init__.py
     main.py                    # entrypoint; resolves config, dispatches
     train.py                   # all task.type values: supervised, ssl, snapshot_ensemble
-    eval.py                    # dojo eval representation
-    infer.py                   # dojo infer predictions, dojo infer embeddings
+    eval.py                    # dojo eval, dojo eval holdout, dojo eval representation
+    infer.py                   # dojo infer, dojo infer predictions, dojo infer embeddings
     ensemble.py                # dojo ensemble, dojo ensemble candidates
     export.py                  # dojo export
     inspect.py                 # dojo inspect config|dataset|backbone|checkpoint
@@ -232,12 +235,6 @@ src/dojo/
       batch.py                 # hot-path batches stay as dicts; this is the schema spec
       ensemble_member.py
 
-    storage/
-      __init__.py
-      resolver.py               # output_root + dir_template + path resolution
-      amplify.py                # wrapper around amplify-storage-utils
-      cache.py                  # local read-through cache (when configured)
-
     transforms/
       __init__.py
       builder.py
@@ -265,6 +262,12 @@ src/dojo/
       directory_scan.py
       summary.py                # used by dojo inspect dataset
       validation.py
+
+  storage/
+    __init__.py
+    resolver.py                  # output_root + dir_template + path resolution
+    amplify.py                   # wrapper around amplify-storage-utils
+    cache.py                     # local read-through cache (when configured)
 
   models/
     __init__.py
@@ -373,10 +376,10 @@ src/dojo/
     __init__.py
     runner.py                    # dojo ensemble entrypoint
     candidates.py                # dojo ensemble candidates entrypoint
-    discovery.py                 # explicit sources + run-dir/result-URI globs
+    discovery.py                 # explicit, manifest, run_dir_glob, checkpoint_glob, result_uri_glob
     compatibility.py             # hashes + cascading metadata policy + drift check
     selection.py                 # all, best_candidate, top_k, greedy_forward, cycle_end_snapshots
-    combine.py                   # logits_mean, probabilities_mean, vote, mean, median
+    combine.py                   # logits_mean, probabilities_mean, majority_vote, soft_vote, prediction_mean, prediction_median
     cached_results.py            # offline ensembling from result Parquet
     manifest.py                  # JSON manifest IO
     bundle.py                    # ensemble artifact bundling
@@ -399,8 +402,8 @@ src/dojo/
   results/
     __init__.py
     schemas.py                   # canonical tall-Parquet schema
-    writers.py                   # multi-sink result writer
-    parquet.py                   # primary functional backend
+    writers.py                   # multi-sink result writer via amplify-db-utils
+    parquet.py                   # primary functional backend via amplify-db-utils
     partitioning.py              # split / stage / epoch keys
     metadata.py                  # _metadata.json sidecar
     confusion.py
@@ -453,7 +456,8 @@ src/dojo/
 
 The pre-refactor package, already moved out of the new `src/dojo` path.
 Importable for reference during the clean-break refactor, deleted once
-most priority 4 items are dealt with. No code added here.
+the new `src/dojo` implementation covers up to and including P4.8, per
+`13-workplan.md`. No code added here.
 
 ## `tests/`
 
@@ -507,16 +511,17 @@ tests/
     test_sweep_outputs.py
 
   deferred_stubs/                # NotImplementedError contract tests
+    test_bayesian_hpo_stub.py
+    test_multilabel_stub.py
     test_aim_logger_stub.py
     test_mlflow_logger_stub.py
     test_non_dinov2_ssl_stubs.py
     test_weight_space_ensemble_stubs.py
     test_weighted_combine_stubs.py
     test_prediction_trimmed_mean_stub.py
-    test_registry_discovery_stub.py
-    test_webdataset_backend_stub.py
-    test_bayesian_hpo_stub.py
     test_hdf_export_stub.py
+    test_webdataset_backend_stub.py
+    test_registry_discovery_stub.py
 ```
 
 ## Notes on key directories
@@ -538,12 +543,13 @@ embeddings, ensemble-member rows). Hot-path DataLoader batches stay as
 dicts/dataclasses internally; record_schemas describe the on-disk shape
 written by `results/writers.py`.
 
-### `data/storage/`
+### `storage/`
 
 Thin wrapper around `amplify-storage-utils`. The wrapper exists so
 output-path resolution (`output_root`, `dir_template`, `dir`,
 `existing_run_dir` policy) is a project-level concern not pushed into
-the library.
+the library. It is top-level because storage is shared by data loading,
+result writing, checkpointing, export, and artifact inspection.
 
 ### `models/compositors/`
 
@@ -585,8 +591,8 @@ supervised task).
 
 - `03-configuration.md` — config tree the `config_schemas/` package
   validates; `outputs/` resolution semantics.
-- `04-data-and-storage.md` — dataset backends + `amplify-storage-utils`
-  integration in `data/`.
+- `04-data-and-storage.md` — dataset backends plus top-level
+  `amplify-storage-utils` integration in `storage/`.
 - `05-models-training-and-heads.md` — what lives under `models/`,
   `losses/`, `metrics/`, `training/`, and `tasks/supervised/`.
 - `06-results-artifacts-and-metadata.md` — schema implemented by
@@ -602,4 +608,5 @@ supervised task).
 - `12-validation-testing-and-preflight.md` — `runtime/preflight.py` and
   the `tests/` tree.
 - `13-workplan.md` — priority order for populating this tree.
-- `appendix-deferred-features.md` — modules deliberately absent.
+- `appendix-deferred-features.md` — runtime paths deliberately stubbed
+  until promoted into active work.

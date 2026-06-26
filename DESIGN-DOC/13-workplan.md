@@ -171,7 +171,7 @@ promoted into active work. See `appendix-deferred-features.md` for the
 stub-test obligations.
 
 - P4.1 Bayesian sweeps.
-- P4.2 True multilabel support: one classifier head can emit several
+- P4.2 Multilabel support: one classifier head can emit several
   outputs from the list of possible outputs.
 - P4.3 Aim runtime logging.
 - P4.4 MLflow runtime logging.
@@ -179,9 +179,9 @@ stub-test obligations.
 - P4.6 Weight-space ensembles, weighted combine modes, and
   `prediction_trimmed_mean`.
 - P4.7 HDF / HDF5 result exports.
-- P4.8 WebDataset.
-- P4.9 Deprecated package removal after the new `src/dojo`
-  implementation covers up to and including P4.5.
+- P4.8 Deprecated package removal after the new `src/dojo`
+  implementation covers up to and including P4.8.
+- P4.9 WebDataset.
 - P4.10 Registry-based ensemble candidate discovery.
 
 ## Historical Notes
@@ -195,7 +195,7 @@ Likely useful reference areas:
 - `dojo_deprecated/multiclass/` for supervised training cues,
   per-class counting, and callback behavior.
 - `dojo_deprecated/multilabel/` as a historical example of multi-head
-  multiclass behavior; do not port it as true multilabel support.
+  multiclass behavior; do not port it as multilabel support.
 - `dojo_deprecated/selfsupervised/` for SSL implementation cues.
 - `dojo_deprecated/tools/dataset_lists_from_folder.py` for manifest
   inspection behavior that now belongs under `dojo inspect dataset`.
@@ -205,7 +205,7 @@ Likely useful reference areas:
   training-loop behavior worth preserving.
 
 Deprecated code should not receive new features. Once the new `src/dojo`
-implementation covers up to and including P4.5, `src/dojo_deprecated/`
+implementation covers up to and including P4.8, `src/dojo_deprecated/`
 can be deleted.
 
 ## Cross-References

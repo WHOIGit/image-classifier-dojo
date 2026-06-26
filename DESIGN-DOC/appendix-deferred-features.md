@@ -4,9 +4,10 @@
 ## Purpose
 
 Lists features that are intentionally out of scope for the initial
-implementation but preserved as backlog items. Each entry names the
-stub-test obligation it owns per the testing policy in
-`12-validation-testing-and-preflight.md`.
+implementation but preserved as backlog items. Runtime entries name the
+stub-test obligation they own per the testing policy in
+`12-validation-testing-and-preflight.md`; cleanup milestones name their
+verification obligation instead.
 
 ## Stub-test policy recap
 
@@ -25,7 +26,28 @@ tests.
 
 ## Deferred features
 
-### Aim logger sink
+### P4.1 Bayesian sweeps
+
+- Initial sweeps are Hydra multirun (grid / explicit value lists). See
+  `09-sweeps-and-batch-runs.md`.
+- Config slot: `sweep.mode: bayesian` with `sweep.bayesian`.
+- Stub-test obligation: configure a Bayesian / Optuna-style sweep;
+  invoke; assert `NotImplementedError` naming "Bayesian sweeps".
+
+### P4.2 Multilabel support
+
+- Config slot: `model.heads.<name>.type: multilabel_classification`.
+- Meaning: one classifier head emits several binary labels from a single
+  target/output vector. This is different from multi-head multiclass,
+  where each target has its own `multiclass_classification` head.
+- Current status: the head type name is reserved in the schema narrative,
+  but runtime support is deferred. Multi-head multiclass is functional and
+  should not depend on multilabel support.
+- Stub-test obligation: configure a `multilabel_classification` head;
+  invoke training or inference; assert `NotImplementedError` naming
+  "multilabel support".
+
+### P4.3 Aim logger sink
 
 - Config slot: `training_outputs.logging.sinks[].type: aim`.
 - Schema is present. Runtime is stubbed.
@@ -40,7 +62,7 @@ tests.
 - Extra: `aim` (commented out in `pyproject.toml` while undeliverable on
   current Python).
 
-### MLflow logger sink
+### P4.4 MLflow logger sink
 
 - Config slot: `training_outputs.logging.sinks[].type: mlflow`.
 - Schema is present. Runtime is stubbed.
@@ -50,14 +72,14 @@ tests.
 - Extra: `mlflow` — **not currently declared** in `pyproject.toml`;
   re-add the extra when the runtime is unstubbed.
 
-### Non-DINOv2 SSL methods
+### P4.5 Non-DINOv2 SSL methods
 
 - Config slots: `ssl.method: simclr | vicreg | pmsn | dino`.
 - Stub-test obligation: one test per method asserting
   `NotImplementedError` naming the SSL method.
 - The functional method is `dino_v2` via Lightly.
 
-### Weight-space ensembles
+### P4.6 Weight-space ensembles
 
 - Model soup, greedy soup, uniform soup, SWA, EMA.
 - These produce a single exported model artifact (not a prediction-space
@@ -65,7 +87,7 @@ tests.
 - Stub-test obligation: one test per selection / averaging strategy
   asserting `NotImplementedError`.
 
-### Weighted ensemble combine modes
+### P4.6 Weighted ensemble combine modes
 
 - Weighted variants: weighted_logits_mean, weighted_probabilities_mean,
   weighted_vote, weighted_prediction_mean, weighted_ordinal_logits_mean,
@@ -74,7 +96,7 @@ tests.
   ensemble path; assert `NotImplementedError` naming
   "weighted combine modes".
 
-### `prediction_trimmed_mean`
+### P4.6 `prediction_trimmed_mean`
 
 - Sort member predictions, drop configured low / high extremes, average
   the rest.
@@ -82,7 +104,32 @@ tests.
   `regression: prediction_trimmed_mean`; invoke ensemble path; assert
   `NotImplementedError`.
 
-### Registry-based ensemble candidate discovery
+### P4.7 HDF / HDF5 derived result exports
+
+- `.h5` metrics rollups, `results.h5`. Includes the corresponding
+  `hdf` extra and `h5py` / `tables` dependencies (which are dropped).
+- Stub-test obligation: configure an HDF export under a
+  `*_outputs.export` block; assert `NotImplementedError` naming
+  "HDF result exports".
+
+### P4.8 Deprecated package removal
+
+- Cleanup milestone, not a runtime feature and not a `NotImplementedError`
+  stub.
+- Remove `src/dojo_deprecated/` after the new `src/dojo` implementation
+  covers up to and including P4.8, per `13-workplan.md`.
+- Verification obligation: no imports from `src/dojo_deprecated/`, no
+  tests depending on it, and any remaining useful behavior has either
+  been reimplemented in `src/dojo` or intentionally dropped.
+
+### P4.9 WebDataset backend
+
+- Config slot: `data.backend: webdataset`.
+- Stub-test obligation: configure `data.backend: webdataset`; invoke
+  any train / eval / infer path; assert `NotImplementedError` naming
+  "WebDataset backend".
+
+### P4.10 Registry-based ensemble candidate discovery
 
 - Broad automatic registry-based cross-run candidate discovery.
 - Note: cross-run ensembling itself is **functional** via explicit
@@ -93,28 +140,6 @@ tests.
 - Stub-test obligation: configure a registry-type candidate source;
   invoke discovery; assert `NotImplementedError` naming "registry-based
   candidate discovery".
-
-### WebDataset backend
-
-- Config slot: `data.backend: webdataset`.
-- Stub-test obligation: configure `data.backend: webdataset`; invoke
-  any train / eval / infer path; assert `NotImplementedError`.
-
-### Bayesian / AutoML HPO
-
-- Initial sweeps are Hydra multirun (grid / explicit value lists). See
-  `09-sweeps-and-batch-runs.md`.
-- Config slot: `sweep.mode: bayesian` with `sweep.bayesian`.
-- Stub-test obligation: configure a Bayesian / Optuna-style sweep;
-  invoke; assert `NotImplementedError`.
-
-### HDF / HDF5 derived result exports
-
-- `.h5` metrics rollups, `results.h5`. Includes the corresponding
-  `hdf` extra and `h5py` / `tables` dependencies (which are dropped).
-- Stub-test obligation: configure an HDF export under a
-  `*_outputs.export` block; assert `NotImplementedError` naming
-  "HDF result exports".
 
 ## Cross-References
 
