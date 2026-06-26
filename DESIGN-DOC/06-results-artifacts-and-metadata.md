@@ -181,7 +181,8 @@ What each hash validates:
   regularization (dropout) — none change tensor shapes or inference
   outputs.
 - `preprocessing_hash` validates the input contract: image mode,
-  resize / bucketing, normalization, foreground crop, grayscale handling,
+  bit-depth scaling, resize / bucketing, normalization, foreground crop,
+  grayscale handling,
   inference pipeline, tabular feature ordering, encodings, and
   normalization stats. It answers whether the same raw sample would be
   transformed into the same model input tensor.
@@ -318,6 +319,7 @@ data:
   source_extra_columns              # only columns used as model inputs
 transforms:
   image_mode
+  input_bit_depth                   # resolved integer (auto resolves to 8/12/16); [0,1] scaling divisor
   inference_pipeline                # resolved inference steps, ordered, with parameters
 tabular_preprocessing:
   columns

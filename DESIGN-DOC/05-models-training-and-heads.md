@@ -109,8 +109,24 @@ or a random crop (`train_only`), and `rotation` may be a fixed or a random
 rotation; the flag, not the module, draws the line.
 
 `image_mode` is a load-time channel-layout policy, not a pipeline step: it
-is singular, always-on, and defines the channel contract the pipeline and
-backbone assume. It stays a top-level `transforms` field.
+is singular, always-on, and defines the channel **contract** (count /
+layout) the pipeline and backbone assume. Values: `rgb` (3-channel color),
+`grayscale` (1-channel — requires a backbone that accepts `in_chans=1`,
+e.g. timm; torchvision ImageNet models expect 3 and need
+`grayscale_repeat3` instead), `grayscale_repeat3` (decode 1-channel,
+broadcast to 3 channels for an RGB-pretrained backbone). It stays a
+top-level `transforms` field.
+
+The `grayscale` pipeline module is **orthogonal** to `image_mode` and is
+not a duplicate of it. `image_mode` sets the channel container; the
+`grayscale` module operates on pixel **content** — desaturating color to
+luminance — while leaving the channel count to `image_mode`. They compose:
+`image_mode: rgb` plus a `grayscale` step (always-on) gives deterministic
+luminance carried in 3 channels, and `image_mode: rgb` plus a `grayscale`
+step with `train_only: true` and a probability is random-grayscale
+augmentation. For inherently single-channel sources (e.g. IFCB),
+`image_mode: grayscale_repeat3` already yields desaturated content and the
+`grayscale` module is unnecessary.
 
 Config compilation materializes a derived **`inference_pipeline`**: the
 ordered subset of `pipeline` where each step is `enabled` and not
@@ -123,6 +139,48 @@ not be hand-edited. Resolved configs therefore carry both the full
 training `pipeline` and the derived `inference_pipeline`; SSL multi-view
 augmentation is configured separately under `ssl:`
 (`07-ssl-and-representation-eval.md`) and is not part of this pipeline.
+
+### Pixel value range and bit depth
+
+The transform builder follows a fixed value-range convention, so range is
+never an independent config knob: **decode → scale to `[0.0, 1.0]` →
+`normalize`**. Raw integer pixels are scaled to floats in `[0, 1]`, then the
+`normalize` step applies `mean` / `std`. The model-facing range is therefore
+an emergent property of `normalize`, not a separate setting — `mean: 0.5,
+std: 0.5` yields `[-1, 1]`, ImageNet stats yield roughly `[-2, 2.6]`, and so
+on. Normalization must match the backbone's pretraining (ImageNet stats for
+torchvision / timm ImageNet weights, DINOv2's expected stats for DINOv2);
+there is deliberately no `pixel_range` enum.
+
+The scale-to-`[0, 1]` divisor depends on source bit depth, set with
+`transforms.input_bit_depth`:
+
+```yaml
+transforms:
+  image_mode: grayscale_repeat3
+  input_bit_depth: auto   # auto | 8 | 12 | 16 → divide by 255 / 4095 / 65535
+```
+
+Default `auto`, which resolves at config-compile time from the storage
+dtype (`uint8` → 8, `uint16` → 16) plus format metadata when present (e.g.
+TIFF `BitsPerSample`, which catches 12-bit data). The resolved value is
+**materialized as a concrete integer** in the resolved config — decided
+once, frozen, and never a per-image runtime decision, so the same raw
+sample always scales identically.
+
+`auto` cannot disambiguate the one genuinely ambiguous case: a 12- (or 10-,
+14-) bit image stored in a 16-bit container with no bit-depth metadata
+reads as `uint16` (max 65535) though its true maximum is 4095, and dividing
+by the wrong number silently rescales every pixel. High-bit-depth IFCB /
+microscopy sources of that kind must set `input_bit_depth` explicitly;
+content-based guessing (per-image or dataset-wide max scans) is rejected
+because it makes scaling data-dependent and breaks on unseen inference
+images.
+
+`input_bit_depth` is a load-time decode policy — singular and always-on,
+like `image_mode` — and is part of the input contract, so it contributes to
+`preprocessing_hash` as its **resolved integer**, never as the literal
+`auto`.
 
 ## Backbones
 
