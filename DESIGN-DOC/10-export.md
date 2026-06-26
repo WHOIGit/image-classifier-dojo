@@ -80,6 +80,7 @@ Exported artifacts include:
 model architecture
 backbone source / name
 head definitions
+ordinal encoding / decoding (per ordinal head)
 objective summary
 class names
 class index mappings

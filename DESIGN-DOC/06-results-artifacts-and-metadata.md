@@ -332,14 +332,21 @@ target
 prediction_index
 prediction_label
 prediction_confidence
-ordinal_logits         # raw cumulative logits for CORAL/CORN
-probabilities          # per-bin probabilities, derived if needed
+ordinal_logits         # cumulative threshold logits; null for non-cumulative encodings
+probabilities          # per-bin probabilities, always populated
 ```
 
-For CORAL/CORN, `probabilities` are derived by differencing cumulative
-probabilities decoded from `ordinal_logits`. The writer is responsible for
-this derivation so consumers always see per-bin probabilities in the
-`probabilities` column regardless of loss family.
+`ordinal_logits` holds the `num_classes - 1` cumulative threshold logits
+and is populated only for cumulative encodings (`coral`, `corn`); it is
+null for `ordinal_cross_entropy`, which has no cumulative parameterization.
+`probabilities` always holds the `num_classes` per-bin probabilities: for
+`coral` / `corn` the writer derives them by differencing cumulative
+probabilities decoded from `ordinal_logits`; for `ordinal_cross_entropy`
+they are the softmax over the per-bin logits directly. Consumers therefore
+always see per-bin probabilities regardless of `ordinal.encoding`. Because
+`ordinal_logits` is encoding-specific, the `ordinal_logits_mean` ensemble
+combine mode applies only to cumulative-encoding members; per-bin members
+combine via `ordinal_probabilities_mean` (see `08-ensembles.md`).
 
 Native ordinal heads write `record_type=ordinal_output`. Ordinal probes
 write `record_type=ordinal_probe_prediction`.

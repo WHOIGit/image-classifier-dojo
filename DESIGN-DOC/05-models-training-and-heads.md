@@ -369,6 +369,7 @@ regression:
 
 ordinal_classification:
   num_classes
+  ordinal        # optional; encoding / decoding, defaulted (see "Ordinal encoding and decoding")
 
 distributional_regression:
   distribution   (e.g. gaussian, negative_binomial)
@@ -421,12 +422,58 @@ Pydantic validation ensures the resolved `target` exists in
 - Supported ordinal losses: `coral`, `corn`, `ordinal_cross_entropy`.
 - Result `record_type` values: `ordinal_output` for native ordinal heads;
   `ordinal_probe_prediction` for ordinal probes.
-- Both `ordinal_logits` (raw cumulative logits for CORAL/CORN) and
-  `probabilities` (per-bin probabilities) are populated; for CORAL/CORN
-  the writer derives `probabilities` by differencing cumulative
-  probabilities decoded from `ordinal_logits`.
+- `ordinal_logits` (the `num_classes - 1` cumulative threshold logits) is
+  populated only for cumulative encodings (`coral`, `corn`) and is null for
+  `ordinal_cross_entropy`. `probabilities` (per-bin) is always populated:
+  by differencing decoded cumulative probabilities for `coral` / `corn`, or
+  directly by softmax over per-bin logits for `ordinal_cross_entropy`.
 
 See `06-results-artifacts-and-metadata.md`.
+
+### Ordinal encoding and decoding
+
+Order semantics are carried by the head (`type: ordinal_classification`,
+`num_classes`, and the ordered class labels). How those ordered classes
+are turned into output units, and how outputs map back to a class, is
+configured on the head under `ordinal`:
+
+```yaml
+model:
+  heads:
+    size_category:
+      type: ordinal_classification
+      target: size_category
+      num_classes: 4
+      ordinal:
+        encoding: coral        # coral | corn | ordinal_cross_entropy
+        decoding: threshold    # threshold | expected_rank | argmax
+      network:
+        type: linear
+```
+
+- `encoding` determines the output tensor. `coral` and `corn` emit
+  `num_classes - 1` cumulative threshold logits ("is the class beyond bin
+  k?"); `ordinal_cross_entropy` emits `num_classes` per-bin logits.
+- `decoding` maps outputs to a predicted class: `threshold` counts how
+  many cumulative thresholds clear 0.5 (CORAL / CORN); `expected_rank`
+  takes the probability-weighted rank; `argmax` takes the most probable
+  bin (per-bin form).
+
+`ordinal` is optional in authored configs. Config compilation injects a
+default: `encoding` follows the configured ordinal loss when an objective
+is present (else `coral`), and `decoding` defaults per encoding
+(`coral` / `corn` → `threshold`, `ordinal_cross_entropy` → `argmax`).
+Resolved configs, saved config artifacts, and runtime objects always carry
+`ordinal` explicitly.
+
+Encoding / decoding live on the head, not on the loss, because they define
+output structure and interpretation that must survive without an
+`objectives` block — exported portable models and cached-result ensembles
+still have to interpret `ordinal_logits` at inference time. They therefore
+contribute to `target_schema_hash` and are written into export metadata
+(`10-export.md`). When an objective is present, config validation checks
+that its ordinal loss is consistent with the head's `ordinal.encoding`;
+this is a cross-field check, not the head owning loss config.
 
 ### Single- vs. multi-head
 
@@ -499,6 +546,9 @@ model:
       type: ordinal_classification
       target: life_stage
       num_classes: 5
+      ordinal:
+        encoding: ordinal_cross_entropy
+        decoding: argmax
       network:
         type: linear
     biovolume:

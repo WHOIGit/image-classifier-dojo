@@ -328,8 +328,9 @@ prediction_uncertainty = std(member_predictions)
 ```
 
 Ordinal: average ordinal logits (or ordinal probabilities) then decode
-through the configured ordinal decoding rule. The ensemble artifact
-records the decoding rule used per ordinal head.
+through the configured ordinal decoding rule
+(`model.heads.<name>.ordinal.decoding`). The ensemble artifact records the
+decoding rule used per ordinal head.
 
 ### Using cached results correctly
 
