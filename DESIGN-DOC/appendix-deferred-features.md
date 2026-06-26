@@ -29,7 +29,8 @@ tests.
 
 ### P4.1 Bayesian sweeps
 
-- Initial sweeps are Hydra multirun (grid / explicit value lists). See
+- Initial sweeps are config-defined grid sweeps with Dojo-owned
+  expansion (grid / explicit value lists). See
   `09-sweeps-and-batch-runs.md`.
 - Config slot: `sweep.mode: bayesian` with `sweep.bayesian`.
 - Stub-test obligation: configure a Bayesian / Optuna-style sweep;
@@ -194,7 +195,8 @@ tests.
 - `08-ensembles.md` — explicit candidate sources for the
   not-deferred parts of cross-run ensembling; deferred selection /
   combine modes.
-- `09-sweeps-and-batch-runs.md` — Hydra multirun vs. Bayesian HPO.
+- `09-sweeps-and-batch-runs.md` — config-defined grid sweeps vs.
+  Bayesian HPO.
 - `11-dependencies.md` — extras list and dropped dependencies.
 - `12-validation-testing-and-preflight.md` — stub-test policy in full.
 - `glossary.md` — terminology.

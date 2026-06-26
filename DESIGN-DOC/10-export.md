@@ -53,20 +53,23 @@ under the resolved `*_outputs.dir`.
 Explicit conversion of checkpoints, ensemble manifests, or already-existing
 run output into portable artifacts.
 
+`--checkpoint`, `--output`, `--type`, and `--ensemble-manifest` are
+command options, not config keys (see `02-cli-and-task-types.md`).
+
 ```bash
 dojo export \
-  checkpoint=s3://bucket/runs/run123/checkpoints/best.ckpt \
-  output=s3://bucket/runs/run123/exports/model.pt \
-  type=torchscript
+  --checkpoint s3://bucket/runs/run123/checkpoints/best.ckpt \
+  --output s3://bucket/runs/run123/exports/model.pt \
+  --type torchscript
 ```
 
 Ensemble export:
 
 ```bash
 dojo export \
-  ensemble_manifest=s3://bucket/runs/run123/ensemble_manifests/manifest.json \
-  output=s3://bucket/runs/run123/exports/snapshot_ensemble.pt \
-  type=torchscript
+  --ensemble-manifest s3://bucket/runs/run123/ensemble_manifests/manifest.json \
+  --output s3://bucket/runs/run123/exports/snapshot_ensemble.pt \
+  --type torchscript
 ```
 
 `dojo export` does not decide which checkpoints belong in an ensemble.

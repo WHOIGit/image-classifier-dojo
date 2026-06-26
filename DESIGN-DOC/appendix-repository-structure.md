@@ -49,7 +49,7 @@ configs/
       ensemble_from_runs.yaml
       ensemble_from_cached_results.yaml
       representation_eval_standalone.yaml
-    hydra_sweeps/
+    sweeps/                  # experiment configs that define a sweep: block
       grid_lr_wd.yaml
       batch_seed_5.yaml
       ensemble_axis_sweep.yaml
@@ -158,12 +158,11 @@ configs/
     local.yaml                 # only functional sink
     # aim.yaml is provided but stubbed at runtime
     # mlflow.yaml is provided but stubbed at runtime
-
-  hydra/
-    default.yaml  # Hydra run + sweep config
 ```
 
 No `task/` config group — `task.type` is set in the experiment config.
+No `configs/hydra/` group — Dojo uses the Hydra Compose API, not
+`@hydra.main`, so there is no Hydra run / sweep / `chdir` config to set.
 
 ## `src/dojo/`
 
@@ -173,7 +172,7 @@ src/dojo/
 
   cli/
     __init__.py
-    main.py                    # entrypoint; resolves config, dispatches
+    main.py                    # Typer app entrypoint; composes config, dispatches
     train.py                   # all task.type values: supervised, ssl, snapshot_ensemble
     eval.py                    # dojo eval, dojo eval holdout, dojo eval representation
     infer.py                   # dojo infer, dojo infer predictions, dojo infer embeddings
@@ -431,8 +430,9 @@ src/dojo/
 
   hydra/
     __init__.py
+    compose.py                   # Hydra Compose API wrapper (no @hydra.main)
     resolvers.py                 # custom OmegaConf resolvers
-    sweep.py                     # sweep_id / sweep_outputs wiring
+    sweep.py                     # Dojo sweep expansion + sweep_id / sweep_outputs wiring
 
   utils/
     __init__.py
@@ -503,7 +503,7 @@ tests/
     test_ensemble_candidates_manifest.py
     test_export_torchscript.py
     test_export_onnx.py
-    test_hydra_multirun_config.py
+    test_sweep_expansion_config.py
     test_sweep_outputs.py
 
   deferred_stubs/                # NotImplementedError contract tests
@@ -596,8 +596,8 @@ supervised task).
 - `07-ssl-and-representation-eval.md` — what lives under `tasks/ssl/`
   and `tasks/representation_eval/`.
 - `08-ensembles.md` — package layout under `src/dojo/ensemble/`.
-- `09-sweeps-and-batch-runs.md` — Hydra wiring under `hydra/` and
-  `sweep_outputs/`.
+- `09-sweeps-and-batch-runs.md` — Compose API + Dojo sweep expansion
+  under `hydra/` and `sweep_outputs/`.
 - `10-export.md` — `export/` package contents.
 - `11-dependencies.md` — extras that gate `models/backbones/timm.py`,
   `tasks/ssl/`, IFCB, etc.

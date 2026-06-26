@@ -3,81 +3,69 @@
 
 ## Purpose
 
-Defines Hydra-driven sweeps, batch-run-style grid sweeps, deferred
-Bayesian / AutoML sweep schema, and the `sweep_outputs:` block. Sweeps
+Defines config-defined sweeps (Dojo-owned expansion over the Hydra
+Compose API), batch-run-style grid sweeps, deferred Bayesian / AutoML
+sweep schema, and the `sweep_outputs:` block. Sweeps
 can explore training hyperparameters, ensemble strategy / combine-mode
 combinations, random-seed sensitivity, or feed candidate manifests into
 a subsequent ensembling step. Bayesian / AutoML HPO is deferred.
 
-## Hydra multirun
+## Composition and Dojo-owned sweep expansion
 
-Use Hydra multirun (`-m`) for sweeps. Dojo treats Hydra as the sweep
-expansion mechanism, while Dojo owns runtime IDs, output-directory
-resolution, existing-directory policy, and canonical artifacts.
+Dojo composes configs through the Hydra **Compose API** (`hydra.compose`),
+not `@hydra.main`, so there is no Hydra launcher, no Hydra-managed working
+directory, and no `chdir`. A run is a sweep when the composed config's
+`sweep:` block defines axes (see "Sweep definition block" below); Dojo
+expands the cartesian product itself and owns runtime IDs,
+output-directory resolution, existing-directory policy, and all canonical
+artifacts.
 
-Example sweep:
+A sweep is launched by composing a config whose `sweep:` block has axes —
+either an experiment config that includes the block, or axes overridden
+onto `sweep.grid` from the command line (dash-free config overrides):
 
 ```bash
-dojo train -m \
-  experiment=ifcb/experimentA \
-  model.image_input.backbone.source=torchvision,timm \
-  model.image_input.backbone.name=resnet50,convnext_tiny \
-  optimizer.lr=1e-4,3e-4 \
-  training.batch_size=32,64
+# the experiment config carries a sweep: block
+dojo train experiment=ifcb/sweep_lr_bs
+
+# or supply axes as config overrides (Hydra list-value syntax)
+dojo train experiment=ifcb/experimentA \
+  +sweep.mode=grid \
+  '+sweep.grid.optimizer.lr=[1e-4,3e-4]' \
+  '+sweep.grid.training.batch_size=[32,64]'
 ```
 
-### Hydra directories vs. Dojo output directories
+There is no `-m` / `--multirun` flag and no CLI comma-list sweep
+shorthand; the `sweep:` block is the single sweep definition.
 
-Dojo's run directory (resolved from `training_outputs.dir_template`
-under `output_root`) is the canonical location for checkpoints, exports,
-metrics, and results. It is independent of Hydra's working directory.
+Process CWD never changes between runs. All Dojo paths are absolute or
+resolved relative to `output_root` (`03-configuration.md`), so there is no
+Hydra `os.getcwd()` footgun and no `_hydra/` coordination area — Dojo's
+resolved `training_outputs.dir`, `ensemble_outputs.dir`, and
+`sweep_outputs.dir` are the only output locations.
 
-Hydra still needs directories for its own launch metadata, per-job
-bookkeeping, and Hydra logs. Those are **not** Dojo run directories.
-Dojo keeps them under an `_hydra/` coordination area below
-`output_root`, while canonical Dojo artifacts go only to the resolved
-`training_outputs.dir`, `ensemble_outputs.dir`, and `sweep_outputs.dir`.
-
-Default Hydra config:
-
-```yaml
-# configs/hydra/default.yaml
-hydra:
-  run:
-    dir: ${output_root}/_hydra/single/${now:%Y-%m-%d_%H-%M-%S}
-  sweep:
-    dir: ${output_root}/_hydra/sweeps/${now:%Y-%m-%d_%H-%M-%S}
-    subdir: ${hydra.job.num}
-  job:
-    chdir: false
-```
-
-Key points:
-
-- `chdir: false` keeps the process CWD at the project root. All Dojo
-  paths are absolute or relative to `output_root`. This avoids the
-  Hydra footgun where `os.getcwd()` silently changes per job.
-- `hydra.run.dir`, `hydra.sweep.dir`, and `hydra.sweep.subdir` are only
-  for Hydra metadata / logs. Dojo code must not derive checkpoints,
-  results, exports, metrics, or figures from those paths.
-- For sweeps, `hydra.sweep.dir` is the parent coordination directory
-  and `hydra.sweep.subdir` is the per-job coordination directory. Dojo
-  artifacts still land under each job's resolved `training_outputs.dir`
-  / `ensemble_outputs.dir`.
-- `runtime.sweep_id` is generated once per sweep before concrete runs
-  are expanded. `runtime.run_id` is generated once per concrete run
-  after its sweep-axis values are known.
-- Hydra's `hydra.job.num` and `hydra.job.id` may be used in
-  `runtime.run_id` templates, but Dojo does not rely on pattern
-  inspection to prove uniqueness. For sweep invocations, Dojo generates
-  all run IDs before any run starts and raises an error if collisions
-  exist.
+- `runtime.sweep_id` is generated once per sweep before concrete runs are
+  expanded. `runtime.run_id` is generated once per concrete run after its
+  sweep-axis values are known.
+- Dojo generates all run IDs before any run starts and raises an error if
+  collisions exist (see the resolution order below). Uniqueness comes from
+  realized sweep values or the `{job_num}` sweep index
+  (`sweep.active_run.index`), not from Hydra job metadata.
 
 > [!NOTE]
-> Hydra config uses `${...}` OmegaConf / Hydra interpolation notation,
-> evaluated by Hydra while it sets up its own bookkeeping directories.
-> Dojo-owned output templates omit the `$` and use `{...}` patterns
-> resolved by Dojo, not OmegaConf / Hydra interpolation.
+> OmegaConf `${...}` interpolation is resolved by OmegaConf during
+> composition. Dojo-owned output templates omit the `$` and use `{...}`
+> patterns resolved by Dojo after composition, validation, and
+> runtime-value generation (`03-configuration.md`). The two interpolation
+> layers do not overlap.
+
+> [!NOTE]
+> **TBD — sweep run execution.** Once Dojo has expanded a sweep into
+> concrete per-run resolved configs and written `sweep_manifest.json`,
+> *how* those runs execute — in-process sequentially, or handed to
+> external orchestration — is an open question to be decided later. Dojo
+> owns expansion and artifact layout regardless of the execution
+> mechanism.
 
 ## Sweep definition block
 
@@ -104,22 +92,52 @@ sweep:
 
 ### Grid sweep syntax
 
-Inside `sweep.grid`, values are YAML lists. This is intentionally
-different from Hydra CLI comma syntax:
+Inside `sweep.grid`, each key is a target config path and each value is a
+YAML list; the concrete runs are the cartesian product of those lists.
+Axes may also be supplied as config overrides onto `sweep.grid` using
+Hydra list-value syntax (e.g. `'+sweep.grid.optimizer.lr=[1e-4,3e-4]'`).
 
-```bash
-dojo train -m optimizer.lr=1e-4,3e-4 training.batch_size=32,64
-```
+The `sweep:` block is the single sweep definition: there is no CLI
+comma-list shorthand and no normalization of axes scattered elsewhere in
+the config. After expansion, each concrete run receives ordinary resolved
+scalar config values at the target paths.
 
-CLI comma values are accepted at the command surface, but Dojo
-normalizes all sweep axes into top-level `sweep.grid` during config
-compilation. Source configs should use YAML lists under `sweep.grid`
-rather than comma-separated strings.
+### Commas, lists, and shell quoting
 
-Sweep axes found outside the top-level `sweep:` block are also
-normalized into `sweep.grid` during config compilation. After
-normalization, each concrete run receives ordinary resolved scalar
-config values at the target paths.
+Comma handling differs between CLI overrides and config files:
+
+- **CLI overrides** use Hydra's override grammar — Dojo relies on it for
+  all `key=value` composition. The whole grammar is in play, with one
+  exception, the *bare top-level comma*:
+
+  - **Bare top-level comma = multirun, which Dojo rejects the direct use of.** 
+    In Hydra's grammar a comma that sits directly in the value
+    (`optimizer.lr=1e-4,3e-4`) means "run once per listed value" — a
+    *multirun sweep*. It is the only construct that requires Hydra's
+    multirun machinery, and Dojo never runs _hydra_ multirun: it composes branching/grids of single
+    configs through the Compose API. So this comma styling override **errors during
+    composition**. Sweeping is handled differently.
+  - **Sweeps come only from the `sweep:` config block**.
+  - **Commas inside a value are fine.** The rest of the grammar works
+    normally, including commas that are structurally part of a value: list
+    literals `[a,b]`, dict literals `{a:1,b:2}`, and Hydra-quoted strings
+    `key='a,b'`. These are not top-level commas, so they never trigger
+    multirun.
+
+  The trap: `optimizer.lr=1e-4,3e-4` (top-level comma → errors) and
+  `optimizer.lr=[1e-4,3e-4]` (list value → legal) look almost identical but
+  mean opposite things. Author sweep axes as the bracketed form on
+  `sweep.grid`, e.g. `'+sweep.grid.optimizer.lr=[1e-4,3e-4]'`, never
+  `optimizer.lr=1e-4,3e-4`.
+- **Shell quoting:** single-quote any override token containing `[...]` or
+  `{...}` so the shell does not glob- or brace-expand it before Hydra sees
+  it (e.g. `'+sweep.grid.training.batch_size=[32,64]'`). Tokens without
+  brackets (`+sweep.mode=grid`) need no quotes.
+- **Config files** follow ordinary YAML: commas separate elements only
+  inside flow collections (`[a, b]`, `{a: 1}`) and are literal characters
+  in plain or quoted scalars. Hydra's comma-as-sweep grammar is a
+  CLI-override behavior only — it never applies inside YAML, so
+  `sweep.grid` axes are written as ordinary YAML lists.
 
 ### Batch-run-style grid sweeps
 
@@ -143,17 +161,16 @@ with box plots / five-number summaries for `macro_f1` or per-class F1.
 `sweep.conflict_policy` controls what happens when a swept target path
 also has a value in the non-sweep config:
 
-- `default` — default. If the target config value is scalar, the sweep
-  value overrides it for each concrete run. If both locations define
-  different sweep ranges for the same target path, config compilation
-  raises an error.
-- `strict` — swept target fields must be missing or null outside
-  `sweep:`. If a target path has any non-sweep value, config
-  compilation raises an error.
+- `default` — default. A `sweep.grid` entry for a target path overrides
+  any value at that path elsewhere in the composed config, per concrete
+  run.
+- `strict` — the target path must be absent or null outside `sweep.grid`;
+  any non-sweep value there raises a config-compilation error.
 
-CLI overrides supersede both the target config and `sweep:` definitions.
-If a CLI override supplies sweep values, those values are normalized into
-`sweep.grid`.
+CLI config overrides supersede both the target config and `sweep:`
+definitions. Sweep axes supplied on the command line are written directly
+onto `sweep.grid` (e.g. `'+sweep.grid.optimizer.lr=[1e-4,3e-4]'`), not
+inferred from comma-separated scalar overrides.
 
 ### Active run metadata
 
@@ -225,16 +242,17 @@ Sections that reference sweep-level state fall through when there is no
 active sweep.
 
 1. **Address sweep-level state**
-   1. Determine whether this invocation is a Hydra multirun / sweep.
+   1. Determine whether the composed config defines a sweep (non-empty
+      `sweep.grid`).
    2. If there is no active sweep:
       1. Set `runtime.sweep_id = null` unless explicitly configured.
       2. Set `sweep_hash = null`.
       3. Skip sweep-level aggregation setup.
    3. If there is an active sweep:
-      1. Normalize sweep axes from source config and CLI inputs into
-         the top-level `sweep:` block.
-      2. Compose the sweep launcher definition: base config plus
-         normalized sweep definition.
+      1. Read the sweep axes from the composed `sweep:` block (including
+         any `+sweep.grid.*` CLI overrides).
+      2. Assemble the sweep definition: base config plus the `sweep:`
+         block.
       3. Compute `sweep_hash` from stable sweep-definition inputs:
          base config, sweep mode, sweep axes / search params, and
          explicit sweep metadata.
@@ -273,9 +291,9 @@ active sweep.
       1. If collisions exist, raise an error.
       2. The error shows the colliding `run_id` values and affected
          sweep jobs.
-      3. The error suggests adding a uniqueness-pattern value such as
-         `hydra.job.num`, `hydra.job.id`, or a realized sweep value
-         such as `runtime.seed`.
+      3. The error suggests adding a uniqueness-pattern value such as the
+         `{job_num}` sweep index or a realized sweep value such as
+         `runtime.seed`.
 3. **Resolve per-run output directories**
    1. For each concrete run, resolve output templates:
       1. `training_outputs.dir_template` resolves to
@@ -472,14 +490,15 @@ Sweep aggregation outputs include:
 
 ## Sweeps over ensembling
 
-Hydra sweeps can explore ensemble selection strategy / combine-mode
-combinations against a candidate manifest:
+Sweeps can explore ensemble selection strategy / combine-mode
+combinations against a candidate manifest, via a `sweep:` block or
+`+sweep.grid.*` overrides:
 
 ```bash
-dojo ensemble -m \
-  experiment=ifcb/ensemble_search \
-  ensemble.selection.strategy=top_k,greedy_forward_selection \
-  ensemble.inference.combine.classification=probabilities_mean,logits_mean
+dojo ensemble experiment=ifcb/ensemble_search \
+  +sweep.mode=grid \
+  '+sweep.grid.ensemble.selection.strategy=[top_k,greedy_forward_selection]' \
+  '+sweep.grid.ensemble.inference.combine.classification=[probabilities_mean,logits_mean]'
 ```
 
 Sweep aggregation summarizes ensemble metrics across the swept axes.
@@ -490,7 +509,7 @@ A training sweep may write to a shared candidate manifest directory that
 a subsequent `dojo ensemble` invocation reads:
 
 ```bash
-dojo train -m experiment=ifcb/sweep_for_ensembling
+dojo train experiment=ifcb/sweep_for_ensembling
 dojo ensemble candidates \
   experiment=ifcb/post_sweep_candidates \
   ensemble.candidates.sources.0.type=run_dir_glob \
@@ -508,7 +527,8 @@ run-directory glob, not a registry-driven discovery (deferred).
 
 ## Cross-References
 
-- `02-cli-and-task-types.md` — `-m` works with every command family.
+- `02-cli-and-task-types.md` — CLI architecture; config-defined sweeps
+  (the `sweep:` block) work with every command family.
 - `03-configuration.md` — `output_root`, `*_outputs.dir_template`
   resolution, run / sweep directory collision handling.
 - `06-results-artifacts-and-metadata.md` — `sweep_id`, `sweep_hash`,

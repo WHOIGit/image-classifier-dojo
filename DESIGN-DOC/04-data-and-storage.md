@@ -155,7 +155,7 @@ Behavior:
 ```bash
 dojo inspect dataset \
   data=ifcb/species_manifest \
-  output=./inspect_outputs/species_manifest.parquet
+  --output ./inspect_outputs/species_manifest.parquet
 ```
 
 The full aspect-flag surface (`--stats`, `--normalization`,

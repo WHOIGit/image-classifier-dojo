@@ -43,6 +43,66 @@ There are **no** `dojo train supervised`, `dojo train ssl`, or
 `dojo train-snapshot-ensemble` subcommands. Training paradigm is selected
 via `task.type` (see below).
 
+## CLI architecture and execution model
+
+Dojo's CLI is a **Typer** application (git-style subcommands, `--options`,
+rich help) that composes configs through the **Hydra Compose API**
+(`hydra.compose`). It does **not** use `@hydra.main`, and it does not use
+Hydra's launcher / sweeper plugins. Sweep expansion, runtime-ID
+generation, output-directory resolution, and existing-directory policy are
+all owned by Dojo (see `09-sweeps-and-batch-runs.md`).
+
+### Config overrides vs. command options
+
+Every command line carries two distinct kinds of token, separated by a
+simple lexical rule — **every Hydra override is dash-free, every Typer
+option starts with `-`**:
+
+- **Config overrides** — dash-free `key=value` and `group=option` tokens,
+  passed through to the Compose API; they land in the composed config
+  tree. Examples: `experiment=ifcb/species_baseline`,
+  `training.batch_size=64`, `model.image_input.backbone.name=resnet50`,
+  `data=ifcb/species_manifest`.
+- **Command options** — Typer `--flags` and positional arguments. They
+  control the command itself and are **not** part of the config tree.
+  Examples: `--check-remote`, `--stats`, `--format json`, `--output`,
+  `--type`, `--checkpoint`.
+
+A command mixes both freely:
+
+```bash
+dojo inspect dataset data=ifcb/species_manifest --stats --format json
+#                    └─ config override ─┘       └─ command options ─┘
+```
+
+### Command I/O is options, not config
+
+Per-invocation inputs and outputs are command options, never config keys:
+`--checkpoint`, `--output`, `--type`, `--ensemble-manifest`. They do not
+appear in the canonical root shape (`03-configuration.md`).
+
+### Two ways a checkpoint enters a command
+
+- **Building a model for the run** → config. A checkpoint that initializes
+  the model (transfer learning, representation eval against an encoder) is
+  `model.image_input.backbone.source: checkpoint` +
+  `model.image_input.backbone.checkpoint_uri` — composed, validated, and
+  hashed as part of the model definition. See
+  `05-models-training-and-heads.md`.
+- **Consuming a checkpoint / model artifact** → command option
+  `--checkpoint`. `dojo export`, `dojo inspect checkpoint`, and
+  `dojo infer` / `dojo eval` loading a complete trained model (whose
+  architecture self-describes from the checkpoint's stored
+  hyperparameters) take the artifact as a `--checkpoint` option.
+
+### Sweeps are config-defined
+
+There is no `-m` / `--multirun` flag. A run is a sweep when the composed
+config's `sweep:` block defines axes (`sweep.mode: grid` with a non-empty
+`sweep.grid`). Dojo expands the cartesian product itself. See
+`09-sweeps-and-batch-runs.md` for the sweep block and the authored →
+resolved pipeline.
+
 ## Task types
 
 `task.type` is the axis that determines what `dojo train` does. Supported
@@ -146,9 +206,10 @@ Default: **schema-and-local feasibility only**. Resolve paths, validate
 format of locally-accessible artifacts; do **not** require network access
 to remote URIs. CI-safe and offline-friendly.
 
-Opt-in `--check-remote` flag (or `inspect.check_remote: true`) performs
-HEAD requests / etag checks against remote URIs (S3 manifests, checkpoints,
-etc.) and reports availability and size. Without `--check-remote`,
+Opt-in `--check-remote` command option performs HEAD requests / etag
+checks against remote URIs (S3 manifests, checkpoints, etc.) and reports
+availability and size. It is a command option only — there is no
+`inspect.check_remote` config key. Without `--check-remote`,
 missing-remote-artifact errors surface at runtime, not at inspect time.
 This is intentional.
 
@@ -227,7 +288,8 @@ Compound and control flags:
   target / tabular distributions); `text` is plain tabular; `json` is
   machine-readable. Frozen values are always written to the cache
   regardless of `--format`.
-- `output=PATH` — write a canonical manifest (incl. `class_folder` scan).
+- `--output PATH` — write a canonical manifest (incl. `class_folder`
+  scan). A command option, not a config key.
 
 When tiers stack (e.g. `--normalization --bit-depth --bucket-histogram`),
 images are opened once and all requested aspects are collected in that
@@ -245,7 +307,7 @@ dojo inspect dataset data=ifcb/species_manifest \
 
 # canonical manifest from a class-folder source
 dojo inspect dataset data=ifcb/species_manifest \
-  output=./inspect_outputs/species_manifest.parquet
+  --output ./inspect_outputs/species_manifest.parquet
 ```
 
 ## `dojo inspect backbone`
@@ -311,13 +373,15 @@ output. Artifact types: `torchscript` and `onnx`. See `10-export.md`.
 
 ## Config-first usage
 
-Every command accepts Hydra-style overrides. Examples:
+Every command accepts dash-free Hydra config overrides; command I/O is
+expressed as `--options` (see "CLI architecture and execution model"
+above). Examples:
 
 ```bash
 dojo inspect config experiment=ifcb/species_baseline training.batch_size=64
-dojo inspect dataset data=ifcb/species_manifest output=./inspect_outputs/species_manifest.parquet
+dojo inspect dataset data=ifcb/species_manifest --output ./inspect_outputs/species_manifest.parquet
 dojo train experiment=ifcb/species_baseline
-dojo infer embeddings experiment=ifcb/species_baseline checkpoint=./runs/baseline/checkpoints/best.ckpt
+dojo infer embeddings experiment=ifcb/species_baseline --checkpoint ./runs/baseline/checkpoints/best.ckpt
 dojo eval representation experiment=ifcb/dinov2_repr_eval
 dojo ensemble candidates experiment=ifcb/ensemble_candidates ensemble_outputs.manifests.dir=./shared_manifests
 dojo ensemble \

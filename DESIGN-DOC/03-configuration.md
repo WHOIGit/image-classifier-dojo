@@ -10,9 +10,12 @@ every other file that mentions a config key.
 
 ## Schema source of truth
 
-Hydra composes configs from `configs/` groups. Pydantic validates the
-composed config and is the runtime contract. CLI overrides apply before
-Pydantic validation.
+Hydra composes configs from `configs/` groups via the Compose API (Dojo
+does not use `@hydra.main`). Pydantic validates the composed config and is
+the runtime contract. Dash-free `key=value` CLI **config overrides** apply
+during composition, before Pydantic validation; dash-prefixed **command
+options** (`--checkpoint`, `--output`, etc.) are not part of the config
+tree. See `02-cli-and-task-types.md` for the overrides-vs-options model.
 
 ## Canonical root shape
 
@@ -237,8 +240,9 @@ special tokens.
     `06-results-artifacts-and-metadata.md`).
   - `{timestamp}` — the run's start time as a filesystem-safe string
     (e.g. `2026-06-26_14-30-05`).
-  - `{job_num}` — Hydra `hydra.job.num`, the per-job index within a
-    sweep.
+  - `{job_num}` — Dojo's per-run sweep index (`sweep.active_run.index`,
+    see `09-sweeps-and-batch-runs.md`), the per-run position within a
+    sweep. Not Hydra's `hydra.job.num` (Dojo does not use `@hydra.main`).
   - `{ensemble_id}` — the generated selected-ensemble id, available after
     candidate discovery and selection (see `08-ensembles.md`).
 

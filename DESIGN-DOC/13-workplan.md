@@ -138,7 +138,8 @@ Needed for downstream serving and for ensembling exported models.
 
 ### P3.3 Sweeps
 
-- Hydra multirun.
+- Dojo-owned sweep expansion over the Hydra Compose API (no `@hydra.main`,
+  no `-m`).
 - Top-level `sweep:` block: grid sweeps and batch-run-style seed sweeps.
 - `sweep_outputs` aggregation.
 
