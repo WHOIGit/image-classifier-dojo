@@ -87,7 +87,10 @@ normalization mean / std
 image mode
 resize policy
 bucket definitions
-tabular feature names / order / stats
+tabular feature names / order
+tabular normalization stats
+tabular imputation (per-column strategy + frozen fill values)
+tabular missing-indicator columns (when enabled)
 input shape
 source checkpoint URI
 config_hash

@@ -140,6 +140,19 @@ before finalizing.
 - `ifcbkit` integration into SSL.
 - Custom dataset and dataloaders for IFCB bins.
 
+### P3.6 Tabular features and fusion
+
+- `model.tabular`: feature columns, encoder, and image / tabular fusion
+  (`concat` / `concat_mlp`). Excluded from the P1 slice and P2.3 model
+  composition; layered in here.
+- Tabular preprocessing: categorical encodings, normalization statistics,
+  and missing-value imputation (per-column strategy, frozen train-split
+  fill values, optional missing indicators).
+- Resolved tabular preprocessing state persisted in the config artifact,
+  exported with portable models (`10-export.md`), and exercised by the
+  `preprocessing_hash` / `model_config_hash` extractors from P2.5 (the
+  tabular sub-blocks are empty when `model.tabular.enabled` is false).
+
 ## Priority 4 — Deferred runtime stubs
 
 These features are lower priority. They are represented as explicit

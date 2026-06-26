@@ -453,8 +453,7 @@ src/dojo/
 
 The pre-refactor package, already moved out of the new `src/dojo` path.
 Importable for reference during the clean-break refactor, deleted once
-Tier 1 CI is green on the new package and no imports remain. No new code
-added here.
+most priority 4 items are dealt with. No code added here.
 
 ## `tests/`
 

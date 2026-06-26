@@ -241,6 +241,14 @@ model:
   tabular:
     enabled: true
     columns: [depth_m, temperature_c, salinity_psu]
+    imputation:
+      default:
+        strategy: median              # train-split statistic, frozen at fit time
+      per_column:
+        salinity_psu:
+          strategy: constant
+          fill_value: 35.0
+      add_missing_indicator: false
     encoder:
       type: mlp
       hidden_dims: [64, 64]
@@ -271,7 +279,42 @@ tabular features → tabular_encoder → tabular_embedding
 ```
 
 Exported model artifacts must include tabular feature names, ordering,
-encodings, and normalization statistics (see `10-export.md`).
+encodings, normalization statistics, and imputation fill values (see
+`10-export.md`).
+
+### Tabular missing values
+
+Tabular feature columns may be missing per sample (sensor dropout,
+unresolved joins, ROIs without co-located measurements). Because the
+tabular encoder needs a finite numeric tensor, missing feature values are
+**imputed**, not dropped. This is distinct from
+`data.targets.<t>.missing_policy` (`04-data-and-storage.md`), which governs
+missing **labels**: a missing label may drop a sample, but a missing
+feature is filled so the sample can still produce a prediction at inference
+time.
+
+`model.tabular.imputation` configures the fill:
+
+- `default.strategy` — rule applied to every column without an override:
+  `mean`, `median`, or `most_frequent` (computed on the train split and
+  frozen), or `constant` with an explicit `fill_value`.
+- `per_column.<col>` — per-column override of `strategy` / `fill_value`.
+- `add_missing_indicator` — when `true`, append one synthetic binary
+  feature per configured column marking whether the original value was
+  present (`0`) or missing-and-imputed (`1`), letting the model use
+  missingness as a signal. The indicator set is fixed by config (all
+  configured columns), not by which columns happen to contain nulls in a
+  given split, so the tabular input width stays reproducible across
+  datasets. Because it widens the tabular encoder input, it is part of the
+  model architecture contract (`model_config_hash`) as well as the input
+  contract.
+
+Statistic-based fill values are computed on the train split only and
+frozen, exactly like normalization mean/std. The frozen fill values,
+per-column strategy, categorical encodings, and normalization statistics
+are resolved preprocessing state: persisted in the config artifact,
+exported with portable models (`10-export.md`), and contributing to
+`preprocessing_hash` by value (`06-results-artifacts-and-metadata.md`).
 
 ## Heads, objectives, and the reference chain
 
