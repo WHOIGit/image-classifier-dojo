@@ -463,8 +463,8 @@ binary_classification
 multilabel_classification          # reserved for true multi-hot multilabel
 regression
 ordinal_classification             # head predicts a discrete ordered bin
-distributional_regression
-count_regression
+distributional_regression          # deferred — see appendix P4.9
+count_regression                   # deferred — see appendix P4.9
 ```
 
 `multilabel_classification` is reserved for true multi-hot multilabel
@@ -472,6 +472,14 @@ problems; the old `multilabel` module (which was actually multi-head
 multiclass) is not ported. Multi-head multiclass uses one
 `multiclass_classification` head per target. The old module is preserved
 under `dojo_deprecated` for reference.
+
+`distributional_regression` and `count_regression` are schema-reserved
+but **deferred** in the initial implementation: neither has a result
+record type yet (`06-results-artifacts-and-metadata.md` defines no
+`distributional_output` / `count_output`), and their dedicated losses
+(`gaussian_nll`, `negative_binomial_nll`, `poisson_nll`) are deferred
+with them. Plain `regression` is the only functional regression head
+type. See `appendix-deferred-features.md` P4.9.
 
 ### Required head fields and network defaults
 
@@ -516,8 +524,8 @@ Initial supported head network types:
 | `multilabel_classification` | `linear`, `mlp` | `linear` |
 | `regression` | `linear`, `mlp` | `linear` |
 | `ordinal_classification` | `linear`, `mlp` | `linear` |
-| `distributional_regression` | `linear`, `mlp` | `linear` |
-| `count_regression` | `linear`, `mlp` | `linear` |
+| `distributional_regression` (deferred, P4.9) | `linear`, `mlp` | `linear` |
+| `count_regression` (deferred, P4.9) | `linear`, `mlp` | `linear` |
 
 `network.type: linear` means there are no hidden layers between the
 head input embedding and the final head-specific projection. The head
@@ -713,8 +721,10 @@ Classification: `cross_entropy`, `weighted_cross_entropy`,
 `class_balanced_effective_number`, `focal`,
 `label_smoothing_cross_entropy`.
 
-Regression: `mse`, `mae`, `huber`, `smooth_l1`, `gaussian_nll`,
-`poisson_nll`, `negative_binomial_nll`, `quantile`.
+Regression: `mse`, `mae`, `huber`, `smooth_l1`, `quantile`.
+(`gaussian_nll`, `poisson_nll`, and `negative_binomial_nll` are deferred
+with the `distributional_regression` / `count_regression` heads — see
+`appendix-deferred-features.md` P4.9.)
 
 Ordinal: `coral`, `corn`, `ordinal_cross_entropy`.
 

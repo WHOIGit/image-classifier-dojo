@@ -228,7 +228,7 @@ heads:
     target_transform                  # resolved data.targets[<target>].transform, by value (type + frozen stats), null if absent
     output_dim                        # regression/count/distributional heads
     num_classes                       # classification/ordinal heads
-    distribution                      # distributional_regression only
+    distribution                      # distributional_regression only (deferred head; see appendix P4.9)
     ordinal:                          # ordinal_classification heads only; from model.heads[<head>].ordinal
       encoding                        # coral | corn | ordinal_cross_entropy
       decoding                        # threshold | expected_rank | argmax

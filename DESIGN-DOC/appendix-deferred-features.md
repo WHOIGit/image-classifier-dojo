@@ -122,14 +122,31 @@ tests.
   tests depending on it, and any remaining useful behavior has either
   been reimplemented in `src/dojo` or intentionally dropped.
 
-### P4.9 WebDataset backend
+### P4.9 Distributional and count regression heads
+
+- Config slots: `model.heads.<name>.type: distributional_regression`
+  (emits distribution parameters, e.g. `gaussian`, `negative_binomial`)
+  and `count_regression` (emits count / rate parameters).
+- Deferred together because neither has a result record type in the
+  initial implementation: `06-results-artifacts-and-metadata.md` defines
+  `regression_output` (single value + uncertainty) but no
+  `distributional_output` / `count_output` for multi-parameter
+  distribution or count / rate heads. Their dedicated losses
+  (`gaussian_nll`, `negative_binomial_nll`, `poisson_nll`) are deferred
+  with them; plain `regression` (`mse`, `mae`, `huber`, `smooth_l1`,
+  `quantile`) is the only functional regression head type.
+- Stub-test obligation: one test per head type — configure a
+  `distributional_regression` / `count_regression` head; invoke training
+  or inference; assert `NotImplementedError` naming the head type.
+
+### P4.10 WebDataset backend
 
 - Config slot: `data.backend: webdataset`.
 - Stub-test obligation: configure `data.backend: webdataset`; invoke
   any train / eval / infer path; assert `NotImplementedError` naming
   "WebDataset backend".
 
-### P4.10 Registry-based ensemble candidate discovery
+### P4.11 Registry-based ensemble candidate discovery
 
 - Broad automatic registry-based cross-run candidate discovery.
 - Note: cross-run ensembling itself is **functional** via explicit

@@ -176,8 +176,8 @@ and runtime-value generation.
 - `regression`
 - `ordinal_classification` (not `ordinal_regression`; the head predicts a
   discrete ordered bin)
-- `distributional_regression`
-- `count_regression`
+- `distributional_regression` (deferred — see appendix P4.9)
+- `count_regression` (deferred — see appendix P4.9)
 
 ## Backbone sources
 

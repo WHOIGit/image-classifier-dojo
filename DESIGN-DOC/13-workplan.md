@@ -183,8 +183,10 @@ stub-test obligations.
   and `prediction_trimmed_mean` (P4.6c).
 - P4.7 HDF / HDF5 result exports.
 - P4.8 Deprecated package `src/dojo_deprecated/` removal.
-- P4.9 WebDataset.
-- P4.10 Registry-based ensemble candidate discovery.
+- P4.9 Distributional and count regression heads
+  (`distributional_regression`, `count_regression`).
+- P4.10 WebDataset.
+- P4.11 Registry-based ensemble candidate discovery.
 
 ## Historical Notes
 
