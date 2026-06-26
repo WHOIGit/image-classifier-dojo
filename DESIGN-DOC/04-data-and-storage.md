@@ -304,7 +304,7 @@ Training runs the dataset preflight checks listed in
   commands.
 - `03-configuration.md` — placement of `data:` and `storage:` blocks.
 - `05-models-training-and-heads.md` — target / head / objective
-  reference chain, tabular fusion.
+  reference chain, tabular input composition.
 - `06-results-artifacts-and-metadata.md` — `source_extra_json` and
   `tabular_features_json` on `sample_metadata` rows.
 - `11-dependencies.md` — `ifcb` optional extra; S3 via the base

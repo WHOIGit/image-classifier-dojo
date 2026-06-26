@@ -176,9 +176,9 @@ What each hash validates:
   probability position means the same label across artifacts.
 - `model_config_hash` validates the architecture contract governing
   checkpoint loadability and the inference-time forward function:
-  backbone source / name / architecture, tabular encoder shape, resolved
-  fusion shape / input order, embedding adapter shape, and head network
-  shapes and activations. It
+  image-input backbone source / name / architecture, tabular-input encoder
+  shape, embedding adapter shape, and head network shapes and activations.
+  It
   answers whether checkpoints and exports load under the same model
   definition and compute the same function. It excludes initialization
   (pretrained weights), trainability (freeze policy), and training-only
@@ -272,20 +272,16 @@ label content is the hash input.
 ```text
 version: 1
 model:
-  backbone:
-    source
-    name                             # torchvision / timm; absent for source: checkpoint
-    architecture                     # for source: checkpoint — the effective module (source / name / arch params)
-    output_dim
-  tabular:
+  image_input:
+    backbone:
+      source
+      name                           # torchvision / timm; absent for source: checkpoint
+      architecture                   # for source: checkpoint — the effective module (source / name / arch params)
+      output_dim
+  tabular_input:
     enabled
     columns
     encoder                         # type, input_dim, output_dim, hidden_dims, activation
-  fusion:
-    enabled
-    type                            # null or concat
-    input_order
-    output_dim                      # resolved concatenated width when enabled
   embedding_adapter:
     enabled
     type
@@ -355,8 +351,9 @@ uses their resolved content, never the cache location. The `imputation` entry ca
 strategy, the frozen fill values, and the missing-indicator set; when
 `add_missing_indicator` is enabled the resulting encoder input width is
 additionally reflected in `model_config_hash` via the resolved
-`model.tabular.encoder.input_dim` and any downstream resolved fusion /
-adapter dimensions (see `05-models-training-and-heads.md`).
+`model.tabular_input.encoder.input_dim` and any downstream resolved
+concatenated / adapter dimensions (see
+`05-models-training-and-heads.md`).
 
 The Pydantic schema should keep these field lists close to the relevant
 models, for example with compatibility-hash extractor methods or field
@@ -473,7 +470,7 @@ Plus optional single-column JSON blobs:
 ### `embedding` columns
 
 ```text
-embedding_kind = image_embedding | tabular_embedding | fused_embedding | head_input_embedding
+embedding_kind = image_embedding | tabular_embedding | fused_input_embedding | head_input_embedding
 embedding
 embedding_dim
 embedding_model_name        # representation-eval only

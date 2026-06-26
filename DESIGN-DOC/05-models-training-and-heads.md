@@ -4,11 +4,12 @@
 ## Purpose
 
 Defines the model composition pipeline (transforms → backbone → optional
-tabular encoder → resolved fusion → optional embedding adapter → heads),
-the head / objective contract, the supervised training LightningModule,
-optimizer / scheduler / checkpointing config, and supervised transfer
-learning. This file absorbs what the original draft split between
-transforms, backbones, heads, objectives, and supervised training.
+tabular input encoder → implicit input concatenation → optional embedding
+adapter → heads), the head / objective contract, the supervised training
+LightningModule, optimizer / scheduler / checkpointing config, and
+supervised transfer learning. This file absorbs what the original draft
+split between transforms, backbones, heads, objectives, and supervised
+training.
 
 ## Transforms and preprocessing
 
@@ -231,9 +232,16 @@ class Backbone(nn.Module):
 
 Returned tensor is usually `batch_size x embedding_dim`.
 
+`model.image_input.name` names the image input stream and defaults to
+`image`. `model.image_input.backbone` holds the image backbone config.
+This keeps the input-stream name separate from
+`model.image_input.backbone.name`, which remains the backbone architecture
+selector (`resnet50`, `vit_small_patch16_224`, etc.) and is used by
+config templates such as `{model.image_input.backbone.name:slug}`.
+
 ### Supported sources
 
-`model.backbone.source`:
+`model.image_input.backbone.source`:
 
 - `torchvision`
 - `timm`
@@ -255,46 +263,52 @@ Torchvision:
 
 ```yaml
 model:
-  backbone:
-    source: torchvision
-    name: resnet50
-    pretrained: true
-    weights: DEFAULT
-    output_dim: auto
-    freeze:
-      policy: none
+  image_input:
+    name: image
+    backbone:
+      source: torchvision
+      name: resnet50
+      pretrained: true
+      weights: DEFAULT
+      output_dim: auto
+      freeze:
+        policy: none
 ```
 
 timm:
 
 ```yaml
 model:
-  backbone:
-    source: timm
-    name: vit_small_patch16_224
-    pretrained: true
-    output_dim: auto
-    freeze:
-      policy: last_n_blocks_trainable
-      n: 2
+  image_input:
+    name: image
+    backbone:
+      source: timm
+      name: vit_small_patch16_224
+      pretrained: true
+      output_dim: auto
+      freeze:
+        policy: last_n_blocks_trainable
+        n: 2
 ```
 
 Checkpoint:
 
 ```yaml
 model:
-  backbone:
-    source: checkpoint
-    architecture:
-      source: timm
-      name: vit_small_patch14_dinov2
-      pretrained: false
-    checkpoint_uri: s3://bucket/runs/ssl_dino_v2/exports/encoder.pt
-    checkpoint_key: encoder_state_dict
-    strict: false
-    freeze:
-      policy: last_n_blocks_trainable
-      n: 4
+  image_input:
+    name: image
+    backbone:
+      source: checkpoint
+      architecture:
+        source: timm
+        name: vit_small_patch14_dinov2
+        pretrained: false
+      checkpoint_uri: s3://bucket/runs/ssl_dino_v2/exports/encoder.pt
+      checkpoint_key: encoder_state_dict
+      strict: false
+      freeze:
+        policy: last_n_blocks_trainable
+        n: 4
 ```
 
 `backbone.output_dim: auto` is the default and should usually not be
@@ -321,9 +335,9 @@ module names. See `02-cli-and-task-types.md`.
 
 Transfer learning from an SSL-pretrained encoder is **not a new task
 type**. It is plain `task.type: supervised` with
-`model.backbone.source: checkpoint` and `checkpoint_uri` pointing at the
-SSL encoder export. Freeze policy, embedding adapter, and heads are
-configured exactly as for any supervised run.
+`model.image_input.backbone.source: checkpoint` and `checkpoint_uri`
+pointing at the SSL encoder export. Freeze policy, embedding adapter,
+and heads are configured exactly as for any supervised run.
 
 `strict: false` maps to PyTorch's `load_state_dict(..., strict=False)`
 and governs **backbone** keys only. Heads in the new run come from the
@@ -336,17 +350,19 @@ Frozen feature extractor recipe:
 
 ```yaml
 model:
-  backbone:
-    source: checkpoint
-    architecture:
-      source: torchvision
-      name: resnet50
-      pretrained: false
-    checkpoint_uri: s3://bucket/runs/ssl_dino_v2/exports/encoder.pt
-    checkpoint_key: encoder_state_dict
-    strict: false
-    freeze:
-      policy: all
+  image_input:
+    name: image
+    backbone:
+      source: checkpoint
+      architecture:
+        source: torchvision
+        name: resnet50
+        pretrained: false
+      checkpoint_uri: s3://bucket/runs/ssl_dino_v2/exports/encoder.pt
+      checkpoint_key: encoder_state_dict
+      strict: false
+      freeze:
+        policy: all
 
   embedding_adapter:
     enabled: true
@@ -360,17 +376,26 @@ model:
 For a true linear-probe evaluation, leave `embedding_adapter` disabled
 and let the head's `network: linear` consume the raw backbone embedding.
 
-## Tabular features and fusion
+## Tabular input and implicit concatenation
 
 Tabular features may be useful model inputs (size descriptors, depth,
 temperature, etc.). Tabular preprocessing and encoding are configured
-under `model.tabular`. Fusion is top-level within `model` because it
-combines model inputs; it does not belong to the tabular branch.
+under `model.tabular_input`. There is no `model.fusion` config block:
+when both image and tabular inputs are enabled, Dojo concatenates their
+embeddings implicitly in canonical input order, image first and tabular
+second.
 
 ```yaml
 model:
-  tabular:
+  image_input:
+    name: image         # default input-stream name
+    backbone:
+      source: torchvision
+      name: resnet50
+
+  tabular_input:
     enabled: true
+    name: tabular       # default input-stream name
     columns: [depth_m, temperature_c, salinity_psu]
     imputation:
       default:
@@ -394,47 +419,19 @@ model:
     dropout: 0.1
 ```
 
-`model.fusion` is authored-optional. Authored configs usually omit it.
-When a user needs explicit concatenation-order control, the only authored
-field is `input_order`:
+`model.tabular_input.name` names the tabular input stream and defaults to
+`tabular`. The initial implementation has at most two model inputs:
+`model.image_input.name` (`image` by default) and
+`model.tabular_input.name` (`tabular` by default). Image input is required
+and tabular input is optional; tabular-only model schema is deferred to
+P4.13.
 
-```yaml
-model:
-  fusion:
-    input_order: [image, tabular]
-```
-
-Config compilation injects the resolved fusion block:
-
-```yaml
-# image-only resolved config
-model:
-  fusion:
-    enabled: false
-    type: null
-    input_order: [image]
-```
-
-```yaml
-# image + tabular resolved config
-model:
-  fusion:
-    enabled: true
-    type: concat
-    input_order: [image, tabular]
-```
-
-Validation requires `input_order` to be exactly the enabled model inputs,
-with no missing or extra names. In the initial implementation the image
-input is required and tabular input is optional; tabular-only model schema
-is deferred to P4.13.
-
-`concat` is identity-like and non-parametric: it concatenates embeddings
-along the feature dimension and learns no weights. With one enabled input,
-fusion is disabled and no fusion module is included in the graph. With
-more than one enabled input, the initial active fusion type is `concat`.
-There is no fusion-level MLP (`concat_mlp` is not an initial option);
-shared learned capacity after concatenation belongs in
+If only image input is enabled, the backbone embedding flows directly to
+the optional `embedding_adapter`. If image and tabular inputs are enabled,
+Dojo concatenates the two embeddings along the feature dimension in fixed
+order: image embedding first, tabular embedding second. This concatenation
+is identity-like and non-parametric: it learns no weights and has no
+authored config. Shared learned capacity after concatenation belongs in
 `embedding_adapter`.
 
 Model flow:
@@ -442,14 +439,14 @@ Model flow:
 ```text
 image → backbone → image_embedding
 tabular features → tabular_encoder → tabular_embedding
-image_embedding + tabular_embedding → fusion (concat) → fused_embedding
+image_embedding + tabular_embedding → implicit concat → fused_input_embedding
   ↓ optional embedding_adapter → head_input_embedding
   ↓ head(s)
 ```
 
 Exported model artifacts must include tabular feature names, ordering,
-encodings, normalization statistics, and imputation fill values (see
-`10-export.md`).
+input-stream names, encodings, normalization statistics, imputation fill
+values, and implicit concatenation order (see `10-export.md`).
 
 ### Tabular missing values
 
@@ -462,7 +459,7 @@ missing **labels**: a missing label may drop a sample, but a missing
 feature is filled so the sample can still produce a prediction at inference
 time.
 
-`model.tabular.imputation` configures the fill:
+`model.tabular_input.imputation` configures the fill:
 
 - `default.strategy` — rule applied to every column without an override:
   `mean`, `median`, or `most_frequent` (computed on the train split and
@@ -491,7 +488,7 @@ The same small set of simple network specs appears in several model
 sub-blocks. Keep the names consistent, but do not add a `network:` wrapper
 outside heads:
 
-- `model.tabular.encoder.type`
+- `model.tabular_input.encoder.type`
 - `model.embedding_adapter.type`
 - `model.heads.<head>.network.type`
 
@@ -499,14 +496,15 @@ Initial values:
 
 | Type | Meaning | Initial locations |
 | --- | --- | --- |
-| `identity` | No learned module; output is the input feature vector unchanged. | `model.tabular.encoder.type` |
-| `linear` | One learned affine projection. No hidden layers. For heads, this means the head-specific final projection only. | `model.tabular.encoder.type`, `model.embedding_adapter.type`, `model.heads.<head>.network.type` |
-| `mlp` | One or more hidden layers before the output projection; supports nonlinear feature interactions. | `model.tabular.encoder.type`, `model.embedding_adapter.type`, `model.heads.<head>.network.type` |
+| `identity` | No learned module; output is the input feature vector unchanged. | `model.tabular_input.encoder.type` |
+| `linear` | One learned affine projection. No hidden layers. For heads, this means the head-specific final projection only. | `model.tabular_input.encoder.type`, `model.embedding_adapter.type`, `model.heads.<head>.network.type` |
+| `mlp` | One or more hidden layers before the output projection; supports nonlinear feature interactions. | `model.tabular_input.encoder.type`, `model.embedding_adapter.type`, `model.heads.<head>.network.type` |
 
-For `tabular.encoder` and `embedding_adapter`, `linear` and `mlp` require
-an explicit `output_dim`. For head networks, the head type determines the
-final output shape, so `network` does not set `output_dim`; it only
-chooses whether hidden layers exist before the head-specific projection.
+For `tabular_input.encoder` and `embedding_adapter`, `linear` and `mlp`
+require an explicit `output_dim`. For head networks, the head type
+determines the final output shape, so `network` does not set `output_dim`;
+it only chooses whether hidden layers exist before the head-specific
+projection.
 
 ## Heads, objectives, and the reference chain
 
@@ -726,8 +724,9 @@ data:
       missing_policy: drop_sample
 
 model:
-  tabular:
+  tabular_input:
     enabled: true
+    name: tabular
     columns: [depth_m, temperature_c, salinity_psu]
     encoder:
       type: mlp
@@ -895,26 +894,22 @@ hyperparameter checkpoints stay clean.
 ### Model composition
 
 ```python
-backbone = build_backbone(cfg.model.backbone)
+backbone = build_backbone(cfg.model.image_input.backbone)
 
 tabular_encoder = (
-    build_tabular_encoder(cfg.model.tabular) if cfg.model.tabular.enabled else None
-)
-
-input_dims = {"image": backbone.output_dim}
-if tabular_encoder:
-    input_dims["tabular"] = tabular_encoder.output_dim
-
-fusion = (
-    build_fusion(cfg.model.fusion, input_dims=input_dims)
-    if cfg.model.fusion.enabled
+    build_tabular_encoder(cfg.model.tabular_input)
+    if cfg.model.tabular_input.enabled
     else None
 )
 
-model_embedding_dim = (
-    fusion.output_dim if fusion else input_dims[cfg.model.fusion.input_order[0]]
-)
+model_input_order = [cfg.model.image_input.name]
+model_embedding_dim = backbone.output_dim
+if tabular_encoder:
+    model_input_order.append(cfg.model.tabular_input.name)
+    model_embedding_dim += tabular_encoder.output_dim
 
+# SupervisedModel concatenates enabled input embeddings in model_input_order
+# before applying the optional embedding adapter.
 embedding_adapter = (
     build_embedding_adapter(
         cfg.model.embedding_adapter,
@@ -932,7 +927,6 @@ heads = build_heads(
 model = SupervisedModel(
     backbone=backbone,
     tabular_encoder=tabular_encoder,
-    fusion=fusion,
     embedding_adapter=embedding_adapter,
     heads=heads,
 )

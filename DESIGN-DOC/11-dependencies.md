@@ -106,7 +106,7 @@ Notes on the current `pyproject.toml` state:
 ### Extra purpose summary
 
 - `train` — Torch stack required to run training / inference.
-- `timm` — first-class `model.backbone.source: timm` support. **Not
+- `timm` — first-class `model.image_input.backbone.source: timm` support. **Not
   deferred**; gated by this extra and raises a clear runtime error when
   missing.
 - `ssl` — Lightly only. SSL DINOv2 ViT backbones come from the `timm`

@@ -163,8 +163,7 @@ tests.
 
 - Initial tabular support is image-backed supervised modeling with optional
   tabular features: an image backbone remains required, and tabular
-  features may be concatenated with image embeddings through resolved
-  top-level `model.fusion`.
+  features may be concatenated implicitly after image embeddings.
 - Tabular-only modeling is deferred because it requires a broader schema
   change: explicit model input enablement, image-free data validation,
   image-free preprocessing / result metadata, export metadata without
@@ -177,7 +176,7 @@ tests.
 
 ### P4.14 Expanded tabular encoder families
 
-- Initial `model.tabular.encoder.type` values are intentionally small:
+- Initial `model.tabular_input.encoder.type` values are intentionally small:
   `identity`, `linear`, and `mlp`.
 - Potential future encoder families:
   `tab_transformer`, `ft_transformer`, `tabnet`, `embedding_bag`, and

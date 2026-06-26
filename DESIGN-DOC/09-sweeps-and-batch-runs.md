@@ -20,8 +20,8 @@ Example sweep:
 ```bash
 dojo train -m \
   experiment=ifcb/experimentA \
-  model.backbone.source=torchvision,timm \
-  model.backbone.name=resnet50,convnext_tiny \
+  model.image_input.backbone.source=torchvision,timm \
+  model.image_input.backbone.name=resnet50,convnext_tiny \
   optimizer.lr=1e-4,3e-4 \
   training.batch_size=32,64
 ```
@@ -93,7 +93,7 @@ sweep:
     runtime.seed: [101, 102, 103]
     optimizer.lr: [1.0e-4, 3.0e-4]
     training.batch_size: [32, 64]
-    model.backbone.name: [resnet50, convnext_tiny]
+    model.image_input.backbone.name: [resnet50, convnext_tiny]
 ```
 
 `sweep.mode` values:
@@ -172,7 +172,7 @@ sweep:
       runtime.seed: 103
       optimizer.lr: 0.0001
       training.batch_size: 64
-      model.backbone.name: convnext_tiny
+      model.image_input.backbone.name: convnext_tiny
 ```
 
 ### Bayesian sweep schema
@@ -203,7 +203,7 @@ sweep:
       training.batch_size:
         type: categorical
         values: [16, 32, 64]
-      model.backbone.name:
+      model.image_input.backbone.name:
         type: categorical
         values: [resnet50, convnext_tiny, efficientnet_b0]
 ```
@@ -418,9 +418,10 @@ runtime:
   sweep_id: "{coolname}"
 
 model:
-  backbone:
-    source: torchvision
-    name: resnet50
+  image_input:
+    backbone:
+      source: torchvision
+      name: resnet50
 
 training:
   batch_size: 32
@@ -432,7 +433,7 @@ sweep:
   mode: grid
   conflict_policy: default
   grid:
-    model.backbone.name: [resnet50, efficientnet_b0, convnext_tiny]
+    model.image_input.backbone.name: [resnet50, efficientnet_b0, convnext_tiny]
     training.batch_size: [32, 64]
     optimizer.lr: [0.0003, 0.0001]
 
@@ -440,7 +441,7 @@ output_root: ./runs
 
 training_outputs:
   dir_template: >-
-    {experiment.name}/sweep_runs/{model.backbone.name:slug}/bs{training.batch_size:03}/lr{optimizer.lr:slug}/
+    {experiment.name}/sweep_runs/{model.image_input.backbone.name:slug}/bs{training.batch_size:03}/lr{optimizer.lr:slug}/
 
 sweep_outputs:
   dir_template: >-

@@ -124,8 +124,8 @@ backlog items.
 
 When the relevant extra is installed:
 
-- `model.backbone.source: timm` (functional);
-- `model.backbone.source: torchvision` and `checkpoint`;
+- `model.image_input.backbone.source: timm` (functional);
+- `model.image_input.backbone.source: torchvision` and `checkpoint`;
 - `local` logger sink (the only functional sink);
 - `dino_v2` SSL via Lightly;
 - `ifcb_bins` dataset backend (with `[ifcb]`);
@@ -161,7 +161,7 @@ inherits their stubbed runtime.
   multi-view transform, extreme aspect ratios, small native resolutions.
 - **Model tests** — torchvision, timm (with `[timm]`), and checkpoint
   backbones; freeze policies; head construction; multi-head model
-  composition; embedding adapter; tabular fusion.
+  composition; embedding adapter; tabular input concatenation.
 - **Objective / loss tests** — loss / metric compatibility per head
   type; objective shorthand; weighted total loss.
 - **Supervised training smoke tests** — minimal-fixture train +

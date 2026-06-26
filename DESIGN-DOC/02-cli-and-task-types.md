@@ -55,7 +55,7 @@ types in the initial implementation:
 ### `supervised`
 
 Standard supervised training, single- or multi-head, with optional tabular
-encoder, resolved fusion, and embedding adapter. See
+input encoder, implicit input concatenation, and embedding adapter. See
 `05-models-training-and-heads.md`.
 
 ### `ssl`
@@ -262,9 +262,9 @@ dojo inspect backbone backbone=torchvision/resnet50
 ```bash
 dojo inspect backbone \
   backbone=torchvision/resnet50 \
-  model.backbone.freeze.policy=after_module_trainable \
-  model.backbone.freeze.module=layer3 \
-  model.backbone.freeze.inclusive=true
+  model.image_input.backbone.freeze.policy=after_module_trainable \
+  model.image_input.backbone.freeze.module=layer3 \
+  model.image_input.backbone.freeze.inclusive=true
 ```
 
 ## `dojo inspect checkpoint`

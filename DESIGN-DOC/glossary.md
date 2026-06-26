@@ -82,8 +82,10 @@ both exist.
   `runtime`.
 - **`data`** — Dataset backend + targets.
 - **`transforms`** — Image transform pipeline.
-- **`model`** — `backbone`, `tabular`, resolved top-level `fusion`,
-  `embedding_adapter`, `heads`.
+- **`model`** — `image_input`, `tabular_input`, `embedding_adapter`,
+  `heads`. `model.image_input.backbone` holds the image backbone config.
+  Image and tabular embeddings concatenate implicitly when both inputs are
+  enabled.
 - **`objectives`** — Bind heads to losses, weights, metrics.
 - **`ssl`** — SSL framework selector (functional method: `dino_v2` via
   Lightly).
@@ -134,7 +136,7 @@ token set: any dotted resolved-config path (e.g. `{experiment.name}`,
 tokens (`{coolname}`, `{timestamp}`, `{job_num}`, `{ensemble_id}`).
 Tokens may carry a `:spec` suffix — the custom `:slug` filesystem-safe
 formatter or any standard Python format spec (e.g.
-`{model.backbone.name:slug}`, `{training.batch_size:03}`). Resolved after
+`{model.image_input.backbone.name:slug}`, `{training.batch_size:03}`). Resolved after
 config composition, validation, and runtime-value generation. The full
 rules live in `03-configuration.md`.
 
@@ -153,7 +155,7 @@ rules live in `03-configuration.md`.
   `cluster_assignment`, `projection`, `outlier_score`, `diagnostic`.
 - **`head_name`** — Logical head identifier on output rows.
 - **`embedding_kind`** — `image_embedding`, `tabular_embedding`,
-  `fused_embedding`, `head_input_embedding`.
+  `fused_input_embedding`, `head_input_embedding`.
 
 ### External vs. internal target/prediction columns
 
@@ -186,7 +188,7 @@ rules live in `03-configuration.md`.
 
 ## Backbone sources
 
-`model.backbone.source`: `torchvision`, `timm`, `checkpoint`. `timm` is
+`model.image_input.backbone.source`: `torchvision`, `timm`, `checkpoint`. `timm` is
 functional, gated by the `timm` extra. Lightly is **not** a public
 backbone source; SSL configs use `ssl.framework: lightly` but still select a
 backbone through one of the three public sources.

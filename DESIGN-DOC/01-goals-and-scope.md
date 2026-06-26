@@ -14,9 +14,9 @@ explain how each goal is satisfied; this file just names them.
 - **Canonical CLI command families.** `dojo train` / `dojo infer` /
   `dojo eval` / `dojo inspect` / `dojo ensemble` / `dojo export`. Task
   paradigm selected via `task.type`. See `02-cli-and-task-types.md`.
-- **Modular model composition.** Backbone + optional tabular encoder +
-  resolved top-level fusion + optional embedding adapter + one-or-more
-  heads.
+- **Modular model composition.** `image_input.backbone` + optional
+  `tabular_input` encoder + implicit image-then-tabular embedding
+  concatenation + optional embedding adapter + one-or-more heads.
 - **Multi-head, multi-objective supervised training.** Heads define
   output structure; objectives bind heads to losses, weights, and metrics.
 - **Dataset backends:** `csv_manifest`, `parquet_manifest`,

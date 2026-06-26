@@ -93,7 +93,7 @@ tabular encoder config and resolved input / output dimensions
 tabular normalization stats
 tabular imputation (per-column strategy + frozen fill values)
 tabular missing-indicator columns (when enabled)
-fusion config (enabled, type, input order, resolved output dimension)
+model input names and implicit concatenation order
 input shape
 source checkpoint URI
 config_hash

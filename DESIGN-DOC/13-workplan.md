@@ -35,7 +35,7 @@ still small.
 | Results | Canonical tall-Parquet writer via `amplify-db-utils`: `sample_metadata` + `classification_output` record types, provenance columns, `config_hash` / `dataset_hash` / `checkpoint_hash`, `_metadata.json` sidecar |
 
 Explicitly excluded from the slice: SSL, ensembling, sweeps, export,
-multi-head, tabular fusion, representation evaluation, `ifcb_bins`,
+multi-head, tabular input, representation evaluation, `ifcb_bins`,
 `timm`, ONNX, and all non-local logging.
 
 Acceptance criteria:
@@ -153,22 +153,25 @@ Needed for downstream serving and for ensembling exported models.
 - `ifcbkit` integration into SSL.
 - Custom dataset and dataloaders for IFCB bins.
 
-### P3.6 Tabular features and fusion
+### P3.6 Tabular input
 
-- `model.tabular`: feature columns and tabular encoder. Excluded from the
-  P1 slice and P2.3 model composition; layered in here.
-- Resolved top-level `model.fusion`: authored-optional, disabled and not
-  included in the graph for one enabled input; active `concat` only when
-  more than one model input is enabled. `input_order` records
-  concatenation order. Learned post-concat capacity belongs in
-  `embedding_adapter`, not fusion.
+- `model.tabular_input`: feature columns, input-stream name (`name`,
+  default `tabular`), and tabular encoder. Excluded from the P1 slice and
+  P2.3 model composition; layered in here.
+- `model.image_input.name` names the image input stream and defaults to
+  `image`; `model.image_input.backbone.name` remains the architecture selector.
+- When image and tabular inputs are both
+  enabled, the supervised compositor concatenates embeddings implicitly in
+  canonical order: image first, tabular second. Learned post-concat
+  capacity belongs in `embedding_adapter`.
 - Tabular preprocessing: categorical encodings, normalization statistics,
   and missing-value imputation (per-column strategy, frozen train-split
   fill values, optional missing indicators).
 - Resolved tabular preprocessing state persisted in the config artifact,
   exported with portable models (`10-export.md`), and exercised by the
-  `preprocessing_hash` / `model_config_hash` extractors from P2.5 (the
-  tabular sub-blocks are empty when `model.tabular.enabled` is false).
+  `preprocessing_hash` / `model_config_hash` extractors from P2.5
+  (`model.tabular_input.enabled: false` leaves the tabular-input
+  sub-block disabled).
 
 ## Priority 4 — Deferred backlog
 

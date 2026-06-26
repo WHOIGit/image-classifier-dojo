@@ -16,10 +16,11 @@ regression / ordinal / SSL models. Key shape:
 
 - **Config-first.** Hydra composes; Pydantic validates and is the
   runtime contract.
-- **Modular model composition.** Backbone (`torchvision` / `timm` /
-  `checkpoint`) + optional tabular encoder + resolved top-level
-  `model.fusion` + optional `embedding_adapter` + one-or-more heads.
-  Objectives bind heads to losses, metrics, and weights.
+- **Modular model composition.** `image_input.backbone` (`torchvision` /
+  `timm` / `checkpoint`) + optional `tabular_input` encoder + implicit
+  image-then-tabular embedding concatenation + optional
+  `embedding_adapter` + one-or-more heads. Objectives bind heads to
+  losses, metrics, and weights.
 - **Canonical results.** Per-row Parquet via `amplify-db-utils` with a
   `_metadata.json` sidecar. Configurable partitioning, dictionary
   encoding, and Arrow list columns for vectors.

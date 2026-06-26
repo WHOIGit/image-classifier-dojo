@@ -26,9 +26,11 @@ data:
 transforms:
 
 model:
-  backbone:
-  tabular:
-  fusion:
+  image_input:
+    name:
+    backbone:
+  tabular_input:
+    name:
   embedding_adapter:
   heads:
 
@@ -88,13 +90,21 @@ Notes:
   `runtime`.
 - `optimizer`, `scheduler`, `checkpointing` are top-level peers of
   `training`.
-- `model.fusion` is authored-optional and resolved into a concrete block.
-  With one enabled model input, fusion is disabled and not included in the
-  graph. With more than one enabled input, the initial active fusion type is
-  non-parametric `concat`, and `input_order` records concatenation order.
-  Authored `input_order`, when present, must be exactly the enabled model
-  inputs. In the initial implementation, image input is required and
-  tabular input is optional; tabular-only schema is deferred.
+- `model.image_input` holds the required image model-input config.
+  `model.image_input.name` names the image input stream and defaults to
+  `image`.
+- `model.image_input.backbone` holds the image backbone config.
+  `model.image_input.backbone.name` remains the backbone architecture
+  selector (`resnet50`, `vit_small_patch16_224`, etc.) and must not be
+  reused as the input-stream name.
+- `model.tabular_input` holds optional tabular model-input config.
+  `model.tabular_input.name` defaults to `tabular`.
+- There is no `model.fusion` config block. When both image and tabular
+  inputs are enabled, Dojo concatenates their embeddings implicitly in
+  canonical input order: image first, tabular second. With one enabled
+  input, no concatenation node is included in the graph. In the initial
+  implementation, image input is required and tabular input is optional;
+  tabular-only schema is deferred.
 - The old top-level `outputs:` block is gone. `training_outputs` is its
   replacement.
 - `logging` lives under `training_outputs.logging`. Only model-training
@@ -142,11 +152,13 @@ data:
       missing_policy: error
 
 model:
-  backbone:
-    source: torchvision
-    name: resnet50
-    weights: IMAGENET1K_V2
-  tabular:
+  image_input:
+    name: image
+    backbone:
+      source: torchvision
+      name: resnet50
+      weights: IMAGENET1K_V2
+  tabular_input:
     enabled: false
   embedding_adapter:
     enabled: false
@@ -219,7 +231,7 @@ special tokens.
 - **Config-path tokens** — any dotted path into the resolved config; the
   token renders the resolved value at that path. Examples:
   `{experiment.name}`, `{runtime.run_id}`, `{runtime.sweep_id}`,
-  `{training.batch_size}`, `{optimizer.lr}`, `{model.backbone.name}`.
+  `{training.batch_size}`, `{optimizer.lr}`, `{model.image_input.backbone.name}`.
 - **Special tokens** (not config paths):
   - `{coolname}` — a fresh, unseeded coolname generated per render (see
     `06-results-artifacts-and-metadata.md`).
@@ -237,7 +249,7 @@ A token may carry a `:spec` suffix applied to its resolved value:
 - `:slug` — a Dojo **custom** formatter that produces a filesystem-safe
   token: characters in `[a-zA-Z0-9-_.]` are kept as-is (so
   `{optimizer.lr:slug}` renders `0.0003` unchanged and
-  `{model.backbone.name:slug}` keeps `resnet50`), spaces become `-`, and
+  `{model.image_input.backbone.name:slug}` keeps `resnet50`), spaces become `-`, and
   every other character becomes `_`. Uses the `python-slugify` internally.
 - Any standard Python format spec works normally, e.g.
   `{training.batch_size:03}` → `032` and `{optimizer.lr:.0e}` → `3e-04`.
@@ -340,16 +352,17 @@ runtime:
 output_root: ./runs
 
 model:
-  backbone:
-    source: torchvision
-    name: efficientnet_b0,resnet50
+  image_input:
+    backbone:
+      source: torchvision
+      name: efficientnet_b0,resnet50
 
 training:
   batch_size: 32,64
 
 training_outputs:
   dir_template: >-
-    {experiment.name}/sweep_runs/{model.backbone.name:slug}/bs{training.batch_size:03}/
+    {experiment.name}/sweep_runs/{model.image_input.backbone.name:slug}/bs{training.batch_size:03}/
   existing_run_dir: error
 
 sweep_outputs:

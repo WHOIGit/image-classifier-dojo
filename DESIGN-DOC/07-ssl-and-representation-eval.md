@@ -17,8 +17,8 @@ on Meta DINOv2 repositories. The initial SSL task focuses on DINOv2-style
 training using Lightly components.
 
 `ssl.framework: lightly` selects the Lightly framework. The backbone for
-an SSL run is still selected via `model.backbone.source: timm |
-torchvision | checkpoint`. There is no `model.backbone.source: lightly`.
+an SSL run is still selected via `model.image_input.backbone.source: timm |
+torchvision | checkpoint`. There is no `model.image_input.backbone.source: lightly`.
 
 DINOv2 typically uses a timm ViT backbone. See the Lightly DINOv2 example
 at <https://docs.lightly.ai/self-supervised-learning/examples/dinov2.html>.
@@ -70,9 +70,10 @@ ssl:
   projection_dim: 65536
 
 model:
-  backbone:
-    source: timm
-    name: vit_small_patch14_dinov2
+  image_input:
+    backbone:
+      source: timm
+      name: vit_small_patch14_dinov2
 
 representation_eval:
   schedule:
@@ -192,7 +193,7 @@ Standalone example:
 ```bash
 dojo eval representation \
   experiment=ifcb/dinov2_repr_eval \
-  model.backbone.checkpoint_uri=./runs/dinov2/checkpoints/best.ckpt \
+  model.image_input.backbone.checkpoint_uri=./runs/dinov2/checkpoints/best.ckpt \
   representation_eval.embeddings.split=holdout
 ```
 
