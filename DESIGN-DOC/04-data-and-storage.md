@@ -158,6 +158,35 @@ dojo inspect dataset \
   output=./inspect_outputs/species_manifest.parquet
 ```
 
+The full aspect-flag surface (`--stats`, `--normalization`,
+`--bucket-histogram`, `--bit-depth`, …) is documented in
+`02-cli-and-task-types.md`.
+
+### Dataset stats cache
+
+Several resolved values are dataset-derived statistics computed once and
+frozen: image normalization mean / std (`normalize: {mode: dataset}`),
+tabular normalization stats and imputation fill values, fitted target
+transform statistics, per-class counts, the resolved class map, the
+resolved `input_bit_depth`, and `ifcb_bins` bin lengths. `dojo inspect
+dataset --stats[=URI]` is the **producer**: it computes the fit statistics
+on the `train` split (structural properties such as bit depth and bin
+lengths across all splits) and writes them to a stats cache.
+
+The cache is keyed by `dataset_hash` so it auto-invalidates when the
+underlying data changes. Config resolution **consumes** it: `normalize:
+{mode: dataset}`, tabular imputation / normalization, target transforms, and
+`length: {mode: cached}` read their frozen values from the cache instead of
+recomputing per run. The `length: {mode: cached, cache_uri}` block under
+`ifcb_bins` above is the first instance of this pattern; the stats cache
+generalizes it to every dataset-derived frozen value.
+
+Resolved values are materialized into the resolved config and hashed by
+content (`06-results-artifacts-and-metadata.md`); the cache is a production
+and reuse mechanism, not the hash input. A stale or missing cache is a
+performance concern, never a correctness one — resolution recomputes when
+the cache is absent.
+
 ### Preflight in `dojo train`
 
 Training runs the dataset preflight checks listed in

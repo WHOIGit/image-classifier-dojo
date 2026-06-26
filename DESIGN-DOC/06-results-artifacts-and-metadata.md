@@ -341,7 +341,9 @@ parameters of their steps inside `inference_pipeline`, not separate fields.
 Resolved dataset statistics such as
 normalization mean/std, tabular normalization stats, and frozen tabular
 imputation fill values are included by value, not by the URI from which
-they were loaded. The `imputation` entry captures the per-column fill
+they were loaded. These resolved statistics are produced by `dojo inspect
+dataset --stats` and cached (`04-data-and-storage.md`), but the hash always
+uses their resolved content, never the cache location. The `imputation` entry captures the per-column fill
 strategy, the frozen fill values, and the missing-indicator set; when
 `add_missing_indicator` is enabled the resulting encoder input width is
 additionally reflected in `model_config_hash` via `model.tabular.encoder`

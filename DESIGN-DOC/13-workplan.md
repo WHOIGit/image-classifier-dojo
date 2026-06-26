@@ -76,6 +76,10 @@ sweeps are layered on top.
 - Shared record contract.
 - Preflight checks: `empty_train_classes`,
   `non_contiguous_class_indices`, `imbalance_ratio_gt`.
+- `dojo inspect dataset` aspect flags (tiered manifest / header / decode
+  passes) and the `dataset_hash`-keyed stats cache producing the frozen
+  normalization / tabular / target / class-count / bit-depth / bin-length
+  values consumed at config resolution.
 
 ### P2.3 Model composition
 
@@ -167,14 +171,18 @@ promoted into active work. See `appendix-deferred-features.md` for the
 stub-test obligations.
 
 - P4.1 Bayesian sweeps.
-- P4.2 Aim runtime logging.
-- P4.3 MLflow runtime logging.
-- P4.4 Non-DINOv2 SSL: SimCLR, VICReg, PMSN, original DINO.
-- P4.5 Weight-space ensembles, weighted combine modes, and
+- P4.2 True multilabel support: one classifier head can emit several
+  outputs from the list of possible outputs.
+- P4.3 Aim runtime logging.
+- P4.4 MLflow runtime logging.
+- P4.5 Non-DINOv2 SSL: SimCLR, VICReg, PMSN, original DINO.
+- P4.6 Weight-space ensembles, weighted combine modes, and
   `prediction_trimmed_mean`.
-- P4.6 HDF / HDF5 result exports.
-- P4.7 WebDataset.
-- P4.8 Registry-based ensemble candidate discovery.
+- P4.7 HDF / HDF5 result exports.
+- P4.8 WebDataset.
+- P4.9 Deprecated package removal after the new `src/dojo`
+  implementation covers up to and including P4.5.
+- P4.10 Registry-based ensemble candidate discovery.
 
 ## Historical Notes
 
@@ -197,7 +205,8 @@ Likely useful reference areas:
   training-loop behavior worth preserving.
 
 Deprecated code should not receive new features. Once the new `src/dojo`
-implementation covers up to+including P4.4, `src/dojo_deprecated/` can be deleted.
+implementation covers up to and including P4.5, `src/dojo_deprecated/`
+can be deleted.
 
 ## Cross-References
 

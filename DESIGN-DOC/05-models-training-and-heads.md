@@ -150,7 +150,10 @@ an emergent property of `normalize`, not a separate setting — `mean: 0.5,
 std: 0.5` yields `[-1, 1]`, ImageNet stats yield roughly `[-2, 2.6]`, and so
 on. Normalization must match the backbone's pretraining (ImageNet stats for
 torchvision / timm ImageNet weights, DINOv2's expected stats for DINOv2);
-there is deliberately no `pixel_range` enum.
+there is deliberately no `pixel_range` enum. When `normalize: {mode:
+dataset}`, the mean / std are produced once by `dojo inspect dataset
+--stats`, frozen into the resolved config, and read from the dataset stats
+cache at resolution (`04-data-and-storage.md`).
 
 The scale-to-`[0, 1]` divisor depends on source bit depth, set with
 `transforms.input_bit_depth`:
@@ -166,7 +169,9 @@ dtype (`uint8` → 8, `uint16` → 16) plus format metadata when present (e.g.
 TIFF `BitsPerSample`, which catches 12-bit data). The resolved value is
 **materialized as a concrete integer** in the resolved config — decided
 once, frozen, and never a per-image runtime decision, so the same raw
-sample always scales identically.
+sample always scales identically. `dojo inspect dataset --bit-depth`
+performs this resolution and flags heterogeneous depths
+(`04-data-and-storage.md`).
 
 `auto` cannot disambiguate the one genuinely ambiguous case: a 12- (or 10-,
 14-) bit image stored in a 16-bit container with no bit-depth metadata

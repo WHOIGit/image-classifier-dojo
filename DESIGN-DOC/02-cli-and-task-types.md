@@ -161,9 +161,83 @@ is an inspect-dataset source, **not** a train / eval / infer backend.
 Inspect outputs are not normal run outputs and do not require a run
 directory.
 
-Reports missing targets and summarizes how many samples will be dropped,
-skipped, or fail validation. Default missing-target policy is `error`
-for all heads.
+With no aspect flag it reports missing targets and summarizes how many
+samples will be dropped, skipped, or fail validation (default
+missing-target policy `error` for all heads).
+
+Aspect flags scope **both what is computed and the I/O cost paid**, so a
+header-level histogram never triggers a full pixel decode. Each aspect is
+either a **frozen** value (deterministic, written to the dataset stats
+cache, consumed at config resolution, and hashed) or an **advisory** report
+(human-facing, may be sampled, never cached or hashed). Frozen fit
+statistics are computed on the `train` split; structural properties are
+computed across all splits. The stats cache is defined in
+`04-data-and-storage.md`.
+
+Tier 0 — manifest only (no image I/O):
+
+| Flag | Computes | Kind |
+|---|---|---|
+| `--targets` | missing-target / drop / skip counts (default) | advisory |
+| `--class-counts` | per-class counts + frequencies | frozen |
+| `--class-map` | resolved index ↔ label mapping | frozen |
+| `--target-stats` | regression / ordinal target distribution + fitted transform stats (standardize mean / std, Box-Cox λ) | frozen |
+| `--tabular-stats` | tabular normalization stats + imputation fill values | frozen |
+| `--imbalance` | imbalance ratio, empty-class, non-contiguous-index checks | advisory |
+
+Tier 1 — image headers only (`imagesize` / lazy open, no pixel decode):
+
+| Flag | Computes | Kind |
+|---|---|---|
+| `--bucket-histogram` | aspect-ratio + long-side distribution; suggested bucket boundaries | advisory |
+| `--bit-depth` | resolve `input_bit_depth`; flag heterogeneous depths | frozen value + advisory warning |
+
+Tier 2 — full pixel decode (opt-in, expensive):
+
+| Flag | Computes | Kind |
+|---|---|---|
+| `--normalization` | per-channel mean / std (streaming) for `normalize: {mode: dataset}` | frozen |
+
+Backend-specific:
+
+| Flag | Computes | Kind |
+|---|---|---|
+| `--bin-lengths` | ROI counts per bin → `bin_lengths` cache (`ifcb_bins` only) | frozen |
+
+Compound and control flags:
+
+- `--stats[=URI]` — run all frozen aspects and write / update the dataset
+  stats cache (the producer for `normalize: {mode: dataset}`, tabular and
+  target stats, imputation, `class-map` / `class-counts`, `bit-depth`, and
+  `bin-lengths`).
+- `--report` — run all advisory aspects, print / write a human report,
+  write no cache.
+- `--all` — every aspect (warns: incurs a full-decode pass).
+- `--split train|val|all` — override split selection; otherwise fit
+  statistics default to `train` and structural properties to `all`.
+- `--sample N|FRACTION` — estimate from a subsample. Permitted for advisory
+  aspects; for frozen aspects it marks the result `estimated: true` so a
+  sampled statistic is never silently frozen into the contract.
+- `output=PATH` — write a canonical manifest (incl. `class_folder` scan).
+
+When tiers stack (e.g. `--normalization --bit-depth --bucket-histogram`),
+images are opened once and all requested aspects are collected in that
+single pass; the decode tier subsumes the header tier.
+
+Examples:
+
+```bash
+# fast, header-only bucket advisory (sub-second with --sample)
+dojo inspect dataset data=ifcb/species_manifest --bucket-histogram
+
+# produce the frozen stats cache consumed at training time
+dojo inspect dataset data=ifcb/species_manifest \
+  --stats=s3://datasets/ifcb/cache/species_stats.parquet
+
+# canonical manifest from a class-folder source
+dojo inspect dataset data=ifcb/species_manifest \
+  output=./inspect_outputs/species_manifest.parquet
+```
 
 ## `dojo inspect backbone`
 
