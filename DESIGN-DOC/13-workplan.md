@@ -95,14 +95,16 @@ sweeps are layered on top.
 ### P2.4 Transforms
 
 - Transform builder.
-- Letterbox, aspect / size buckets, foreground crop, grayscale,
-  normalization.
+- Letterbox, aspect buckets, foreground crop, grayscale, normalization.
 - Per-step `train_only` flag and the derived, resolved-only
   `inference_pipeline` consumed by non-train stages, export, and
   `preprocessing_hash`.
 - `aspect_bucket` assignment as a working-manifest `aspect_bucket` column
   (derived from cached dimensions × scheme) and the `batch_aspect_buckets`
   bucket-aware sampler yielding size-homogeneous batches.
+- Sampler factory: `class_balanced` and `weighted` samplers reading frozen
+  class counts, composing with `batch_aspect_buckets` (bucket grouping
+  outer, class weighting within bucket).
 - Record scale metadata columns.
 
 ### P2.5 Results hardening

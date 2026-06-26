@@ -108,6 +108,18 @@ chain reads: the `aspect_bucket` transform assigns each sample an
 `aspect_bucket` column value, and the `batch_aspect_buckets` sampler groups
 batches by it.
 
+### Class-balanced sampling
+
+The `class_balanced` sampler weights sampling toward under-represented
+classes using the frozen per-class counts from the dataset stats cache
+(`dojo inspect dataset --class-counts`, `04-data-and-storage.md`) — the same
+counts the weighted losses consume — so it never re-tallies the dataset at
+run start. Sampler selection (`class_balanced`, `batch_aspect_buckets`,
+`weighted`, or unsampled) is a data-loading concern. Class-balancing and
+bucketed batching compose with a precedence rule: a batch must stay within
+one `aspect_bucket`, so bucket grouping is the outer constraint and class
+weighting applies within each bucket.
+
 ### Train-only vs. always-on steps
 
 `transforms.pipeline` is a single ordered list so interleaving is explicit
@@ -705,6 +717,12 @@ Regression: `mse`, `mae`, `huber`, `smooth_l1`, `gaussian_nll`,
 `poisson_nll`, `negative_binomial_nll`, `quantile`.
 
 Ordinal: `coral`, `corn`, `ordinal_cross_entropy`.
+
+Count-dependent losses (`weighted_cross_entropy`,
+`class_balanced_effective_number`) derive their per-class weights from the
+frozen train-split class counts in the dataset stats cache (`dojo inspect
+dataset --class-counts`, `04-data-and-storage.md`). The resolved weights are
+frozen into config, not recomputed per run.
 
 ### Target transforms
 

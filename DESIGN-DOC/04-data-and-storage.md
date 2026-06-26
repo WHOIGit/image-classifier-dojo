@@ -176,8 +176,10 @@ lengths across all splits) and writes them to a stats cache.
 
 The cache is keyed by `dataset_hash` so it auto-invalidates when the
 underlying data changes. Config resolution **consumes** it: `normalize:
-{mode: dataset}`, tabular imputation / normalization, target transforms, and
-`length: {mode: cached}` read their frozen values from the cache instead of
+{mode: dataset}`, tabular imputation / normalization, target transforms,
+`length: {mode: cached}`, the count-dependent losses
+(`weighted_cross_entropy`, `class_balanced_effective_number`), and the
+`class_balanced` sampler read their frozen values from the cache instead of
 recomputing per run. The `length: {mode: cached, cache_uri}` block under
 `ifcb_bins` above is the first instance of this pattern; the stats cache
 generalizes it to every dataset-derived frozen value.
@@ -198,6 +200,78 @@ integrity / drift verification. It is recorded alongside, never folded into,
 `dataset_hash`: the cheap identity must not change value depending on
 whether a full pass happened to run. `dataset_content_hash` catches in-place
 pixel mutation that manifest-level identity cannot see.
+
+### Stats cache format
+
+The stats cache is a JSON document per dataset, written by `dojo inspect
+dataset --stats[=URI]`. Small aggregates live inline; per-sample arrays
+(dimensions, bin lengths) are too large for JSON and are written as Parquet
+sidecars referenced by URI.
+
+```json
+{
+  "schema_version": 1,
+  "dataset_hash": "sha256:1a2b…",
+  "dataset_hash_provenance": "manifest_content",
+  "dataset_content_hash": "sha256:9f8e…",
+  "created_by": "dojo inspect dataset",
+  "dojo_version": "0.1.0",
+  "splits_present": ["train", "val", "test"],
+  "aspects": {
+    "normalization": {
+      "split": "train", "estimated": false,
+      "image_mode": "grayscale_repeat3",
+      "mean": [0.42, 0.42, 0.42], "std": [0.18, 0.18, 0.18]
+    },
+    "bit_depth": { "split": "all", "value": 8, "heterogeneous": false },
+    "class_counts": {
+      "split": "train", "estimated": false,
+      "per_head": {
+        "species": { "num_classes": 42, "total": 50000,
+                     "counts": { "0": 1203, "1": 88, "2": 940 } }
+      }
+    },
+    "target_stats": {
+      "split": "train",
+      "per_target": {
+        "biovolume": { "transform": "log1p_standardize",
+                       "fit": { "mean": 2.31, "std": 0.74 } }
+      }
+    },
+    "tabular_stats": {
+      "split": "train",
+      "per_column": {
+        "depth_m": { "mean": 48.2, "std": 31.7, "impute": 45.0 }
+      }
+    },
+    "dimensions": {
+      "split": "all",
+      "parquet_uri": "stats/dimensions.parquet",
+      "columns": ["sample_id", "native_width_px", "native_height_px"]
+    },
+    "bin_lengths": {
+      "split": "all",
+      "parquet_uri": "stats/bin_lengths.parquet",
+      "columns": ["bin_id", "roi_count"]
+    }
+  }
+}
+```
+
+Rules:
+
+- Every aspect records the `split` it was computed on and an `estimated`
+  flag (`true` when produced under `--sample`); resolution refuses to freeze
+  an `estimated` value into a non-sampled run.
+- `dataset_hash` is the cache key. Resolution compares it against the current
+  dataset and ignores the cache on mismatch — recompute, never trust stale.
+- Aspects are independent: a cache may hold only the aspects that have been
+  run, and resolution computes any missing aspect on demand.
+- Inline aggregates (`normalization`, `bit_depth`, `class_counts`,
+  `target_stats`, `tabular_stats`) are the values hashed by content into the
+  compatibility hashes; the per-sample Parquet sidecars (`dimensions`,
+  `bin_lengths`) are derivation inputs (bucket assignment, sampler lengths),
+  not hash inputs.
 
 ### Aspect-bucket assignment
 
