@@ -149,35 +149,206 @@ snapshot_cycle-02_epoch-100.0f0f0f.ckpt
 ### Compatibility hashes
 
 For `target_schema_hash`, `class_mapping_hash`, `model_config_hash`, and
-`preprocessing_hash`, both the hash and the source sub-block are stored
-in `_metadata.json`. Fast path: compare hashes. Slow path: when hashes
-differ, diff source sub-blocks and present a human-readable mismatch
-report.
+`preprocessing_hash`, both the hash and the exact canonical source
+sub-block are stored in `_metadata.json`. Fast path: compare hashes. Slow
+path: when hashes differ, diff source sub-blocks and present a
+human-readable mismatch report.
 
-Key-selection narrative rules (binding intent; **exact field lists TBD**
-and tracked next to the Pydantic schemas via something like a
-`compatibility_hash_includes=True` field flag in
-`dojo.utils.artifact_hashing`):
+Compatibility hashes are computed from the **resolved config** after
+defaults and generated schema values are injected, but before run-local
+paths and runtime identifiers matter. The extractor must build a minimal
+canonical JSON object containing only the fields listed below. Do not hash
+whole config branches by reference.
 
-- `target_schema_hash`: head names, head types, `num_classes`, ordinal
-  encoding/decoding rules, regression `output_dim`. **Excludes** loss
-  type/params, objective weights, metrics.
-- `class_mapping_hash`: per-classification-head ordered list of
-  `(index, label)` pairs.
-- `model_config_hash`: backbone source/name/weights, freeze policy,
-  embedding adapter shape, tabular encoder shape, fusion config, head
-  shapes. **Excludes** optimizer, scheduler, training, logging,
-  `output_root`, `*_outputs` blocks.
-- `preprocessing_hash`: transform pipeline ordering and parameters,
-  image mode, normalization mean/std, resize/bucket definitions, tabular
-  feature normalization stats. **Excludes** training-only augmentation
-  toggles unless they alter the inference-time preprocess contract.
+What each hash validates:
 
-> **Open item.** Freezing the exact field lists is deferred until just
-> before implementation. The narrative rules above are binding intent;
-> implementers mark contributing fields in the Pydantic schemas. Keeping
-> the field list next to schema definitions is preferred over freezing it
-> in static documentation.
+- `target_schema_hash` validates output-task structure: head names, head
+  types, target types, output dimensions, `num_classes`, ordinal
+  encoding / decoding, distributional head shape, and target transforms.
+  It answers whether result rows, checkpoints, or models are comparable
+  for the same prediction-task shape.
+- `class_mapping_hash` validates label-index semantics for discrete
+  heads. Two models may both output 42 logits, but they are incompatible
+  if index `7` names different classes. It answers whether each logit /
+  probability position means the same label across artifacts.
+- `model_config_hash` validates the architecture contract governing
+  checkpoint loadability and the inference-time forward function:
+  backbone source / name / architecture, tabular encoder / fusion shape,
+  embedding adapter shape, and head network shapes and activations. It
+  answers whether checkpoints and exports load under the same model
+  definition and compute the same function. It excludes initialization
+  (pretrained weights), trainability (freeze policy), and training-only
+  regularization (dropout) — none change tensor shapes or inference
+  outputs.
+- `preprocessing_hash` validates the input contract: image mode,
+  resize / bucketing, normalization, foreground crop, grayscale handling,
+  inference pipeline, tabular feature ordering, encodings, and
+  normalization stats. It answers whether the same raw sample would be
+  transformed into the same model input tensor.
+
+Common exclusions for all compatibility hashes:
+
+```text
+experiment
+runtime
+storage
+training
+optimizer
+scheduler
+checkpointing
+objectives
+ensemble
+sweep
+representation_eval
+output_root
+training_outputs
+ensemble_outputs
+sweep_outputs
+logging
+metrics
+figures
+export destinations
+run_id / sweep_id / config_id
+local cache paths
+```
+
+`target_schema_hash` source fields:
+
+```text
+version: 1
+heads:
+  <head_name>:
+    type
+    target
+    target_type                       # from data.targets[<target>].type
+    target_transform                  # resolved data.targets[<target>].transform, by value (type + frozen stats), null if absent
+    output_dim                        # regression/count/distributional heads
+    num_classes                       # classification/ordinal heads
+    distribution                      # distributional_regression only
+    ordinal:                          # ordinal_classification heads only; from model.heads[<head>].ordinal
+      encoding                        # coral | corn | ordinal_cross_entropy
+      decoding                        # threshold | expected_rank | argmax
+```
+
+The `heads` object is keyed by resolved head name and sorted by key during
+canonicalization. `target_schema_hash` excludes loss type, loss params,
+objective weights, metric selections, optimizer settings, and checkpoint
+monitor fields. Ordinal `encoding` / `decoding` are read from the resolved
+head (`model.heads.<head>.ordinal`), not from the objective loss, so the
+loss exclusion holds even though the encoding determines output structure.
+The target transform is read only from `data.targets.<target>.transform`
+(its single home; objectives carry no target transform) and is hashed by
+value, including any resolved fit statistics.
+
+`class_mapping_hash` source fields:
+
+```text
+version: 1
+heads:
+  <head_name>:
+    target
+    ordered_labels:
+      - index: 0
+        label: <string>
+      - index: 1
+        label: <string>
+```
+
+Include only heads with discrete class labels:
+`multiclass_classification`, `binary_classification`,
+`multilabel_classification`, and `ordinal_classification` when ordinal
+bins have configured labels. Labels are the resolved ordered labels from
+`data.targets.<target>.class_names` or inline resolved class metadata. The
+URI of the class-name file is not itself sufficient; the resolved ordered
+label content is the hash input.
+
+`model_config_hash` source fields:
+
+```text
+version: 1
+model:
+  backbone:
+    source
+    name                             # torchvision / timm; absent for source: checkpoint
+    architecture                     # for source: checkpoint — the effective module (source / name / arch params)
+    output_dim
+  tabular:
+    enabled
+    columns
+    encoder
+    fusion
+  embedding_adapter:
+    enabled
+    type
+    hidden_dims
+    output_dim
+    activation
+  heads:
+    <head_name>:
+      type
+      target
+      network                        # type, hidden_dims, activation (excludes dropout)
+      num_classes
+      output_dim
+      distribution
+```
+
+For checkpoint-backed models, include only the effective source
+architecture (the module the checkpoint instantiates), not the
+checkpoint-loading plumbing. `checkpoint_uri`, `checkpoint_key`, and
+`strict` govern which upstream weights initialize the backbone at build
+time, not the resulting architecture or inference function; that
+initialization provenance lives in `config_hash`, the trained bytes in
+`checkpoint_hash`, and export artifacts in `model_hash`.
+`model_config_hash` excludes optimizer, scheduler, training loop settings,
+objective loss/metric choices, checkpoint save policy, output paths, and
+runtime identifiers. It also excludes fields that change neither tensor
+shapes nor the inference forward function: `weights` / `pretrained`
+(initialization), `checkpoint_key` / `strict` (source-load init), `freeze`
+(trainability), and `dropout` (training-only regularization). `activation`
+is retained because it changes inference outputs even though it is
+stateless.
+
+`preprocessing_hash` source fields:
+
+```text
+version: 1
+data:
+  tabular_feature_columns
+  source_extra_columns              # only columns used as model inputs
+transforms:
+  image_mode
+  inference_pipeline                # resolved inference steps, ordered, with parameters
+tabular_preprocessing:
+  columns
+  encodings
+  imputation                        # per-column strategy, frozen fill values, missing-indicator set
+  normalization_stats
+```
+
+Only inference-time preprocessing belongs in `preprocessing_hash`. Manifest
+column-name bindings (`image_uri_column`, `sample_id_column`,
+`split_column`) and the storage `backend` are excluded: they locate a
+sample, they do not transform it, so they must not make otherwise-identical
+input contracts hash differently. Image transform steps come solely from
+the resolved `inference_pipeline`
+(`05-models-training-and-heads.md`), which excludes `train_only`
+augmentation by construction; the full training `pipeline` is not hashed,
+and normalization, resize / bucket, and foreground-crop parameters are the
+parameters of their steps inside `inference_pipeline`, not separate fields.
+Resolved dataset statistics such as
+normalization mean/std, tabular normalization stats, and frozen tabular
+imputation fill values are included by value, not by the URI from which
+they were loaded. The `imputation` entry captures the per-column fill
+strategy, the frozen fill values, and the missing-indicator set; when
+`add_missing_indicator` is enabled the resulting encoder input width is
+additionally reflected in `model_config_hash` via `model.tabular.encoder`
+(see `05-models-training-and-heads.md`).
+
+The Pydantic schema should keep these field lists close to the relevant
+models, for example with compatibility-hash extractor methods or field
+metadata. The documentation above is the execution contract those
+extractors must satisfy.
 
 ## Result rows
 
@@ -386,6 +557,30 @@ and head mappings.
   "schema_version": "1.0.0",
   "created_by": "dojo",
   "run_id": "ifcb-green-river",
+  "compatibility": {
+    "target_schema_hash": "sha256:...",
+    "target_schema_source": {
+      "version": 1,
+      "heads": {}
+    },
+    "class_mapping_hash": "sha256:...",
+    "class_mapping_source": {
+      "version": 1,
+      "heads": {}
+    },
+    "model_config_hash": "sha256:...",
+    "model_config_source": {
+      "version": 1,
+      "model": {}
+    },
+    "preprocessing_hash": "sha256:...",
+    "preprocessing_source": {
+      "version": 1,
+      "data": {},
+      "transforms": {},
+      "tabular_preprocessing": {}
+    }
+  },
   "record_types": {
     "sample_metadata": {
       "description": "One row per evaluated sample.",
@@ -417,8 +612,12 @@ and head mappings.
 }
 ```
 
-The sidecar should also record compatibility-hash sub-blocks so consumers
-can diff source content on mismatch.
+The `compatibility` block is required for model-produced result sidecars,
+checkpoint-adjacent metadata, and exported-model metadata. A value may be
+`null` only when the artifact genuinely cannot supply that compatibility
+dimension, such as cached sample metadata without a producing model.
+Consumers compare `*_hash` values first and diff the paired `*_source`
+objects when hashes differ.
 
 ## Result partitioning
 

@@ -92,6 +92,9 @@ sweeps are layered on top.
 - Transform builder.
 - Letterbox, aspect / size buckets, foreground crop, grayscale,
   normalization.
+- Per-step `train_only` flag and the derived, resolved-only
+  `inference_pipeline` consumed by non-train stages, export, and
+  `preprocessing_hash`.
 - Record scale metadata columns.
 
 ### P2.5 Results hardening
@@ -99,7 +102,10 @@ sweeps are layered on top.
 - Full record-type taxonomy.
 - Partitioning.
 - External / internal column convention.
-- Compatibility-hash field lists. This is currently a flagged open item.
+- Compatibility-hash extractors implementing the pinned
+  `target_schema_hash`, `class_mapping_hash`, `model_config_hash`, and
+  `preprocessing_hash` source field lists from
+  `06-results-artifacts-and-metadata.md`.
 
 ## Priority 3 — Major capability layers
 

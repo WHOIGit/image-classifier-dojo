@@ -42,10 +42,8 @@ referenced by every other file. When in doubt, the terms below win.
 - **Compatibility hashes** — `target_schema_hash`, `class_mapping_hash`,
   `model_config_hash`, `preprocessing_hash`. Both the hash and the source
   sub-block are stored in `_metadata.json` so consumers can fast-compare on
-  the hash and slow-compare via human-readable diff on mismatch.
-
-  Open item: exact field lists per compatibility hash are TBD; see
-  `06-results-artifacts-and-metadata.md`.
+  the hash and slow-compare via human-readable diff on mismatch. The
+  canonical source field lists live in `06-results-artifacts-and-metadata.md`.
 
 ### Seednames vs. fresh coolnames
 

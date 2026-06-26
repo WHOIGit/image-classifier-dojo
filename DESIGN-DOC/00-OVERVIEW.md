@@ -140,13 +140,6 @@ Bookmark these pairs:
 
 ## Open items carried forward
 
-- The exact field lists each compatibility hash consumes
-  (`target_schema_hash`, `class_mapping_hash`, `model_config_hash`,
-  `preprocessing_hash`) are TBD before implementation; the narrative
-  inclusion rules in `06-results-artifacts-and-metadata.md` are
-  binding intent. Implementers mark contributing fields in the
-  Pydantic schemas (e.g. via a `compatibility_hash_includes=True`
-  field flag).
 - Result partitioning interaction with ensemble result rows (exact
   partitioning of member-level vs. ensemble-level rows when training
   and ensemble outputs share a directory) is under-specified. See
