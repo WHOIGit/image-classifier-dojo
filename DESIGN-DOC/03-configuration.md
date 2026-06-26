@@ -205,20 +205,42 @@ For any `dir` key (top-level or sub-block):
 
 ### Path template syntax
 
-Dojo-owned Python-style template tokens:
+`dir_template` values use Dojo-owned `{...}` tokens, resolved by Dojo
+(not OmegaConf `${...}`). The token set is **open**: a token is either a
+dotted path into the resolved config or one of a small fixed set of
+special tokens.
 
-- `{experiment.name}`
-- `{runtime.run_id}`
-- `{runtime.sweep_id}`
-- `{ensemble_id}`
-- `{model.backbone.name:slug}`
-- `{training.batch_size:03}`
+- **Config-path tokens** — any dotted path into the resolved config; the
+  token renders the resolved value at that path. Examples:
+  `{experiment.name}`, `{runtime.run_id}`, `{runtime.sweep_id}`,
+  `{training.batch_size}`, `{optimizer.lr}`, `{model.backbone.name}`.
+- **Special tokens** (not config paths):
+  - `{coolname}` — a fresh, unseeded coolname generated per render (see
+    `06-results-artifacts-and-metadata.md`).
+  - `{timestamp}` — the run's start time as a filesystem-safe string
+    (e.g. `2026-06-26_14-30-05`).
+  - `{job_num}` — Hydra `hydra.job.num`, the per-job index within a
+    sweep.
+  - `{ensemble_id}` — the generated selected-ensemble id, available after
+    candidate discovery and selection (see `08-ensembles.md`).
+
+#### Format specifiers
+
+A token may carry a `:spec` suffix applied to its resolved value:
+
+- `:slug` — a Dojo **custom** formatter that produces a filesystem-safe
+  token: characters in `[a-zA-Z0-9-_.]` are kept as-is (so
+  `{optimizer.lr:slug}` renders `0.0003` unchanged and
+  `{model.backbone.name:slug}` keeps `resnet50`), spaces become `-`, and
+  every other character becomes `_`. Uses the `python-slugify` internally.
+- Any standard Python format spec works normally, e.g.
+  `{training.batch_size:03}` → `032` and `{optimizer.lr:.0e}` → `3e-04`.
 
 Templates resolve **after** config composition, validation, and
-runtime-value generation (so generated `run_id` / `sweep_id` values are
-available). Prefer this syntax over OmegaConf `${...}` for output paths.
-See `09-sweeps-and-batch-runs.md` for the unified runtime ID and output
-resolution order.
+runtime-value generation (so generated `run_id` / `sweep_id` /
+`ensemble_id` values are available). Use this syntax over OmegaConf
+`${...}` for string composition in configs, typically output paths. See `09-sweeps-and-batch-runs.md` for the
+unified runtime ID and output resolution order.
 
 For ensemble runs that use `{ensemble_id}`,
 `ensemble_outputs.dir_template` resolves after candidate discovery,

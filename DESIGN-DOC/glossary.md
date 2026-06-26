@@ -128,10 +128,15 @@ For any `dir` key:
   `output_root`. For sub-block values (e.g. `results.dir` under
   `training_outputs`), the parent base is `training_outputs.dir`.
 
-`dir_template` uses Dojo-owned Python-style template syntax:
-`{experiment.name}`, `{runtime.run_id}`, `{model.backbone.name:slug}`,
-`{training.batch_size:03}`. Resolved after config composition, validation,
-and runtime-value generation.
+`dir_template` uses Dojo-owned `{...}` template syntax with an **open**
+token set: any dotted resolved-config path (e.g. `{experiment.name}`,
+`{runtime.run_id}`, `{training.batch_size}`) plus a fixed set of special
+tokens (`{coolname}`, `{timestamp}`, `{job_num}`, `{ensemble_id}`).
+Tokens may carry a `:spec` suffix — the custom `:slug` filesystem-safe
+formatter or any standard Python format spec (e.g.
+`{model.backbone.name:slug}`, `{training.batch_size:03}`). Resolved after
+config composition, validation, and runtime-value generation. The full
+rules live in `03-configuration.md`.
 
 ## Result taxonomy
 
