@@ -190,7 +190,7 @@ src/dojo/
     storage.py
     data.py
     transforms.py
-    model.py                   # backbone, tabular, embedding_adapter, heads
+    model.py                   # backbone, tabular, fusion, embedding_adapter, heads
     backbones.py
     heads.py
     objectives.py
@@ -292,7 +292,8 @@ src/dojo/
       __init__.py
       encoders.py
       normalization.py
-      fusion.py                  # was model.fusion; now model.tabular.fusion
+
+    fusion.py                    # resolved model.fusion; concat only initially
 
     embedding_adapter/
       __init__.py
@@ -302,7 +303,7 @@ src/dojo/
 
     compositors/
       __init__.py
-      supervised.py              # backbone + tabular + adapter + head(s)
+      supervised.py              # backbone + tabular + fusion + adapter + head(s)
       ssl.py                     # SSL composition (encoder + projection)
       snapshot_ensemble.py       # composition for task.type: snapshot_ensemble
 
@@ -553,7 +554,7 @@ result writing, checkpointing, export, and artifact inspection.
 Compositors assemble model parts:
 
 ```text
-backbone + optional tabular encoder and fusion + optional embedding adapter + head(s)
+backbone + optional tabular encoder + resolved fusion + optional embedding adapter + head(s)
 ```
 
 Tasks (`tasks/supervised`, `tasks/ssl`, `tasks/snapshot_ensemble`) train

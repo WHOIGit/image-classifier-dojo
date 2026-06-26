@@ -6,8 +6,9 @@
 Lists features that are intentionally out of scope for the initial
 implementation but preserved as backlog items. Runtime entries name the
 stub-test obligation they own per the testing policy in
-`12-validation-testing-and-preflight.md`; cleanup milestones name their
-verification obligation instead.
+`12-validation-testing-and-preflight.md`; schema-only backlog items and
+cleanup milestones name their validation or verification obligation
+instead.
 
 ## Stub-test policy recap
 
@@ -157,6 +158,36 @@ tests.
 - Stub-test obligation: configure a registry-type candidate source;
   invoke discovery; assert `NotImplementedError` naming "registry-based
   candidate discovery".
+
+### P4.13 Tabular-only model schema
+
+- Initial tabular support is image-backed supervised modeling with optional
+  tabular features: an image backbone remains required, and tabular
+  features may be concatenated with image embeddings through resolved
+  top-level `model.fusion`.
+- Tabular-only modeling is deferred because it requires a broader schema
+  change: explicit model input enablement, image-free data validation,
+  image-free preprocessing / result metadata, export metadata without
+  image input shape, and updated preflight rules.
+- This is a schema backlog item, not an initial runtime stub. The initial
+  schema should reject attempts to configure a tabular-only model with a
+  clear validation error naming "tabular-only model schema". When the
+  schema slot is introduced, add functional schema/runtime tests rather
+  than a stale runtime-only stub.
+
+### P4.14 Expanded tabular encoder families
+
+- Initial `model.tabular.encoder.type` values are intentionally small:
+  `identity`, `linear`, and `mlp`.
+- Potential future encoder families:
+  `tab_transformer`, `ft_transformer`, `tabnet`, `embedding_bag`, and
+  `wide_and_deep`.
+- These are deferred because each adds nontrivial schema, dependency,
+  preprocessing, export, and compatibility-hash surface area.
+- This is a schema backlog item, not an initial runtime stub. The initial
+  schema should reject unknown tabular encoder types. When an encoder
+  family is promoted, add real functional tests for its schema,
+  construction, hashing, export metadata, and inference behavior.
 
 ## Cross-References
 

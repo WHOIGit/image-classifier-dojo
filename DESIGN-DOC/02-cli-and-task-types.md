@@ -55,7 +55,8 @@ types in the initial implementation:
 ### `supervised`
 
 Standard supervised training, single- or multi-head, with optional tabular
-fusion and embedding adapter. See `05-models-training-and-heads.md`.
+encoder, resolved fusion, and embedding adapter. See
+`05-models-training-and-heads.md`.
 
 ### `ssl`
 

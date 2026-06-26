@@ -111,10 +111,14 @@ deleted and replaced with real functional tests.
 - Broad automatic registry-based cross-run candidate discovery.
 
 Deprecated package removal is a P4 cleanup milestone, not a runtime stub,
-so it does not have a `NotImplementedError` test.
+so it does not have a `NotImplementedError` test. Tabular-only modeling
+and expanded tabular encoder families are schema backlog items: the
+initial schema rejects them clearly rather than accepting unstable config
+slots that later fail at runtime.
 
-See `appendix-deferred-features.md` for the full list with stub-test
-obligations.
+See `appendix-deferred-features.md` for the full deferred backlog,
+including which entries are runtime stubs versus schema / cleanup
+backlog items.
 
 ## Functional features get full functional tests
 
@@ -198,7 +202,7 @@ Integration tests consume Tier 1 fixtures exclusively.
 - `03-configuration.md` — `runtime:` block placement.
 - `04-data-and-storage.md` — dataset preflight checks.
 - `06-results-artifacts-and-metadata.md` — logging-sink behavior.
-- `appendix-deferred-features.md` — every deferred feature has a
-  stub-assertion test obligation defined here.
+- `appendix-deferred-features.md` — deferred runtime stubs, schema
+  backlog items, and cleanup milestones.
 - `11-dependencies.md` — extras gate which functional tests run.
 - `glossary.md` — preflight / runtime vocabulary.

@@ -176,8 +176,9 @@ What each hash validates:
   probability position means the same label across artifacts.
 - `model_config_hash` validates the architecture contract governing
   checkpoint loadability and the inference-time forward function:
-  backbone source / name / architecture, tabular encoder / fusion shape,
-  embedding adapter shape, and head network shapes and activations. It
+  backbone source / name / architecture, tabular encoder shape, resolved
+  fusion shape / input order, embedding adapter shape, and head network
+  shapes and activations. It
   answers whether checkpoints and exports load under the same model
   definition and compute the same function. It excludes initialization
   (pretrained weights), trainability (freeze policy), and training-only
@@ -279,8 +280,12 @@ model:
   tabular:
     enabled
     columns
-    encoder
-    fusion
+    encoder                         # type, input_dim, output_dim, hidden_dims, activation
+  fusion:
+    enabled
+    type                            # null or concat
+    input_order
+    output_dim                      # resolved concatenated width when enabled
   embedding_adapter:
     enabled
     type
@@ -349,8 +354,9 @@ dataset --stats` and cached (`04-data-and-storage.md`), but the hash always
 uses their resolved content, never the cache location. The `imputation` entry captures the per-column fill
 strategy, the frozen fill values, and the missing-indicator set; when
 `add_missing_indicator` is enabled the resulting encoder input width is
-additionally reflected in `model_config_hash` via `model.tabular.encoder`
-(see `05-models-training-and-heads.md`).
+additionally reflected in `model_config_hash` via the resolved
+`model.tabular.encoder.input_dim` and any downstream resolved fusion /
+adapter dimensions (see `05-models-training-and-heads.md`).
 
 The Pydantic schema should keep these field lists close to the relevant
 models, for example with compatibility-hash extractor methods or field

@@ -4,11 +4,11 @@
 ## Purpose
 
 Defines the model composition pipeline (transforms → backbone → optional
-tabular fusion → optional embedding adapter → heads), the head /
-objective contract, the supervised training LightningModule, optimizer /
-scheduler / checkpointing config, and supervised transfer learning. This
-file absorbs what the original draft split between transforms, backbones,
-heads, objectives, and supervised training.
+tabular encoder → resolved fusion → optional embedding adapter → heads),
+the head / objective contract, the supervised training LightningModule,
+optimizer / scheduler / checkpointing config, and supervised transfer
+learning. This file absorbs what the original draft split between
+transforms, backbones, heads, objectives, and supervised training.
 
 ## Transforms and preprocessing
 
@@ -363,7 +363,9 @@ and let the head's `network: linear` consume the raw backbone embedding.
 ## Tabular features and fusion
 
 Tabular features may be useful model inputs (size descriptors, depth,
-temperature, etc.). Tabular / image fusion is configured under `model:`:
+temperature, etc.). Tabular preprocessing and encoding are configured
+under `model.tabular`. Fusion is top-level within `model` because it
+combines model inputs; it does not belong to the tabular branch.
 
 ```yaml
 model:
@@ -381,9 +383,7 @@ model:
     encoder:
       type: mlp
       hidden_dims: [64, 64]
-    fusion:
-      type: concat_mlp
-      output_dim: 512
+      output_dim: 64
 
   embedding_adapter:
     enabled: true
@@ -394,15 +394,55 @@ model:
     dropout: 0.1
 ```
 
-`model.tabular.fusion` is the nested key — there is no top-level
-`model.fusion`. Initial fusion type: `concat` / `concat_mlp`.
+`model.fusion` is authored-optional. Authored configs usually omit it.
+When a user needs explicit concatenation-order control, the only authored
+field is `input_order`:
+
+```yaml
+model:
+  fusion:
+    input_order: [image, tabular]
+```
+
+Config compilation injects the resolved fusion block:
+
+```yaml
+# image-only resolved config
+model:
+  fusion:
+    enabled: false
+    type: null
+    input_order: [image]
+```
+
+```yaml
+# image + tabular resolved config
+model:
+  fusion:
+    enabled: true
+    type: concat
+    input_order: [image, tabular]
+```
+
+Validation requires `input_order` to be exactly the enabled model inputs,
+with no missing or extra names. In the initial implementation the image
+input is required and tabular input is optional; tabular-only model schema
+is deferred to P4.13.
+
+`concat` is identity-like and non-parametric: it concatenates embeddings
+along the feature dimension and learns no weights. With one enabled input,
+fusion is disabled and no fusion module is included in the graph. With
+more than one enabled input, the initial active fusion type is `concat`.
+There is no fusion-level MLP (`concat_mlp` is not an initial option);
+shared learned capacity after concatenation belongs in
+`embedding_adapter`.
 
 Model flow:
 
 ```text
 image → backbone → image_embedding
 tabular features → tabular_encoder → tabular_embedding
-  ↓ fusion (concat) → fused_embedding
+image_embedding + tabular_embedding → fusion (concat) → fused_embedding
   ↓ optional embedding_adapter → head_input_embedding
   ↓ head(s)
 ```
@@ -444,6 +484,29 @@ per-column strategy, categorical encodings, and normalization statistics
 are resolved preprocessing state: persisted in the config artifact,
 exported with portable models (`10-export.md`), and contributing to
 `preprocessing_hash` by value (`06-results-artifacts-and-metadata.md`).
+
+### Simple network specs
+
+The same small set of simple network specs appears in several model
+sub-blocks. Keep the names consistent, but do not add a `network:` wrapper
+outside heads:
+
+- `model.tabular.encoder.type`
+- `model.embedding_adapter.type`
+- `model.heads.<head>.network.type`
+
+Initial values:
+
+| Type | Meaning | Initial locations |
+| --- | --- | --- |
+| `identity` | No learned module; output is the input feature vector unchanged. | `model.tabular.encoder.type` |
+| `linear` | One learned affine projection. No hidden layers. For heads, this means the head-specific final projection only. | `model.tabular.encoder.type`, `model.embedding_adapter.type`, `model.heads.<head>.network.type` |
+| `mlp` | One or more hidden layers before the output projection; supports nonlinear feature interactions. | `model.tabular.encoder.type`, `model.embedding_adapter.type`, `model.heads.<head>.network.type` |
+
+For `tabular.encoder` and `embedding_adapter`, `linear` and `mlp` require
+an explicit `output_dim`. For head networks, the head type determines the
+final output shape, so `network` does not set `output_dim`; it only
+chooses whether hidden layers exist before the head-specific projection.
 
 ## Heads, objectives, and the reference chain
 
@@ -669,9 +732,7 @@ model:
     encoder:
       type: mlp
       hidden_dims: [64, 64]
-    fusion:
-      type: concat_mlp
-      output_dim: 512
+      output_dim: 64
   heads:
     species:
       type: multiclass_classification
@@ -840,11 +901,24 @@ tabular_encoder = (
     build_tabular_encoder(cfg.model.tabular) if cfg.model.tabular.enabled else None
 )
 
+input_dims = {"image": backbone.output_dim}
+if tabular_encoder:
+    input_dims["tabular"] = tabular_encoder.output_dim
+
+fusion = (
+    build_fusion(cfg.model.fusion, input_dims=input_dims)
+    if cfg.model.fusion.enabled
+    else None
+)
+
+model_embedding_dim = (
+    fusion.output_dim if fusion else input_dims[cfg.model.fusion.input_order[0]]
+)
+
 embedding_adapter = (
     build_embedding_adapter(
         cfg.model.embedding_adapter,
-        image_embedding_dim=backbone.output_dim,
-        tabular_embedding_dim=tabular_encoder.output_dim if tabular_encoder else 0,
+        input_dim=model_embedding_dim,
     )
     if cfg.model.embedding_adapter.enabled
     else None
@@ -852,12 +926,13 @@ embedding_adapter = (
 
 heads = build_heads(
     cfg.model.heads,
-    input_dim=embedding_adapter.output_dim if embedding_adapter else backbone.output_dim,
+    input_dim=embedding_adapter.output_dim if embedding_adapter else model_embedding_dim,
 )
 
 model = SupervisedModel(
     backbone=backbone,
     tabular_encoder=tabular_encoder,
+    fusion=fusion,
     embedding_adapter=embedding_adapter,
     heads=heads,
 )

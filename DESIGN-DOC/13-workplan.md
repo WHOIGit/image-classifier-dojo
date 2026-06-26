@@ -155,9 +155,13 @@ Needed for downstream serving and for ensembling exported models.
 
 ### P3.6 Tabular features and fusion
 
-- `model.tabular`: feature columns, encoder, and image / tabular fusion
-  (`concat` / `concat_mlp`). Excluded from the P1 slice and P2.3 model
-  composition; layered in here.
+- `model.tabular`: feature columns and tabular encoder. Excluded from the
+  P1 slice and P2.3 model composition; layered in here.
+- Resolved top-level `model.fusion`: authored-optional, disabled and not
+  included in the graph for one enabled input; active `concat` only when
+  more than one model input is enabled. `input_order` records
+  concatenation order. Learned post-concat capacity belongs in
+  `embedding_adapter`, not fusion.
 - Tabular preprocessing: categorical encodings, normalization statistics,
   and missing-value imputation (per-column strategy, frozen train-split
   fill values, optional missing indicators).
@@ -166,12 +170,14 @@ Needed for downstream serving and for ensembling exported models.
   `preprocessing_hash` / `model_config_hash` extractors from P2.5 (the
   tabular sub-blocks are empty when `model.tabular.enabled` is false).
 
-## Priority 4 — Deferred runtime stubs
+## Priority 4 — Deferred backlog
 
-These features are lower priority. They are represented as explicit
-runtime stubs with `NotImplementedError` contracts until they are
-promoted into active work. See `appendix-deferred-features.md` for the
-stub-test obligations.
+These features are lower priority. Runtime-deferred features are
+represented as explicit stubs with `NotImplementedError` contracts until
+they are promoted into active work. Schema backlog, cleanup, and
+enhancement items name their validation or verification obligation
+instead. See `appendix-deferred-features.md` for the deferred-feature
+obligations.
 
 - P4.1 Bayesian sweeps.
 - P4.2 Multilabel support: one classifier head can emit several
@@ -193,6 +199,10 @@ stub-test obligations.
   enhancement to the functional lowest-index tie-break, not a
   `NotImplementedError` stub, so it carries no stub-test obligation and
   has no `appendix-deferred-features.md` entry.
+- P4.13 Tabular-only model schema.
+- P4.14 Expanded tabular encoder families beyond `identity`, `linear`,
+  and `mlp` (`tab_transformer`, `ft_transformer`, `tabnet`,
+  `embedding_bag`, `wide_and_deep`).
 
 ## Historical Notes
 
@@ -234,4 +244,5 @@ deleted (the P4.8 cleanup milestone).
 - `11-dependencies.md` — base install and extras.
 - `12-validation-testing-and-preflight.md` — validation and stub-test
   policy.
-- `appendix-deferred-features.md` — deferred runtime stubs.
+- `appendix-deferred-features.md` — deferred runtime stubs, schema
+  backlog items, and cleanup milestones.

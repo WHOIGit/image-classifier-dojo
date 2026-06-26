@@ -28,7 +28,7 @@ transforms:
 model:
   backbone:
   tabular:
-    fusion:
+  fusion:
   embedding_adapter:
   heads:
 
@@ -88,7 +88,13 @@ Notes:
   `runtime`.
 - `optimizer`, `scheduler`, `checkpointing` are top-level peers of
   `training`.
-- `model.tabular.fusion` is nested; there is no top-level `model.fusion`.
+- `model.fusion` is authored-optional and resolved into a concrete block.
+  With one enabled model input, fusion is disabled and not included in the
+  graph. With more than one enabled input, the initial active fusion type is
+  non-parametric `concat`, and `input_order` records concatenation order.
+  Authored `input_order`, when present, must be exactly the enabled model
+  inputs. In the initial implementation, image input is required and
+  tabular input is optional; tabular-only schema is deferred.
 - The old top-level `outputs:` block is gone. `training_outputs` is its
   replacement.
 - `logging` lives under `training_outputs.logging`. Only model-training

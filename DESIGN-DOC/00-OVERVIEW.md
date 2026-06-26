@@ -17,9 +17,9 @@ regression / ordinal / SSL models. Key shape:
 - **Config-first.** Hydra composes; Pydantic validates and is the
   runtime contract.
 - **Modular model composition.** Backbone (`torchvision` / `timm` /
-  `checkpoint`) + optional tabular encoder + optional `tabular.fusion` +
-  optional `embedding_adapter` + one-or-more heads. Objectives bind heads
-  to losses, metrics, and weights.
+  `checkpoint`) + optional tabular encoder + resolved top-level
+  `model.fusion` + optional `embedding_adapter` + one-or-more heads.
+  Objectives bind heads to losses, metrics, and weights.
 - **Canonical results.** Per-row Parquet via `amplify-db-utils` with a
   `_metadata.json` sidecar. Configurable partitioning, dictionary
   encoding, and Arrow list columns for vectors.
@@ -103,12 +103,13 @@ Read in order:
   — layered validation; `runtime.preflight` controls; stub-test policy
   for deferred features; test scope by area; fixture tiers.
 - [13. Workplan](13-workplan.md) — priority order for the new
-  `src/dojo` implementation; thin-slice gate; deferred runtime stubs.
+  `src/dojo` implementation; thin-slice gate; deferred backlog.
 
 Appendices and reference:
 
-- [Appendix — Deferred Features](appendix-deferred-features.md) — every
-  stubbed feature with its `NotImplementedError` test obligation.
+- [Appendix — Deferred Features](appendix-deferred-features.md) —
+  runtime stubs with their `NotImplementedError` test obligations, plus
+  schema backlog and cleanup items.
 - [Appendix — Repository Structure](appendix-repository-structure.md) —
   proposed `configs/`, `src/dojo/`, and `tests/` tree derived from the
   canonical decisions above.
@@ -135,5 +136,6 @@ Bookmark these pairs:
   `sweep_outputs:` schema; `sweep_id` provenance on result rows;
   sweeps that feed ensemble candidate discovery.
 - `12-validation-testing-and-preflight.md` &
-  `appendix-deferred-features.md` — each deferred-feature entry names
-  the `NotImplementedError` test it owns.
+  `appendix-deferred-features.md` — runtime-stub entries name their
+  `NotImplementedError` tests; schema backlog and cleanup items name
+  their validation or verification obligations.

@@ -15,7 +15,8 @@ explain how each goal is satisfied; this file just names them.
   `dojo eval` / `dojo inspect` / `dojo ensemble` / `dojo export`. Task
   paradigm selected via `task.type`. See `02-cli-and-task-types.md`.
 - **Modular model composition.** Backbone + optional tabular encoder +
-  optional tabular fusion + optional embedding adapter + one-or-more heads.
+  resolved top-level fusion + optional embedding adapter + one-or-more
+  heads.
 - **Multi-head, multi-objective supervised training.** Heads define
   output structure; objectives bind heads to losses, weights, and metrics.
 - **Dataset backends:** `csv_manifest`, `parquet_manifest`,
@@ -54,9 +55,11 @@ explain how each goal is satisfied; this file just names them.
 ## Deferred-feature backlog
 
 The following are out of scope for the initial implementation but are
-intentionally preserved as deferred backlog items. Each has exactly one
-test that asserts a `NotImplementedError` at the relevant runtime path.
-See `appendix-deferred-features.md` and
+intentionally preserved as deferred backlog items. Runtime-stubbed items
+each have exactly one test that asserts a `NotImplementedError` at the
+relevant runtime path. Schema-only backlog items are rejected during
+validation until their schema is introduced. See
+`appendix-deferred-features.md` and
 `12-validation-testing-and-preflight.md`.
 
 - Aim logger sink (schema present; runtime stubbed). Only the `local`
@@ -74,6 +77,9 @@ See `appendix-deferred-features.md` and
   mechanism**; cross-run ensembling itself is functional via explicit
   candidate sources).
 - HDF / HDF5 derived result exports.
+- Tabular-only model schema.
+- Expanded tabular encoder families beyond `identity`, `linear`, and
+  `mlp`.
 
 ## Workplan framing
 

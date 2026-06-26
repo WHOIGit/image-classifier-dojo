@@ -82,7 +82,7 @@ both exist.
   `runtime`.
 - **`data`** — Dataset backend + targets.
 - **`transforms`** — Image transform pipeline.
-- **`model`** — `backbone`, `tabular` (with nested `tabular.fusion`),
+- **`model`** — `backbone`, `tabular`, resolved top-level `fusion`,
   `embedding_adapter`, `heads`.
 - **`objectives`** — Bind heads to losses, weights, metrics.
 - **`ssl`** — SSL framework selector (functional method: `dino_v2` via
