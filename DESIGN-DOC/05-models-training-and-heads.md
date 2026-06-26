@@ -70,9 +70,11 @@ transforms:
     - name: random_rotation
       mode: multiples_of_90
       p: 0.5
+      train_only: true
 
     - name: horizontal_flip
       p: 0.5
+      train_only: true
 
     - name: normalize
       mode: dataset
@@ -87,6 +89,40 @@ recorded as `sample_metadata` columns (`native_width_px`,
 `native_height_px`, `resize_width_px`, `resize_height_px`,
 `resize_bucket`, `microns_per_pixel`) — see
 `06-results-artifacts-and-metadata.md`.
+
+### Train-only vs. always-on steps
+
+`transforms.pipeline` is a single ordered list so interleaving is explicit
+(deterministic ops and augmentation can alternate, e.g. crop → augment →
+resize → augment → normalize). Each step may set:
+
+- `enabled` — global on/off (default `true`).
+- `train_only` — when `true`, the step runs during `train` only and is
+  dropped for every non-train stage (`val`, `predict`, export). Default
+  `false` (always-on). Stochastic augmentation (random rotation, flip,
+  blur, noise) sets `train_only: true`; deterministic preprocessing
+  (foreground crop, bucketed resize, normalize) leaves it `false`.
+
+A step is augmentation by **stochastic intent**, marked per step — not by
+module identity. A `crop` may be a deterministic center crop (always-on)
+or a random crop (`train_only`), and `rotation` may be a fixed or a random
+rotation; the flag, not the module, draws the line.
+
+`image_mode` is a load-time channel-layout policy, not a pipeline step: it
+is singular, always-on, and defines the channel contract the pipeline and
+backbone assume. It stays a top-level `transforms` field.
+
+Config compilation materializes a derived **`inference_pipeline`**: the
+ordered subset of `pipeline` where each step is `enabled` and not
+`train_only`, with parameters baked in. It is the pipeline used by every
+non-train stage and by exported models, and it is the sole input the
+`preprocessing_hash` extractor reads for transform steps
+(`06-results-artifacts-and-metadata.md`). `inference_pipeline` is
+**resolved-only**: validation rejects it in authored configs and it must
+not be hand-edited. Resolved configs therefore carry both the full
+training `pipeline` and the derived `inference_pipeline`; SSL multi-view
+augmentation is configured separately under `ssl:`
+(`07-ssl-and-representation-eval.md`) and is not part of this pipeline.
 
 ## Backbones
 
