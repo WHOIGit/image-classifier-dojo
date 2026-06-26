@@ -187,6 +187,12 @@ stub-test obligations.
   (`distributional_regression`, `count_regression`).
 - P4.10 WebDataset.
 - P4.11 Registry-based ensemble candidate discovery.
+- P4.12 `majority_vote` probability-mass tie-break: when members carry
+  `probabilities`, break vote ties by highest summed member probability
+  across the tied classes (falling back to lowest class index). An
+  enhancement to the functional lowest-index tie-break, not a
+  `NotImplementedError` stub, so it carries no stub-test obligation and
+  has no `appendix-deferred-features.md` entry.
 
 ## Historical Notes
 

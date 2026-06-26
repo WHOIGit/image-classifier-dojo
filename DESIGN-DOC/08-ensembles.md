@@ -325,7 +325,6 @@ Classification:
 - `probabilities_mean`
 - `logits_mean`
 - `majority_vote`
-- `soft_vote`
 
 Regression:
 
@@ -365,6 +364,20 @@ prediction_confidence = max(probabilities)
 `probabilities_mean` is usually safer when combining heterogeneous models
 because it reduces sensitivity to different logit scales.
 
+`majority_vote` (classification):
+
+```text
+member_votes = [argmax(member_output_i) for each member]
+prediction_index = the class with the most member votes
+                   # ties broken deterministically by lowest class index
+prediction_confidence = vote_count(prediction_index) / num_members
+```
+
+Hard voting needs only each member's `prediction_index`, which is why it
+is the one classification mode that combines from members that logged a
+prediction but no `logits` / `probabilities`. Ties are broken
+deterministically by **lowest class index** (no RNG).
+
 Regression:
 
 ```text
@@ -394,7 +407,6 @@ Required columns per combine mode (column definitions live in
 | `logits_mean` (classification) | `logits` |
 | `probabilities_mean` (classification) | `probabilities` (or `logits` to derive) |
 | `majority_vote` (classification) | `prediction_index` |
-| `soft_vote` (classification) | `probabilities` |
 | `prediction_mean` / `prediction_median` (regression) | `prediction_value` (use `prediction_value_internal` if combining in transformed space) |
 | `ordinal_logits_mean` | `ordinal_logits` |
 | `ordinal_probabilities_mean` | `probabilities` (per-bin) |

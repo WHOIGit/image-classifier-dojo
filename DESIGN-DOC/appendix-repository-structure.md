@@ -376,7 +376,7 @@ src/dojo/
     discovery.py                 # explicit, manifest, run_dir_glob, checkpoint_glob, result_uri_glob
     compatibility.py             # hashes + cascading metadata policy + drift check
     selection.py                 # all, best_candidate, top_k, greedy_forward, cycle_end_snapshots
-    combine.py                   # logits_mean, probabilities_mean, majority_vote, soft_vote, prediction_mean, prediction_median
+    combine.py                   # logits_mean, probabilities_mean, majority_vote, prediction_mean, prediction_median
     cached_results.py            # offline ensembling from result Parquet
     manifest.py                  # JSON manifest IO
     bundle.py                    # ensemble artifact bundling
