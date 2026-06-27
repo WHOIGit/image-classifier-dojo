@@ -339,8 +339,7 @@ checkpointing:
 
 ensemble:
   selection:
-    strategy: cycle_end_snapshots
-    use_all_cycles: true
+    strategy: all          # candidates are the run's cycle-end snapshots (implicit source)
   inference:
     combine:
       classification: probabilities_mean

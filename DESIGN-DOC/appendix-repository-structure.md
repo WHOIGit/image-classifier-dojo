@@ -153,7 +153,7 @@ configs/
 
   ensemble/
     disabled.yaml
-    cycle_end_snapshots.yaml
+    snapshot_select_all.yaml   # snapshot_ensemble: strategy all over implicit cycle snapshots
     top_k.yaml
     greedy_forward_selection.yaml
     cached_results_only.yaml   # source_policy: strict_no_inference
@@ -392,9 +392,9 @@ src/dojo/
     __init__.py
     runner.py                    # dojo ensemble entrypoint
     candidates.py                # dojo ensemble candidates entrypoint
-    discovery.py                 # explicit, manifest, run_dir_glob, checkpoint_glob, result_uri_glob
+    discovery.py                 # explicit, manifest, run_dir_glob, checkpoint_glob, result_uri_glob, implicit snapshot source
     compatibility.py             # hashes + cascading metadata policy + drift check
-    selection.py                 # all, best_candidate, top_k, greedy_forward, cycle_end_snapshots
+    selection.py                 # all, best_candidate, top_k, greedy_forward
     combine.py                   # logits_mean, probabilities_mean, majority_vote, prediction_mean, prediction_median
     cached_results.py            # offline ensembling from result Parquet
     manifest.py                  # JSON manifest IO

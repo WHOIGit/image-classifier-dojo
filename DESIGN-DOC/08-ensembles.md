@@ -61,6 +61,15 @@ explicit source types**:
 Broad automatic registry-based cross-run discovery is deferred — see
 `appendix-deferred-features.md`.
 
+For `task.type: snapshot_ensemble`, candidates are not drawn from these
+explicit sources: the just-finished run's cycle-end snapshot checkpoints
+(under `<training_outputs.dir>/checkpoints/`) are an **implicit** candidate
+source, discovered internally. They are ordinary `checkpoint`-kind
+candidates, and `ensemble.selection.strategy` chooses among them with the
+normal strategies — `all` to ensemble every cycle snapshot, `top_k` or
+`greedy_forward_selection` to use a subset. There is no snapshot-specific
+selection strategy.
+
 Manifest output is JSON (not Parquet) under
 `ensemble_outputs.manifests.dir`, default
 `{ensemble_outputs.dir}/ensemble_manifests/`. Every `dojo ensemble` run
@@ -295,8 +304,10 @@ Supported in the initial implementation:
 - `greedy_forward_selection` — start with the best single candidate and
   iteratively add the candidate that most improves ensemble validation
   performance.
-- `cycle_end_snapshots` — select cycle-end snapshots from a single
-  training run (used by `task.type: snapshot_ensemble`).
+
+Snapshot ensembles (`task.type: snapshot_ensemble`) reuse these same
+strategies over the run's implicit cycle-snapshot candidates (see "Candidate
+discovery" above); there is no separate snapshot selection strategy.
 
 Deferred selection / weighted strategies: see
 `appendix-deferred-features.md`.

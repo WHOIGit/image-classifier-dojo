@@ -139,8 +139,9 @@ When the relevant extra is installed:
 - S3 storage (via the base `amplify-storage-utils` dependency);
 - snapshot ensembles and prediction-space ensembles (selection
   strategies `all`, `best_candidate`, `top_k`,
-  `greedy_forward_selection`, `cycle_end_snapshots`; combine modes per
-  `08-ensembles.md`).
+  `greedy_forward_selection`; combine modes per `08-ensembles.md`;
+  snapshot ensembles select over the run's implicit cycle-snapshot
+  source).
 
 The `local` sink is the only functional logging sink, so functional
 logging tests exercise `local` alone. Multi-sink composition is
