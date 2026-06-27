@@ -39,8 +39,9 @@ regression / ordinal / SSL models. Key shape:
   directory with their training step.
 - **Sweeps** normalize into a top-level `sweep:` block. Functional
   `mode: grid` supports ordinary hyperparameter sweeps and
-  batch-run-style seed sweeps; `mode: bayesian` is a deferred schema
-  slot.
+  batch-run-style seed sweeps. Initial execution is manual through
+  `dojo sweep prepare`, selected per-run training, `dojo sweep status`,
+  and `dojo sweep report`; `mode: bayesian` is a deferred schema slot.
 - **Lightweight base install + extras.** Base install supports config /
   schema / storage / result reading without Torch.
 
@@ -67,7 +68,7 @@ Read in order:
   what's deferred.
 - [02. CLI and Task Types](02-cli-and-task-types.md) — canonical command
   surface; `dojo init` / `train` / `infer` / `eval` / `inspect` /
-  `ensemble` / `export`; `task.type` semantics.
+  `ensemble` / `sweep` / `export`; `task.type` semantics.
 - [03. Configuration](03-configuration.md) — canonical config tree;
   `output_root` and the three peer `*_outputs` blocks; path-template
   syntax; existing-run-dir policy.
@@ -90,8 +91,9 @@ Read in order:
   `ensemble_outputs:` layout; snapshot-ensemble integration.
 - [09. Sweeps and Batch Runs](09-sweeps-and-batch-runs.md) — top-level
   `sweep:` block; grid sweeps; batch-run-style seed sweeps; deferred
-  Bayesian schema; `sweep_outputs:` block; sweep-id provenance; sweeps
-  as candidate-source feeders.
+  Bayesian schema; manual sweep preparation / status / reporting;
+  `sweep_outputs:` block; sweep-id provenance; sweeps as candidate-source
+  feeders.
 - [10. Export](10-export.md) — TorchScript and ONNX exports;
   `*_outputs.export` sub-blocks; `dojo export` command; export
   metadata; bucket-aware ONNX.

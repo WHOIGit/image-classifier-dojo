@@ -200,6 +200,27 @@ tests.
   CLI interaction tests for questionnaire branching, generated files, and
   non-clobber behavior.
 
+### P4.16 Automated sweep execution runners
+
+- Initial sweep execution is manual: `dojo sweep prepare` expands the sweep
+  and writes per-run resolved configs; users run concrete jobs explicitly,
+  for example with `dojo sweep train SWEEP_DIR --index N` or the lower-level
+  `dojo train --resolved-config ...` path.
+- Initial config slot: `sweep.execution.mode: manual`.
+- Deferred execution modes:
+  - `local_sequential` — run prepared sweep jobs sequentially on the local
+    machine.
+  - `slurm` — submit prepared sweep jobs to a Slurm / HPC queue.
+- Deferred because runner orchestration adds scheduling, retry, log
+  collection, cluster-specific configuration, and concurrency behavior
+  beyond the initial sweep artifact contract. Initial `dojo sweep status`
+  reads live per-run status files and does not persist a sweep-level status
+  cache.
+- This is an execution backlog item. When promoted, add integration tests
+  for local sequential execution and unit / contract tests for Slurm script
+  generation, submission dry-runs, manifest status updates, and failure
+  recovery behavior.
+
 ## Cross-References
 
 - `01-goals-and-scope.md` — scope and non-goals.

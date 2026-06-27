@@ -142,8 +142,10 @@ Notes:
   member prediction rows are materialized into `ensemble_results/`; the
   ensemble manifest is written regardless.
 - `sweep` is the algorithmic block for sweep generation / search
-  (`mode: grid` or deferred `mode: bayesian`); `sweep_outputs` is the
-  corresponding sweep-level aggregation output block.
+  (`mode: grid` or deferred `mode: bayesian`). Manual execution is the
+  initial contract (`sweep.execution.mode: manual`); automated runners are
+  deferred. `sweep_outputs` is the corresponding sweep-level reporting
+  output block.
 
 ## Minimal supervised example
 
@@ -325,15 +327,15 @@ physical directory at command startup. Later phases of the same command
 must not re-apply `overwrite` and delete artifacts the earlier phases just
 wrote.
 
-## Sweep output aggregation
+## Sweep output reporting
 
-`sweep_outputs.enabled` controls sweep-level aggregation only. Default:
-`true`. When `false`, Dojo still expands and executes the sweep runs, but
-skips sweep-level collection, summary metrics, aggregate figures, and
-sweep exports.
+`sweep_outputs.enabled` controls sweep-level reporting only. Default:
+`true`. When `false`, Dojo still prepares the sweep and concrete jobs may
+still run, but `dojo sweep report` skips sweep-level collection, summary
+metrics, aggregate figures, and sweep exports.
 
 `sweep_outputs.collect` is a list of metric / artifact collection specs
-used by the sweep aggregator. Each item names the metric or artifact to
+used by `dojo sweep report`. Each item names the metric or artifact to
 collect from every concrete run and the per-run source to read. For
 metric specs, optional `mode` is `min` or `max` and controls sweep-level
 ranking / best-run selection for that collected metric:
@@ -354,10 +356,10 @@ Initial `source` values:
 - `all` — collect all recorded values for that metric across epochs /
   steps.
 
-Sweep aggregation uses the persisted sweep manifest written during sweep
-expansion as its run index. The manifest records each concrete run's
+Sweep reporting uses the persisted sweep manifest written during sweep
+preparation as its run index. The manifest records each concrete run's
 resolved output directories and resolved config artifact paths. The
-aggregator reads those per-run resolved configs and metric artifacts from
+reporter reads those per-run resolved configs and metric artifacts from
 the recorded locations rather than discovering runs by scanning
 directories.
 
@@ -392,12 +394,20 @@ model:
     backbone:
       architecture:
         source: torchvision
-        name: efficientnet_b0,resnet50
+        name: efficientnet_b0
       weights:
         source: library
 
 training:
-  batch_size: 32,64
+  batch_size: 32
+
+sweep:
+  mode: grid
+  execution:
+    mode: manual
+  grid:
+    model.image_input.backbone.architecture.name: [efficientnet_b0, resnet50]
+    training.batch_size: [32, 64]
 
 training_outputs:
   dir_template: >-

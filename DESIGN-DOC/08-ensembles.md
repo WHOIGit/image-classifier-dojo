@@ -569,8 +569,8 @@ member-only analysis outputs.
 
 ## Cross-References
 
-- `02-cli-and-task-types.md` — `dojo ensemble`, `dojo ensemble
-  candidates`, `task.type: snapshot_ensemble`.
+- `02-cli-and-task-types.md` — `dojo ensemble`,
+  `dojo ensemble candidates`, `task.type: snapshot_ensemble`.
 - `03-configuration.md` — placement of `ensemble:` and
   `ensemble_outputs:`, snapshot-ensemble directory sharing.
 - `05-models-training-and-heads.md` — snapshot-cycle scheduler and
@@ -579,8 +579,8 @@ member-only analysis outputs.
   `ensemble_member_id`, `stage=ensemble_eval` rows, compatibility and
   member-provenance hashes, `ensemble_manifests/` JSON manifests,
   partitioning.
-- `09-sweeps-and-batch-runs.md` — Hydra sweeps over ensemble selection
-  / combine axes; sweeps as candidate-source feeders.
+- `09-sweeps-and-batch-runs.md` — Dojo-prepared sweeps over ensemble
+  selection / combine axes; sweeps as candidate-source feeders.
 - `10-export.md` — `ensemble_outputs.export` and ensemble model
   artifacts.
 - `appendix-deferred-features.md` — weight-space ensembles, weighted

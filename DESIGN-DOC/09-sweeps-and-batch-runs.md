@@ -10,33 +10,39 @@ can explore training hyperparameters, ensemble strategy / combine-mode
 combinations, random-seed sensitivity, or feed candidate manifests into
 a subsequent ensembling step. Bayesian / AutoML HPO is deferred.
 
-## Composition and Dojo-owned sweep expansion
+## Sweep preparation and manual execution
 
 Dojo composes configs through the Hydra **Compose API** (`hydra.compose`),
 not `@hydra.main`, so there is no Hydra launcher, no Hydra-managed working
-directory, and no `chdir`. A run is a sweep when the composed config's
-`sweep:` block defines axes (see "Sweep definition block" below); Dojo
-expands the cartesian product itself and owns runtime IDs,
-output-directory resolution, existing-directory policy, and all canonical
-artifacts.
+directory, and no `chdir`. A sweep is prepared when `dojo sweep prepare`
+composes a config whose `sweep:` block defines axes (see "Sweep definition
+block" below). Dojo expands the cartesian product itself and owns runtime
+IDs, output-directory resolution, existing-directory policy, and all
+canonical artifacts.
 
-A sweep is launched by composing a config whose `sweep:` block has axes —
-either an experiment config that includes the block, or axes overridden
-onto `sweep.grid` from the command line (dash-free config overrides):
+`dojo train` executes one concrete training run. It rejects authored /
+composed configs with an active `sweep.grid`; use `dojo sweep prepare`
+first, then run concrete jobs from the prepared sweep.
+
+A sweep is prepared from either an experiment config that includes a
+`sweep:` block, or axes overridden onto `sweep.grid` from the command line
+(dash-free config overrides):
 
 ```bash
 # the experiment config carries a sweep: block
-dojo train experiment=ifcb/sweep_lr_bs
+dojo sweep prepare experiment=ifcb/sweep_lr_bs
 
 # or supply axes as config overrides (Hydra list-value syntax)
-dojo train experiment=ifcb/experimentA \
-  +sweep.mode=grid \
-  '+sweep.grid.optimizer.lr=[1e-4,3e-4]' \
-  '+sweep.grid.training.batch_size=[32,64]'
+dojo sweep prepare experiment=ifcb/experimentA \
+  sweep.mode=grid \
+  'sweep.grid.optimizer.lr=[1e-4,3e-4]' \
+  'sweep.grid.training.batch_size=[32,64]'
 ```
 
 There is no `-m` / `--multirun` flag and no CLI comma-list sweep
-shorthand; the `sweep:` block is the single sweep definition.
+shorthand; the `sweep:` block is the single sweep definition. No `+` is
+needed for `sweep.grid.*` overrides because `sweep.grid` is an open mapping
+in the root schema.
 
 Process CWD never changes between runs. All Dojo paths are absolute or
 resolved relative to `output_root` (`03-configuration.md`), so there is no
@@ -60,28 +66,45 @@ resolved `training_outputs.dir`, `ensemble_outputs.dir`, and
 > layers do not overlap.
 
 > [!NOTE]
-> **TBD — sweep run execution.** Once Dojo has expanded a sweep into
-> concrete per-run resolved configs and written `sweep_manifest.json`,
-> *how* those runs execute — in-process sequentially, or handed to
-> external orchestration — is an open question to be decided later. Dojo
-> owns expansion and artifact layout regardless of the execution
-> mechanism.
+> **Deferred automated runners.** The initial execution mode is manual.
+> Automated local sequential execution and Slurm / HPC queue submission
+> are deferred to P4.16. Dojo owns expansion and artifact layout regardless
+> of the later execution mechanism.
+
+Initial sweep execution is manual:
+
+```bash
+dojo sweep prepare experiment=ifcb/experimentA \
+  'sweep.grid.optimizer.lr=[1e-4,3e-4]'
+dojo sweep train ./runs/ifcb/sweep_results/SWEEP_ID --index 0
+dojo sweep train ./runs/ifcb/sweep_results/SWEEP_ID --run-id RUN_ID
+dojo sweep status ./runs/ifcb/sweep_results/SWEEP_ID
+dojo sweep report ./runs/ifcb/sweep_results/SWEEP_ID
+```
+
+`dojo sweep train` reads the sweep manifest, selects one training job by
+`--index` or `--run-id`, and invokes the same internal training path as
+`dojo train --resolved-config JOB_DIR/config/resolved.yaml`. Per-run status
+is written by the run itself; the central manifest remains the immutable
+prepared job index.
 
 ## Sweep definition block
 
 `sweep:` is the top-level algorithmic block for sweep generation. It is
-separate from `sweep_outputs:`, which controls sweep-level aggregation
+separate from `sweep_outputs:`, which controls sweep-level reporting
 artifacts.
 
 ```yaml
 sweep:
   mode: grid
   conflict_policy: default
+  execution:
+    mode: manual
   grid:
     runtime.seed: [101, 102, 103]
     optimizer.lr: [1.0e-4, 3.0e-4]
     training.batch_size: [32, 64]
-    model.image_input.backbone.architecture.: [resnet50, convnext_tiny]
+    model.image_input.backbone.architecture.name: [resnet50, convnext_tiny]
 ```
 
 `sweep.mode` values:
@@ -90,17 +113,26 @@ sweep:
 - `bayesian` — schema slot only in the initial implementation; runtime
   raises `NotImplementedError`.
 
+`sweep.execution.mode` values:
+
+- `manual` — functional initial mode. `dojo sweep prepare` writes the
+  prepared sweep artifacts; users run concrete jobs explicitly.
+- `local_sequential` — deferred to P4.16.
+- `slurm` — deferred to P4.16.
+
 ### Grid sweep syntax
 
 Inside `sweep.grid`, each key is a target config path and each value is a
 YAML list; the concrete runs are the cartesian product of those lists.
 Axes may also be supplied as config overrides onto `sweep.grid` using
-Hydra list-value syntax (e.g. `'+sweep.grid.optimizer.lr=[1e-4,3e-4]'`).
+Hydra list-value syntax (e.g. `'sweep.grid.optimizer.lr=[1e-4,3e-4]'`).
 
 The `sweep:` block is the single sweep definition: there is no CLI
 comma-list shorthand and no normalization of axes scattered elsewhere in
 the config. After expansion, each concrete run receives ordinary resolved
-scalar config values at the target paths.
+scalar config values at the target paths. `dojo train` rejects active
+`sweep.grid` values in authored / composed configs; `sweep.grid` is only
+expanded by `dojo sweep prepare`.
 
 ### Commas, lists, and shell quoting
 
@@ -127,12 +159,12 @@ Comma handling differs between CLI overrides and config files:
   The trap: `optimizer.lr=1e-4,3e-4` (top-level comma → errors) and
   `optimizer.lr=[1e-4,3e-4]` (list value → legal) look almost identical but
   mean opposite things. Author sweep axes as the bracketed form on
-  `sweep.grid`, e.g. `'+sweep.grid.optimizer.lr=[1e-4,3e-4]'`, never
+  `sweep.grid`, e.g. `'sweep.grid.optimizer.lr=[1e-4,3e-4]'`, never
   `optimizer.lr=1e-4,3e-4`.
 - **Shell quoting:** single-quote any override token containing `[...]` or
   `{...}` so the shell does not glob- or brace-expand it before Hydra sees
-  it (e.g. `'+sweep.grid.training.batch_size=[32,64]'`). Tokens without
-  brackets (`+sweep.mode=grid`) need no quotes.
+  it (e.g. `'sweep.grid.training.batch_size=[32,64]'`). Tokens without
+  brackets (`sweep.mode=grid`) need no quotes.
 - **Config files** follow ordinary YAML: commas separate elements only
   inside flow collections (`[a, b]`, `{a: 1}`) and are literal characters
   in plain or quoted scalars. Hydra's comma-as-sweep grammar is a
@@ -153,7 +185,7 @@ sweep:
     runtime.seed: [101, 102, 103, 104, 105]
 ```
 
-Sweep aggregation can then summarize metrics across seeds, for example
+Sweep reporting can then summarize metrics across seeds, for example
 with box plots / five-number summaries for `macro_f1` or per-class F1.
 
 ### Sweep conflict policy
@@ -169,7 +201,7 @@ also has a value in the non-sweep config:
 
 CLI config overrides supersede both the target config and `sweep:`
 definitions. Sweep axes supplied on the command line are written directly
-onto `sweep.grid` (e.g. `'+sweep.grid.optimizer.lr=[1e-4,3e-4]'`), not
+onto `sweep.grid` (e.g. `'sweep.grid.optimizer.lr=[1e-4,3e-4]'`), not
 inferred from comma-separated scalar overrides.
 
 ### Active run metadata
@@ -189,7 +221,7 @@ sweep:
       runtime.seed: 103
       optimizer.lr: 0.0001
       training.batch_size: 64
-      model.image_input.backbone.name: convnext_tiny
+      model.image_input.backbone.architecture.name: convnext_tiny
 ```
 
 ### Bayesian sweep schema
@@ -220,7 +252,7 @@ sweep:
       training.batch_size:
         type: categorical
         values: [16, 32, 64]
-      model.image_input.backbone.name:
+      model.image_input.backbone.architecture.name:
         type: categorical
         values: [resnet50, convnext_tiny, efficientnet_b0]
 ```
@@ -235,142 +267,104 @@ Initial Bayesian parameter types:
 Runtime support for `mode: bayesian` raises `NotImplementedError` in the
 initial implementation; see `appendix-deferred-features.md`.
 
-## Runtime ID and output resolution order
+## Sweep preparation, training, status, and reporting order
 
-The following order applies to both single-run and sweep invocations.
-Sections that reference sweep-level state fall through when there is no
-active sweep.
+Single-run `dojo train` uses the same run-level resolution rules as a
+prepared sweep job. If an authored / composed config has a non-empty
+`sweep.grid`, `dojo train` errors and points the user to
+`dojo sweep prepare`.
 
-1. **Address sweep-level state**
-   1. Determine whether the composed config defines a sweep (non-empty
-      `sweep.grid`).
-   2. If there is no active sweep:
-      1. Set `runtime.sweep_id = null` unless explicitly configured.
-      2. Set `sweep_hash = null`.
-      3. Skip sweep-level aggregation setup.
-   3. If there is an active sweep:
-      1. Read the sweep axes from the composed `sweep:` block (including
-         any `+sweep.grid.*` CLI overrides).
-      2. Assemble the sweep definition: base config plus the `sweep:`
-         block.
-      3. Compute `sweep_hash` from stable sweep-definition inputs:
-         base config, sweep mode, sweep axes / search params, and
-         explicit sweep metadata.
-      4. Exclude generated IDs, output paths, `output_root`, and all
-         `*_outputs` blocks from `sweep_hash`.
-      5. Generate `runtime.sweep_id` once for the whole sweep:
-         manual value as-is; template rendered from non-generated
-         sweep / base config fields; `{coolname}` as a fresh unseeded
-         coolname; unset value as a seedname from `sweep_hash`.
-      6. Expand the sweep into concrete per-run jobs.
-      7. Pass finalized `runtime.sweep_id` and `sweep_hash` into every
-         run.
-2. **Determine run-level hashes and run IDs for each run**
-   1. Compose each concrete run config:
-      1. Start from the base config.
-      2. Apply CLI overrides.
-      3. If this is a sweep run, apply that job's sweep-axis values.
-      4. Include finalized sweep-level values when present.
-   2. Validate the composed config structurally with Pydantic:
-      1. ID fields may still contain Dojo template strings.
-      2. Output paths may still be unresolved.
-   3. Compute stable run-level hashes:
-      1. Compute `config_hash` from the concrete resolved config.
-      2. Exclude runtime-generated values, output paths, `output_root`,
-         and all `*_outputs` blocks.
-      3. Compute any cheap / local config-time hashes available, such
-         as dataset hash or compatibility hashes.
-   4. Generate `runtime.run_id` for each concrete run:
-      1. Manual value: use as-is.
-      2. Template value: render from concrete non-generated config
-         fields plus finalized sweep-level values, if present.
-      3. `{coolname}`: fresh unseeded coolname per run.
-      4. Unset value: use the configured default run-id template.
-   5. For sweep invocations, check all generated `run_id` values for
-      collisions before any run starts:
-      1. If collisions exist, raise an error.
-      2. The error shows the colliding `run_id` values and affected
-         sweep jobs.
-      3. The error suggests adding a uniqueness-pattern value such as the
-         `{job_num}` sweep index or a realized sweep value such as
-         `runtime.seed`.
-3. **Resolve per-run output directories**
-   1. For each concrete run, resolve output templates:
-      1. `training_outputs.dir_template` resolves to
-         `training_outputs.dir`.
-      2. `ensemble_outputs.dir_template` resolves to
-         `ensemble_outputs.dir`.
-      3. `sweep_outputs.dir_template` is not resolved here except for
-         commands that produce per-run sweep-scoped artifacts.
-   2. Resolve paths:
-      1. Absolute paths are used as-is.
-      2. `./path` resolves relative to process CWD.
-      3. Bare-relative top-level `*_outputs.dir` values resolve under
-         `output_root`.
-      4. Bare-relative sub-block dirs resolve under their parent output
-         block's resolved `dir`.
-   3. Apply existing-directory policy:
-      1. Evaluate `existing_run_dir` once per resolved physical
-         directory.
-      2. If multiple output blocks share one physical directory, apply
-         the policy once.
-      3. Later phases in the same command must not re-apply
-         `overwrite`.
-4. **Resolve sweep-level output directories**
-   1. If there is no active sweep, skip this section.
-   2. Resolve `sweep_outputs.dir_template` to `sweep_outputs.dir` once
-      for the sweep.
-   3. Resolve sweep-output sub-block paths under `sweep_outputs.dir`.
-   4. Apply the sweep-output existing-directory policy once for the
-      resolved sweep directory.
-   5. Keep sweep-level aggregation outputs separate from per-run
-      `training_outputs` / `ensemble_outputs`.
-5. **Finalize runtime config artifacts**
-   1. For each run, write:
-      1. `config/composed.yaml`
-      2. `config/resolved.yaml`
-      3. `config/resolved.json`
-      4. `config/cli.txt`
-      5. `config/overrides.txt`
-      6. `config/sweep_values.txt` for sweep runs.
-   2. For active sweeps, write sweep-level config artifacts under
-      `sweep_outputs.dir/config/`, including:
-      1. `sweep_base.yaml` — composed base config before per-run sweep
-         values;
-      2. `sweep_definition.yaml` — normalized `sweep.mode`, axes /
-         search params, conflict policy, finalized `sweep_id`, and
-         `sweep_hash`;
-      3. `sweep_manifest.json` — concrete run index containing generated
-         run IDs, config hashes, realized sweep values, resolved per-run
-         output dirs, and resolved per-run config artifact paths;
-      4. `cli.txt`;
-      5. `overrides.txt`.
-6. **Execute runs and sweep aggregation**
-   1. Execute each concrete run.
-   2. Result rows include `run_id`, `config_hash`, and related run
-      provenance.
-   3. Sweep-produced result rows also include `sweep_id` and
+1. **Prepare the sweep with `dojo sweep prepare`**
+   1. Compose the authored config and CLI overrides through Hydra.
+   2. Validate `sweep.mode`, `sweep.grid`, and `sweep.execution`.
+      `sweep.execution.mode: manual` is functional; deferred modes raise
+      `NotImplementedError`.
+   3. Compute `sweep_hash` from stable sweep-definition inputs: base
+      config, sweep mode, sweep axes / search params, and explicit sweep
+      metadata. Exclude generated IDs, output paths, `output_root`, and
+      all `*_outputs` blocks.
+   4. Generate `runtime.sweep_id` once for the sweep: manual value as-is;
+      template rendered from non-generated sweep / base config fields;
+      `{coolname}` as a fresh unseeded coolname; unset value as a seedname
+      from `sweep_hash`.
+   5. Expand the cartesian product into concrete jobs.
+   6. For each job, apply that job's sweep-axis values, validate the
+      concrete config, compute `config_hash`, generate `runtime.run_id`,
+      resolve per-run output directories, and write per-run config
+      artifacts:
+      - `config/composed.yaml`
+      - `config/resolved.yaml`
+      - `config/resolved.json`
+      - `config/cli.txt`
+      - `config/overrides.txt`
+      - `config/sweep_values.txt`
+   7. Check all generated `run_id` values for collisions before writing
+      run artifacts. Collision errors name the affected sweep indices and
+      suggest adding `{job_num}` or a realized sweep value such as
+      `runtime.seed` to the run-id template.
+   8. Resolve `sweep_outputs.dir_template` to `sweep_outputs.dir` once for
+      the sweep, then resolve sweep-output sub-block paths under it.
+   9. Write sweep-level config artifacts under `sweep_outputs.dir/config/`:
+      - `composed.yaml` — sweep-level composed config with `sweep.grid`;
+      - `resolved.yaml` — sweep-level resolved config with finalized
+        `runtime.sweep_id`, `sweep_hash`, and output paths, but no
+        concrete `sweep.active_run`;
+      - `resolved.json`;
+      - `sweep_manifest.json` — immutable concrete job index;
+      - `cli.txt`;
+      - `overrides.txt`.
+
+2. **Run one training job with `dojo sweep train`**
+   1. Read `SWEEP_DIR/config/sweep_manifest.json`.
+   2. Select exactly one job by `--index` or `--run-id`.
+   3. Invoke the same internal path as
+      `dojo train --resolved-config JOB_DIR/config/resolved.yaml`.
+   4. Use the same resolved-config guard as `dojo train`: if the selected
+      run directory contains artifacts beyond prepared config / status
+      files, require explicit resume or fork behavior.
+   5. Write a simple per-run status file at `JOB_DIR/status.json`.
+      `pending` is inferred from the manifest when the file does not
+      exist. Written states are `initializing`, `training`, `exporting`,
+      `done`, and `failed`.
+   6. Result rows include `run_id`, `config_hash`, and related run
+      provenance. Sweep-produced result rows also include `sweep_id` and
       `sweep_hash`.
-   4. If `sweep_outputs.enabled: false`, stop after run execution; the
-      sweep happened, but sweep-level aggregation outputs are skipped.
-   5. After all sweep runs finish, execute configured
-      `sweep_outputs` aggregation:
-      1. collect per-run metrics / artifacts;
-      2. write sweep-level metrics and figures;
-      3. write sweep-level exports only if explicitly configured.
+
+3. **Check status with `dojo sweep status`**
+   1. `dojo sweep status SWEEP_DIR` lists all sweep indices, `run_id`
+      values, key sweep values, and current status.
+   2. `--index` or `--run-id` reports one job.
+   3. Status is read live from the immutable manifest, per-run
+      `status.json` files, and expected run artifacts. It does not mutate
+      the manifest and does not write a sweep-level status cache.
+   4. The command clearly reports whether all prepared jobs are `done`.
+
+4. **Write sweep reports with `dojo sweep report`**
+   1. Read `SWEEP_DIR/config/sweep_manifest.json`.
+   2. Require all non-skipped manifest jobs to be `done`; otherwise list
+      pending / running / failed jobs and exit without writing partial
+      report artifacts.
+   3. If `sweep_outputs.enabled: false`, exit cleanly after confirming
+      reporting is disabled.
+   4. Read each run's resolved config and metric artifacts from paths
+      recorded in the manifest.
+   5. Apply `sweep_outputs.collect`, write sweep-level metrics and
+      figures, and write sweep-level exports only if explicitly
+      configured.
 
 ## `sweep_outputs:` block
 
 Peer to `training_outputs:` and `ensemble_outputs:`. Holds **sweep-level
-aggregation** outputs.
+reporting** outputs.
 
 Sub-blocks: `dir_template`, `enabled`, `collect`, `export`, `metrics`,
 `figures`. There is **no** `results` sub-block — per-row data comes from
 the underlying per-job `training_outputs` / `ensemble_outputs`.
 
 `sweep_outputs.enabled` defaults to `true`. When `false`, Dojo still
-expands and executes the sweep runs, but skips sweep-level collection,
-summary metrics, aggregate figures, and sweep exports.
+prepares the sweep and concrete jobs may still run, but `dojo sweep report`
+skips sweep-level collection, summary metrics, aggregate figures, and
+sweep exports.
 
 `sweep_outputs.collect` is a list of metric / artifact collection specs.
 Each item names what to collect from every concrete run and which
@@ -396,21 +390,24 @@ Initial `source` values:
 - `all` — collect all recorded values for that metric across epochs /
   steps, for trend plots or post-hoc summaries.
 
-Sweep aggregation does not discover runs by scanning directories. During
-sweep expansion, Dojo writes `sweep_outputs.dir/config/sweep_manifest.json`
-as the run index. The manifest records each concrete run's `run_id`,
-`config_hash`, realized sweep values, resolved `training_outputs.dir` /
-`ensemble_outputs.dir`, and resolved config artifact paths. Aggregation
-reads the manifest, then reads each run's `config/resolved.yaml` and
-metric artifacts from those recorded locations.
+Sweep reporting does not discover runs by scanning directories. During
+sweep preparation, Dojo writes `sweep_outputs.dir/config/sweep_manifest.json`
+as the immutable job index. The manifest records each concrete run's
+index, `run_id`, `config_hash`, realized sweep values, resolved
+`training_outputs.dir` / `ensemble_outputs.dir`, resolved config artifact
+paths, and per-run status path. `dojo sweep status` and
+`dojo sweep report` read the manifest, then read each run's
+`config/resolved.yaml`, `status.json`, and metric artifacts from those
+recorded locations.
 
 Default on-disk sub-directories under the resolved `sweep_outputs.dir`:
 
 ```text
 sweep_outputs.dir/
   config/
-    sweep_base.yaml
-    sweep_definition.yaml
+    composed.yaml
+    resolved.yaml
+    resolved.json
     sweep_manifest.json
     cli.txt
     overrides.txt
@@ -438,8 +435,12 @@ runtime:
 model:
   image_input:
     backbone:
-      source: torchvision
-      name: resnet50
+      architecture:
+        source: torchvision
+        name: resnet50
+      weights:
+        source: library
+        name: DEFAULT
 
 training:
   batch_size: 32
@@ -450,8 +451,10 @@ optimizer:
 sweep:
   mode: grid
   conflict_policy: default
+  execution:
+    mode: manual
   grid:
-    model.image_input.backbone.name: [resnet50, efficientnet_b0, convnext_tiny]
+    model.image_input.backbone.architecture.name: [resnet50, efficientnet_b0, convnext_tiny]
     training.batch_size: [32, 64]
     optimizer.lr: [0.0003, 0.0001]
 
@@ -459,7 +462,7 @@ output_root: ./runs
 
 training_outputs:
   dir_template: >-
-    {experiment.name}/sweep_runs/{model.image_input.backbone.name:slug}/bs{training.batch_size:03}/lr{optimizer.lr:slug}/
+    {experiment.name}/sweep_runs/{model.image_input.backbone.architecture.name:slug}/bs{training.batch_size:03}/lr{optimizer.lr:slug}/
 
 sweep_outputs:
   dir_template: >-
@@ -481,7 +484,7 @@ sweep_outputs:
     per_class_heatmap: true
 ```
 
-Sweep aggregation outputs include:
+Sweep report outputs include:
 
 - compare best / final F1 across best / final epoch for model trainings;
 - compare per-class F1 across best / final epoch;
@@ -492,16 +495,21 @@ Sweep aggregation outputs include:
 
 Sweeps can explore ensemble selection strategy / combine-mode
 combinations against a candidate manifest, via a `sweep:` block or
-`+sweep.grid.*` overrides:
+`sweep.grid.*` overrides:
 
 ```bash
-dojo ensemble experiment=ifcb/ensemble_search \
-  +sweep.mode=grid \
-  '+sweep.grid.ensemble.selection.strategy=[top_k,greedy_forward_selection]' \
-  '+sweep.grid.ensemble.inference.combine.classification=[probabilities_mean,logits_mean]'
+dojo sweep prepare experiment=ifcb/ensemble_search \
+  sweep.mode=grid \
+  'sweep.grid.ensemble.selection.strategy=[top_k,greedy_forward_selection]' \
+  'sweep.grid.ensemble.inference.combine.classification=[probabilities_mean,logits_mean]'
 ```
 
-Sweep aggregation summarizes ensemble metrics across the swept axes.
+Each prepared concrete ensemble job can then run through the lower-level
+command-specific replay path, for example
+`dojo ensemble --resolved-config JOB_DIR/config/resolved.yaml`. The
+`dojo sweep train` convenience wrapper is for training jobs. Sweep status
+and report commands still operate on the prepared sweep directory and
+summarize ensemble metrics across the swept axes.
 
 ## Sweeps as candidate-source feeders
 
@@ -509,7 +517,10 @@ A training sweep may write to a shared candidate manifest directory that
 a subsequent `dojo ensemble` invocation reads:
 
 ```bash
-dojo train experiment=ifcb/sweep_for_ensembling
+dojo sweep prepare experiment=ifcb/sweep_for_ensembling
+dojo sweep train ./runs/ifcb/sweep_results/SWEEP_ID --index 0
+dojo sweep train ./runs/ifcb/sweep_results/SWEEP_ID --index 1
+dojo sweep report ./runs/ifcb/sweep_results/SWEEP_ID
 dojo ensemble candidates \
   experiment=ifcb/post_sweep_candidates \
   ensemble.candidates.sources.0.type=run_dir_glob \
@@ -527,8 +538,8 @@ run-directory glob, not a registry-driven discovery (deferred).
 
 ## Cross-References
 
-- `02-cli-and-task-types.md` — CLI architecture; config-defined sweeps
-  (the `sweep:` block) work with every command family.
+- `02-cli-and-task-types.md` — CLI architecture; `dojo sweep prepare`,
+  `dojo sweep train`, `dojo sweep status`, and `dojo sweep report`.
 - `03-configuration.md` — `output_root`, `*_outputs.dir_template`
   resolution, run / sweep directory collision handling.
 - `06-results-artifacts-and-metadata.md` — `sweep_id`, `sweep_hash`,

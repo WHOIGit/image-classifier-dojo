@@ -18,6 +18,7 @@ Top-level groups:
 - `dojo eval`
 - `dojo inspect`
 - `dojo ensemble`
+- `dojo sweep`
 - `dojo export`
 
 Subcommands are config-first shorthands that constrain the target output.
@@ -38,6 +39,11 @@ dojo inspect backbone
 dojo inspect checkpoint
 dojo ensemble
 dojo ensemble candidates
+dojo sweep
+dojo sweep prepare
+dojo sweep train
+dojo sweep status
+dojo sweep report
 dojo export
 ```
 
@@ -97,10 +103,12 @@ inputs:
   checks as appropriate for the command.
 - **Resolved config artifact** — `--resolved-config RUN_DIR/config/resolved.yaml`
   loads a fully resolved run artifact. Read-only inspection commands may
-  consume it directly. Mutating commands such as `dojo train` require an
-  explicit mode: `--fork-run` to reuse the resolved intent with new run
-  identity / output directories, or `--resume` to continue the same run
-  context.
+  consume it directly. Mutating commands such as `dojo train` may execute
+  it directly when the referenced run directory is absent, empty, or only
+  contains prepared config artifacts. If the rest of the run folder is not
+  empty, the command requires an explicit mode: `--fork-run` to reuse the
+  resolved intent with new run identity / output directories, or
+  `--resume` to continue the same run context.
 
 `--config`, `--resolved-config`, and Hydra group selectors are mutually
 exclusive as root config sources, though ordinary value overrides may still
@@ -126,13 +134,49 @@ appear in the canonical root shape (`03-configuration.md`).
   architecture self-describes from the checkpoint's stored
   hyperparameters) take the artifact as a `--checkpoint` option.
 
-### Sweeps are config-defined
+### Sweeps are prepared by `dojo sweep`
 
-There is no `-m` / `--multirun` flag. A run is a sweep when the composed
-config's `sweep:` block defines axes (`sweep.mode: grid` with a non-empty
-`sweep.grid`). Dojo expands the cartesian product itself. See
-`09-sweeps-and-batch-runs.md` for the sweep block and the authored →
-resolved pipeline.
+There is no `-m` / `--multirun` flag. `dojo train` executes one concrete
+training run and rejects authored / composed configs with an active
+`sweep.grid`. Use `dojo sweep prepare` to compose a config whose `sweep:`
+block defines axes (`sweep.mode: grid` with a non-empty `sweep.grid`) and
+write the sweep directory, manifest, and per-run resolved configs.
+
+```bash
+dojo sweep prepare experiment=ifcb/baseline \
+  'sweep.grid.model.image_input.backbone.architecture.name=[efficientnet_b0,efficientnet_b1]'
+```
+
+Initial manual sweep workflow:
+
+```bash
+dojo sweep prepare experiment=ifcb/baseline \
+  'sweep.grid.optimizer.lr=[1e-4,3e-4]'
+dojo sweep train ./runs/ifcb/sweep_results/SWEEP_ID --index 0
+dojo sweep train ./runs/ifcb/sweep_results/SWEEP_ID --run-id RUN_ID
+dojo sweep status ./runs/ifcb/sweep_results/SWEEP_ID
+dojo sweep status ./runs/ifcb/sweep_results/SWEEP_ID --index 0
+dojo sweep report ./runs/ifcb/sweep_results/SWEEP_ID
+```
+
+`dojo sweep train` is a convenience wrapper for training jobs in a prepared
+sweep. It reads the sweep manifest, selects one job by `--index` or
+`--run-id`, and runs the same internal training path as
+`dojo train --resolved-config JOB_DIR/config/resolved.yaml`. The lower-level
+`dojo train --resolved-config ...` path remains valid.
+
+`dojo sweep status` reads the sweep manifest and per-run status files. With
+no selector, it lists every sweep index and `run_id`; with `--index` or
+`--run-id`, it reports one job. `dojo sweep report` reads the same manifest
+and writes sweep-level metrics, figures, and exports according to
+`sweep_outputs`.
+
+`SWEEP_DIR` is the canonical target for `dojo sweep train`, `status`, and
+`report`. For config-parity with other commands, they may also accept
+`--resolved-config SWEEP_DIR/config/resolved.yaml`. The standalone
+`sweep_manifest.json` path is an internal artifact, not a top-level CLI
+input in the initial contract. See `09-sweeps-and-batch-runs.md` for the
+sweep block, manifest, and authored -> resolved pipeline.
 
 ## `dojo init`
 
@@ -177,9 +221,9 @@ Scope flags are additive. If no scope flag or explicit materialization root
 is provided, `dojo init` defaults to `--minimal --supervised`. `--all` is
 mutually exclusive with `--minimal`, scope flags, and explicit
 materialization roots. Dash-free config selectors such as
-`experiment=ifcb/species_baseline` are materialization roots for `dojo
-init`: Dojo copies that selected packaged config and any packaged configs
-it references into the local project.
+`experiment=ifcb/species_baseline` are materialization roots for
+`dojo init`: Dojo copies that selected packaged config and any packaged
+configs it references into the local project.
 
 ## Task types
 
@@ -461,9 +505,24 @@ the initial implementation; that functionality lives inside
 - `dojo ensemble candidates` — artifact-inspection / manifest-writing
   command. Does not initialize experiment logging.
 
-Cross-run ensembling is not a distinct mode — it works via `dojo
-ensemble` with explicit candidate sources such as `run_dir` and
-`run_dir_glob`. See `08-ensembles.md`.
+Cross-run ensembling is not a distinct mode. It works via `dojo ensemble`
+with explicit candidate sources such as `run_dir` and `run_dir_glob`. See
+`08-ensembles.md`.
+
+## `dojo sweep`
+
+- `dojo sweep prepare` — compose an authored sweep config, expand
+  `sweep.grid`, write the sweep directory, immutable manifest, and per-run
+  resolved configs.
+- `dojo sweep train` — execute one prepared training job selected by
+  `--index` or `--run-id`.
+- `dojo sweep status` — inspect all prepared jobs, or one job selected by
+  `--index` / `--run-id`, from the manifest plus per-run status files.
+- `dojo sweep report` — after required jobs are done, write sweep-level
+  metrics, figures, and exports according to `sweep_outputs`.
+
+Automated local sequential and Slurm execution are deferred; the initial
+`sweep.execution.mode` is `manual`.
 
 ## `dojo export`
 
@@ -487,6 +546,8 @@ dojo ensemble \
   experiment=ifcb/ensemble_search \
   ensemble.candidates.sources.0.type=manifest \
   ensemble.candidates.sources.0.manifest_uri=./shared_manifests/ifcb_candidates.json
+dojo sweep prepare experiment=ifcb/baseline \
+  'sweep.grid.optimizer.lr=[1e-4,3e-4]'
 ```
 
 ## Cross-References
@@ -496,10 +557,12 @@ dojo ensemble \
   behavior.
 - `05-models-training-and-heads.md` — `task.type: supervised` and
   `task.type: snapshot_ensemble` training internals.
-- `07-ssl-and-representation-eval.md` — `task.type: ssl`, `dojo eval
-  representation`.
+- `07-ssl-and-representation-eval.md` — `task.type: ssl`,
+  `dojo eval representation`.
 - `08-ensembles.md` — `dojo ensemble` / `dojo ensemble candidates` and
   the snapshot-ensemble orchestration step.
+- `09-sweeps-and-batch-runs.md` — `dojo sweep prepare`,
+  `dojo sweep train`, `dojo sweep status`, and `dojo sweep report`.
 - `10-export.md` — `dojo export` and `*_outputs.export` blocks.
 - `12-validation-testing-and-preflight.md` — `dojo inspect config`
   validation tiers and preflight checks.

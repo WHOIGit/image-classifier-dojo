@@ -99,7 +99,9 @@ both exist.
   `dojo ensemble` family and `task.type: snapshot_ensemble`.
 - **`sweep`** — Sweep-generation config. `sweep.mode: grid` is
   functional; `sweep.mode: bayesian` is a deferred schema slot. Sweep
-  axes normalize into this block before concrete runs are expanded.
+  axes normalize into this block before concrete runs are expanded by
+  `dojo sweep prepare`. Initial `sweep.execution.mode` is `manual`;
+  automated local sequential and Slurm execution are deferred.
 - **`output_root`** — Single filepath string used as the base for rendered
   `*_outputs.dir_template` values and bare-relative `*_outputs.dir` values.
 - **`training_outputs`**, **`ensemble_outputs`**, **`sweep_outputs`** — Peer
@@ -120,6 +122,10 @@ both exist.
 - **`sweep.active_run`** — Generated resolved-config metadata for one
   concrete run in a sweep. It records the realized sweep-axis values for
   that run and is not written in source configs.
+- **`sweep_manifest.json`** — Immutable job index written by
+  `dojo sweep prepare` under `sweep_outputs.dir/config/`. It records each
+  concrete job's index, `run_id`, realized sweep values, output dirs, and
+  resolved config / status paths. It is not a mutable status cache.
 
 ## Path resolution
 

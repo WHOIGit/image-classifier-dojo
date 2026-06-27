@@ -143,7 +143,9 @@ Needed for downstream serving and for ensembling exported models.
 - Dojo-owned sweep expansion over the Hydra Compose API (no `@hydra.main`,
   no `-m`).
 - Top-level `sweep:` block: grid sweeps and batch-run-style seed sweeps.
-- `sweep_outputs` aggregation.
+- `dojo sweep prepare`, manual per-job training, `dojo sweep status`, and
+  `dojo sweep report`.
+- `sweep_outputs` reporting.
 
 ### P3.4 SSL and representation evaluation
 
@@ -211,6 +213,9 @@ obligations.
   and `mlp` (`tab_transformer`, `ft_transformer`, `tabnet`,
   `embedding_bag`, `wide_and_deep`).
 - P4.15 `dojo init --wizard` interactive config/project questionnaire.
+- P4.16 Automated sweep execution runners: local sequential execution and
+  Slurm / HPC queue submission. Initial execution mode is `manual` via
+  `sweep.execution.mode`.
 
 ## Historical Notes
 

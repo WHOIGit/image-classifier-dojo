@@ -183,6 +183,7 @@ src/dojo/
     eval.py                    # dojo eval, dojo eval holdout, dojo eval representation
     infer.py                   # dojo infer, dojo infer predictions, dojo infer embeddings
     ensemble.py                # dojo ensemble, dojo ensemble candidates
+    sweep.py                   # dojo sweep prepare|train|status|report
     export.py                  # dojo export
     inspect.py                 # dojo inspect config|dataset|backbone|checkpoint
 
@@ -449,7 +450,7 @@ src/dojo/
     __init__.py
     compose.py                   # Hydra Compose API wrapper (no @hydra.main)
     resolvers.py                 # custom OmegaConf resolvers
-    sweep.py                     # Dojo sweep expansion + sweep_id / sweep_outputs wiring
+    sweep.py                     # Dojo sweep preparation + sweep_id / manifest wiring
 
   utils/
     __init__.py
@@ -594,10 +595,10 @@ per `12-validation-testing-and-preflight.md`.
 ### `tasks/representation_eval/`
 
 `representation_eval` is the package name — `ssl_eval` does not exist
-in the V2 tree. The runner supports both standalone use (`dojo eval
-representation`) and during-training scheduling (via `eval_callbacks.py`
-in the SSL task and `scheduling.py` helpers callable from the
-supervised task).
+in the V2 tree. The runner supports both standalone use
+(`dojo eval representation`) and during-training scheduling (via
+`eval_callbacks.py` in the SSL task and `scheduling.py` helpers callable
+from the supervised task).
 
 
 ## Cross-References

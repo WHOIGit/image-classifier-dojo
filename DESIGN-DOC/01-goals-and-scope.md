@@ -13,7 +13,7 @@ explain how each goal is satisfied; this file just names them.
   Hydra and validate via Pydantic. Pydantic is the runtime contract.
 - **Canonical CLI command families.** `dojo init` / `dojo train` /
   `dojo infer` / `dojo eval` / `dojo inspect` / `dojo ensemble` /
-  `dojo export`. Task paradigm selected via `task.type`. See
+  `dojo sweep` / `dojo export`. Task paradigm selected via `task.type`. See
   `02-cli-and-task-types.md`.
 - **Modular model composition.** `image_input.backbone` + optional
   `tabular_input` encoder + implicit image-then-tabular embedding
