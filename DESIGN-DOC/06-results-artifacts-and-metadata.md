@@ -119,7 +119,7 @@ source object before canonicalization.
 | --- | --- | --- | --- |
 | `run_id` | id only | manual, else template render. `{coolname}` expands to fresh unseeded coolname; falls back to coolname when unset | template like `{experiment.name}-{timestamp}-{job_num}` or `{coolname}` |
 | `config_id` | id (paired with `config_hash`) | manual, else seedname from `config_hash` | seedname |
-| `config_hash` | hash | canonical hash of resolved config, **excluding** runtime-resolved values, output paths, `output_root`, and all `*_outputs` blocks | always derived |
+| `config_hash` | hash | canonical hash of resolved config, **excluding** runtime-resolved values, output paths, `output_root`, and all `*_outputs` blocks. When a loaded config carries blocks the active command does not use, the hash covers only that command's active block-set (see `02-cli-and-task-types.md`). | always derived |
 | `dataset_id` | id only | the dataset's self-name when the manifest provides one | null (no seedname fallback) |
 | `dataset_hash` | hash | cheap identity (never reads image pixels): manifest content or URI + size + etag/last-modified, plus backend type. Basis recorded in `dataset_hash_provenance` (`manifest_content` / `uri_etag` / `uri_only` fallback). `uri_only` is weak identity and does not reliably auto-invalidate stale stats caches. | always derived |
 | `dataset_content_hash` | hash | true hash over all image bytes; recorded separately when a full pass runs (`dojo inspect dataset --content-hash` / `--normalization`). Integrity / drift verification only — **not** the cache key, identity, or a compatibility hash | derived when a full pass runs, else null |
@@ -366,6 +366,41 @@ The Pydantic schema should keep these field lists close to the relevant
 models, for example with compatibility-hash extractor methods or field
 metadata. The documentation above is the execution contract those
 extractors must satisfy.
+
+## Portable inference contract
+
+`dojo infer` and `dojo eval` rebuild a model and its exact input pipeline
+from the model artifact alone — they do **not** require the producing run's
+`resolved.yaml`. Everything they need is bundled as a single **inference
+contract** object, defined once and serialized identically by both artifact
+kinds:
+
+- **Checkpoints** embed it under a dedicated
+  `checkpoint["dojo_inference_contract"]` key, written by the task module's
+  `on_save_checkpoint` hook. It is **not** folded into Lightning
+  `hyper_parameters`, which stay limited to the constructor configs (see
+  `05-models-training-and-heads.md`).
+- **Exports** write it as their export metadata (`10-export.md`); the export
+  metadata *is* the inference contract.
+
+Contract fields:
+
+```text
+schema_version
+model_config            # buildable resolved model: backbone architecture, tabular encoder, embedding adapter, head networks
+inference_pipeline      # resolved, ordered inference transforms with frozen parameters
+preprocessing_stats     # frozen normalization mean/std, resolved input_bit_depth, bucket scheme, tabular normalization/imputation
+class_maps              # ordered index -> label per discrete head (resolved label content, not a URI)
+target_schema           # head types, targets, num_classes/output_dim, ordinal encoding/decoding, target transforms with frozen fit stats
+compatibility           # target_schema_hash / class_mapping_hash / model_config_hash / preprocessing_hash plus their canonical source sub-blocks
+provenance              # config_hash, source run_id, dojo_version
+```
+
+It deliberately **excludes** training-dataset identity (`manifest_uri`,
+`dataset_hash`, per-class counts): those describe the data a model was
+trained on, not what is needed to run it on new data. `dojo inspect
+checkpoint` reads this contract to report embedded hashes and head /
+preprocessing configuration.
 
 ## Result rows
 
@@ -749,7 +784,24 @@ sweep_outputs.dir/
   exports/
   metrics/
   figures/
+
+eval_outputs.dir/
+  config/
+  results/                  # stage=infer | holdout_eval | representation_eval rows
+  metrics/
+  figures/
+  exports/                  # optional
+  eval_manifest.json        # always written: model source + dataset identity + metric summary
 ```
+
+`eval_outputs/` is written by `dojo infer`, `dojo eval`, and standalone
+`dojo eval representation`. `eval_manifest.json` is always written and
+records the model source (artifact URI + `checkpoint_hash` / `model_hash`
+and the inference-contract compatibility hashes), the evaluation dataset
+(`dataset_id` / `dataset_hash` + split), a metric summary, and the
+result-rows location — mirroring the ensemble manifest so a later
+`dojo ensemble` or report step can consume eval runs. Like `dojo ensemble`,
+an `infer` / `eval` run does **not** initialize experiment logging.
 
 For `task.type: snapshot_ensemble` with
 `ensemble_outputs.dir_template` defaulted to the training value, both

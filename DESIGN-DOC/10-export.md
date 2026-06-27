@@ -108,6 +108,11 @@ preprocessing_hash
 Dojo version
 ```
 
+This metadata is the **portable inference contract**
+(`06-results-artifacts-and-metadata.md`) — the same schema embedded in
+training checkpoints under `checkpoint["dojo_inference_contract"]` — so
+`dojo infer` / `dojo eval` consume exports and checkpoints through one path.
+
 If authored config used `weights.name: DEFAULT`, export metadata records
 the resolved concrete provider weight identity, not the `DEFAULT` alias.
 

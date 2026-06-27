@@ -122,8 +122,32 @@ be applied where the command permits them.
 ### Command I/O is options, not config
 
 Per-invocation inputs and outputs are command options, never config keys:
-`--checkpoint`, `--output`, `--type`, `--ensemble-manifest`. They do not
-appear in the canonical root shape (`03-configuration.md`).
+`--checkpoint`, `--model`, `--output`, `--type`, `--ensemble-manifest`. They
+do not appear in the canonical root shape (`03-configuration.md`).
+
+### Commands select which config blocks apply
+
+Dojo uses **one** root config schema for every command. The **command**, not
+`task.type`, decides which blocks are active: `dojo train` consumes
+`model` / `training` / `optimizer` / `scheduler` / `objectives` /
+`checkpointing` (with `task.type` selecting the training paradigm among
+`supervised` / `ssl` / `snapshot_ensemble`); `dojo infer` and `dojo eval holdout`
+consume `data` / `runtime` / `storage` / `eval_outputs` and take the model
+and its preprocessing from the artifact's embedded inference contract
+(`06-results-artifacts-and-metadata.md`); `dojo eval representation`
+additionally activates `model` / `transforms` / `representation_eval`
+because it builds an encoder and configured probes; `dojo ensemble` consumes
+`ensemble` / `ensemble_outputs`; `dojo sweep` consumes `sweep` /
+`sweep_outputs`. `inference` and `eval` are **not** `task.type` values —
+they are commands, exactly like `ensemble` and `export`.
+
+Per-operation configs are the documented norm, but a single "loaded"
+lifecycle config carrying blocks for several commands is valid: each command
+consumes its slice and **warns** about blocks it does not use rather than
+failing. When a config carries more than the active command needs,
+`config_hash` is computed over that command's active block-set only, so
+editing an unused block never changes the job's identity
+(`06-results-artifacts-and-metadata.md`).
 
 ### Two ways a checkpoint enters a command
 
@@ -133,11 +157,13 @@ appear in the canonical root shape (`03-configuration.md`).
   `model.image_input.backbone.weights.uri` — composed, validated, and
   recorded in the run's config provenance. See
   `05-models-training-and-heads.md`.
-- **Consuming a checkpoint / model artifact** → command option
-  `--checkpoint`. `dojo export`, `dojo inspect checkpoint`, and
-  `dojo infer` / `dojo eval` loading a complete trained model (whose
-  architecture self-describes from the checkpoint's stored
-  hyperparameters) take the artifact as a `--checkpoint` option.
+- **Consuming a complete model artifact** → command option. `dojo export`,
+  `dojo inspect checkpoint`, `dojo infer`, and `dojo eval` take a finished
+  model as `--checkpoint` (a `.ckpt`) or `--model` (an exported `.pt` /
+  `.onnx`, with `--export-config` for an ONNX metadata sidecar). The model
+  and its input pipeline self-describe from the artifact's embedded
+  inference contract (`06-results-artifacts-and-metadata.md`), so no
+  `resolved.yaml` is required.
 
 ### Sweeps are prepared by `dojo sweep`
 
@@ -479,24 +505,57 @@ dojo inspect backbone \
 
 ## `dojo inspect checkpoint`
 
-Reports checkpoint metadata, embedded compatibility hashes, head /
-preprocessing configuration, and checkpoint-hash filename match.
+Reports the checkpoint's embedded inference contract — compatibility hashes,
+head / preprocessing configuration (see "Portable inference contract",
+`06-results-artifacts-and-metadata.md`) — and the checkpoint-hash filename
+match.
 
 ## `dojo infer`
 
-`dojo infer predictions` writes per-sample prediction rows (canonical
-result schema). `dojo infer embeddings` extracts embeddings from
-supervised checkpoints, supervised `.pt` model exports, SSL training
-checkpoints, or SSL encoder exports.
+`dojo infer predictions` writes per-sample prediction rows (canonical result
+schema, `stage=infer`); `dojo infer embeddings` extracts embeddings. Both
+take the model as a `--checkpoint` (`.ckpt`) or `--model` (`.pt` / `.onnx`)
+artifact and rebuild the model + input pipeline from its embedded inference
+contract; they never re-author `transforms:` (the artifact's
+`inference_pipeline` is authoritative). The dataset to run on is the only
+required addition: a `data=<group>` selector, an authored `data:` block, or
+the `--input PATH` shorthand (backend inferred from the file, default
+columns, `split=all`). `data.targets` are optional for inference.
+
+Per-invocation output selection is command options, not config: `--output`,
+`--format parquet|csv`, `--heads`, `--embeddings <kind>`. Durable output
+configuration (directory, partitioning) lives in `eval_outputs`
+(`03-configuration.md`).
 
 `dojo infer embeddings` is the canonical embedding-extraction command;
 the legacy `dojo eval embeddings` name is removed.
 
 ## `dojo eval`
 
-- `dojo eval holdout` — evaluate a trained model against a holdout split.
-- `dojo eval representation` — standalone representation evaluation. See
+`dojo eval` scores a finished model against a **labeled** dataset, outside
+any training run — e.g. when fresh labeled data arrives and you want metrics
+without retraining.
+
+- `dojo eval holdout` — evaluate against a holdout split
+  (`stage=holdout_eval`). Takes the model as `--checkpoint` / `--model` and
+  rebuilds everything from the inference contract; it **requires**
+  `data.targets` and computes metrics from the artifact's objective / target
+  metadata (no `objectives:` block needed).
+- `dojo eval representation` — standalone representation evaluation
+  (`stage=representation_eval`). This **builds an encoder** from
+  `model.image_input.backbone.weights.source: checkpoint` and attaches the
+  probes / projections / clustering configured under `representation_eval:`,
+  so it activates `model` / `transforms` / `representation_eval` rather than
+  consuming a finished-model artifact. See
   `07-ssl-and-representation-eval.md`.
+
+Results, metrics, and an always-written **eval manifest** (model source +
+hashes, dataset identity + split, metric summary) land in `eval_outputs`. By
+default an eval run is standalone with its own `run_id`; it can instead
+co-locate beside the source run by templating `eval_outputs.dir_template`
+with `{source_run_dir}` (`03-configuration.md`). The manifest lets a later
+`dojo ensemble` or report step consume eval runs as a candidate / result
+source.
 
 `dojo eval knn` and `dojo eval linear-probe` are not primary commands in
 the initial implementation; that functionality lives inside

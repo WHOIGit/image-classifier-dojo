@@ -103,6 +103,14 @@ sweep_outputs:
   export:
   metrics:
   figures:
+
+eval_outputs:
+  dir:
+  dir_template:
+  results:
+  metrics:
+  figures:
+  export:
 ```
 
 Notes:
@@ -146,6 +154,12 @@ Notes:
   initial contract (`sweep.execution.mode: manual`); automated runners are
   deferred. `sweep_outputs` is the corresponding sweep-level reporting
   output block.
+- `eval_outputs` is the output block for `dojo infer`, `dojo eval`, and
+  standalone `dojo eval representation`. It is standalone by default (own
+  `run_id`); set `eval_outputs.dir_template` with `{source_run_dir}` to
+  co-locate beside the source run. An `infer` / `eval` run always writes
+  `eval_manifest.json` (model source, dataset identity, metric summary) and,
+  like `dojo ensemble`, does not initialize experiment logging.
 
 ## Minimal supervised example
 
@@ -239,9 +253,9 @@ training_outputs:
 ## Output paths and directory resolution
 
 `output_root` is a single filepath string used as the base for rendered
-`training_outputs.dir_template`, `ensemble_outputs.dir_template`, and
-`sweep_outputs.dir_template`, and for bare-relative top-level
-`*_outputs.dir` values.
+`training_outputs.dir_template`, `ensemble_outputs.dir_template`,
+`sweep_outputs.dir_template`, and `eval_outputs.dir_template`, and for
+bare-relative top-level `*_outputs.dir` values.
 
 Each `*_outputs` block has its own concrete `dir` or `dir_template`. When
 `dir_template` is used, the template resolves to the corresponding
@@ -278,6 +292,13 @@ special tokens.
     sweep. Not Hydra's `hydra.job.num` (Dojo does not use `@hydra.main`).
   - `{ensemble_id}` — the generated selected-ensemble id, available after
     candidate discovery and selection (see `08-ensembles.md`).
+  - `{source_run_dir}` — the resolved run directory of the model artifact
+    passed to `dojo infer` / `dojo eval` (the `--checkpoint` / `--model`
+    source). Available only when that artifact lives inside a Dojo run
+    directory; co-locating eval output errors clearly for export-only or
+    remote artifacts that have no source run directory.
+  - `{dataset_id}` — the evaluation dataset's `dataset_id`, falling back to
+    a short `dataset_hash` form when the dataset does not self-name.
 
 #### Format specifiers
 

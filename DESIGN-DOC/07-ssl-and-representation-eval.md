@@ -191,8 +191,10 @@ representation_eval:
 
 Same evaluator code, two entry points:
 
-- training-integrated callbacks (scheduled inside a `dojo train` run);
-- standalone CLI: `dojo eval representation`.
+- training-integrated callbacks (scheduled inside a `dojo train` run),
+  writing into that run's `training_outputs`;
+- standalone CLI: `dojo eval representation`, writing rows / metrics and an
+  `eval_manifest.json` into `eval_outputs` (`03-configuration.md`).
 
 Standalone example:
 

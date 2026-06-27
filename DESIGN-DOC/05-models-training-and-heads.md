@@ -1025,6 +1025,19 @@ artifacts — they live under `exports/` and are produced by explicit
 export configuration (`training_outputs.export`) or `dojo export`. See
 `10-export.md`.
 
+### Inference-contract embedding
+
+The task module's `on_save_checkpoint` hook writes a portable **inference
+contract** into `checkpoint["dojo_inference_contract"]`: the buildable
+`model_config`, the resolved `inference_pipeline` with frozen preprocessing
+stats, per-head class maps, the target schema with frozen target transforms,
+and the four compatibility hashes. It is kept **out** of Lightning
+`hyper_parameters` (so the constructor configs stay clean) and makes a
+`.ckpt` as self-describing as an export: `dojo infer` / `dojo eval` rebuild
+the model and its input pipeline from the artifact alone, with no dependency
+on the producing run's `resolved.yaml`. See
+`06-results-artifacts-and-metadata.md`.
+
 ### Early stopping
 
 Early stopping is a training-loop behavior under `training:`, not

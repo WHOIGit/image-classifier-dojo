@@ -147,6 +147,10 @@ configs/
   sweep_outputs/
     default.yaml
 
+  eval_outputs/
+    default.yaml               # standalone eval/infer run dir
+    colocate_with_source.yaml  # dir_template uses {source_run_dir}
+
   ensemble/
     disabled.yaml
     cycle_end_snapshots.yaml
@@ -219,7 +223,7 @@ src/dojo/
     representation_eval.py
     ensemble.py
     sweep.py
-    outputs.py                 # training_outputs, ensemble_outputs, sweep_outputs
+    outputs.py                 # training_outputs, ensemble_outputs, sweep_outputs, eval_outputs
     logging.py
     export.py
     validation.py              # cross-cutting validators

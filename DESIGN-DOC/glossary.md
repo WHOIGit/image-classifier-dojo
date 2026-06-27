@@ -54,6 +54,13 @@ referenced by every other file. When in doubt, the terms below win.
   sub-block are stored in `_metadata.json` so consumers can fast-compare on
   the hash and slow-compare via human-readable diff on mismatch. The
   canonical source field lists live in `06-results-artifacts-and-metadata.md`.
+- **Inference contract** — Portable, self-describing bundle embedded in both
+  training checkpoints (`checkpoint["dojo_inference_contract"]`) and exported
+  models: buildable `model_config`, resolved `inference_pipeline` + frozen
+  preprocessing stats, per-head class maps, target schema with frozen target
+  transforms, and the four compatibility hashes. `dojo infer` / `dojo eval`
+  rebuild a model from it without the producing run's `resolved.yaml`. Full
+  definition in `06-results-artifacts-and-metadata.md`.
 
 ### Seednames vs. fresh coolnames
 
@@ -104,8 +111,10 @@ both exist.
   automated local sequential and Slurm execution are deferred.
 - **`output_root`** — Single filepath string used as the base for rendered
   `*_outputs.dir_template` values and bare-relative `*_outputs.dir` values.
-- **`training_outputs`**, **`ensemble_outputs`**, **`sweep_outputs`** — Peer
-  output-config blocks (see `03-configuration.md`).
+- **`training_outputs`**, **`ensemble_outputs`**, **`sweep_outputs`**,
+  **`eval_outputs`** — Peer output-config blocks (see `03-configuration.md`).
+  `eval_outputs` is the home for `dojo infer` / `dojo eval` rows, metrics,
+  and the always-written `eval_manifest.json`.
 
 ## Sweep terminology
 
@@ -141,7 +150,8 @@ For any `dir` key:
 `dir_template` uses Dojo-owned `{...}` template syntax with an **open**
 token set: any dotted resolved-config path (e.g. `{experiment.name}`,
 `{runtime.run_id}`, `{training.batch_size}`) plus a fixed set of special
-tokens (`{coolname}`, `{timestamp}`, `{job_num}`, `{ensemble_id}`).
+tokens (`{coolname}`, `{timestamp}`, `{job_num}`, `{ensemble_id}`,
+`{source_run_dir}`, `{dataset_id}`).
 Tokens may carry a `:spec` suffix — the custom `:slug` filesystem-safe
 formatter or any standard Python format spec (e.g.
 `{model.image_input.backbone.architecture.name:slug}`,
@@ -183,6 +193,10 @@ and runtime-value generation. The full rules live in
 - **`snapshot_ensemble`** — Convenience type that runs supervised training
   with a snapshot-cycle scheduler and then ensembles the snapshot
   checkpoints, sharing one run directory.
+
+`inference`, `eval`, `ensemble`, and `export` are **commands**, not
+`task.type` values; the command (not `task.type`) selects which config
+blocks apply (`02-cli-and-task-types.md`).
 
 ## Head types
 
