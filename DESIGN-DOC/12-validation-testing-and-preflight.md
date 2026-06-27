@@ -19,8 +19,10 @@ per stubbed runtime path), and the functional-feature testing scope.
    remote-availability HEAD / etag checks (see
    `02-cli-and-task-types.md`).
 3. **`dojo inspect dataset`** / training preflight. Manifest and target
-   checks, missing-target reporting, sample-drop summarization. Default
-   missing-target policy is `error` for all heads.
+   checks, missing-target reporting, sample-drop summarization, and
+   required frozen-stats cache availability. Default missing-target policy
+   is `error` for all heads. Preflight consumes frozen stats; it does not
+   compute or repair missing cache aspects.
 4. **Runtime validation.** Checkpoints, models, schemas, tensor shapes,
    exports.
 

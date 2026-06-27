@@ -174,32 +174,42 @@ dataset --stats[=URI]` is the **producer**: it computes the fit statistics
 on the `train` split (structural properties such as bit depth and bin
 lengths across all splits) and writes them to a stats cache.
 
-The cache is keyed by `dataset_hash` so it auto-invalidates when the
-underlying data changes. Config resolution **consumes** it: `normalize:
-{mode: dataset}`, tabular imputation / normalization, target transforms,
-`length: {mode: cached}`, the count-dependent losses
-(`weighted_cross_entropy`, `class_balanced_effective_number`), and the
-`class_balanced` sampler read their frozen values from the cache instead of
-recomputing per run. The `length: {mode: cached, cache_uri}` block under
-`ifcb_bins` above is the first instance of this pattern; the stats cache
-generalizes it to every dataset-derived frozen value.
+The cache is keyed by `dataset_hash`. When `dataset_hash_provenance` is
+strong (`manifest_content` or `uri_etag`), this auto-invalidates stale
+cache entries when the manifest identity changes. When provenance falls
+back to `uri_only`, Dojo records that weakness and cannot promise automatic
+stale-cache detection; production configs should use content-derived or
+etag-derived dataset identity for frozen stats.
+
+Config resolution **consumes** the stats cache; it does not produce or
+repair it. `normalize: {mode: dataset}`, tabular imputation /
+normalization, target transforms, `length: {mode: cached}`, the
+count-dependent losses (`weighted_cross_entropy`,
+`class_balanced_effective_number`), and the `class_balanced` sampler read
+their frozen values from the cache instead of recomputing per run. The
+`length: {mode: cached, cache_uri}` block under `ifcb_bins` above is the
+first instance of this pattern; the stats cache generalizes it to every
+dataset-derived frozen value.
 
 Resolved values are materialized into the resolved config and hashed by
 content (`06-results-artifacts-and-metadata.md`); the cache is a production
-and reuse mechanism, not the hash input. A stale or missing cache is a
-performance concern, never a correctness one — resolution recomputes when
-the cache is absent.
+and reuse mechanism, not the hash input. Missing required cache aspects,
+dataset-hash mismatches, estimated values in non-sampled runs, and weak
+`uri_only` provenance where strict freshness is required are configuration
+errors with an actionable fix: run `dojo inspect dataset` with the needed
+frozen aspect flags, or `--stats`, to write an updated cache before
+training / evaluation / inference.
 
-`dataset_hash` itself stays cheap and always-available — manifest content
-(or URI + size + etag), computable without reading image pixels — so it
-remains a stable identity for the cache key, result rows, and ensemble
-compatibility. Because a `--normalization` / `--content-hash` pass already
-reads every image byte, `dojo inspect dataset` additionally records a
-separate **`dataset_content_hash`** (a true hash over all image bytes) for
-integrity / drift verification. It is recorded alongside, never folded into,
-`dataset_hash`: the cheap identity must not change value depending on
-whether a full pass happened to run. `dataset_content_hash` catches in-place
-pixel mutation that manifest-level identity cannot see.
+`dataset_hash` itself stays cheap and usually available without reading
+image pixels — manifest content, or URI + size + etag / last-modified when
+available — so it remains a stable identity for the cache key, result rows,
+and ensemble compatibility. Because a `--normalization` / `--content-hash`
+pass already reads every image byte, `dojo inspect dataset` additionally
+records a separate **`dataset_content_hash`** (a true hash over all image
+bytes) for integrity / drift verification. It is recorded alongside, never
+folded into, `dataset_hash`: the cheap identity must not change value
+depending on whether a full pass happened to run. `dataset_content_hash`
+catches in-place pixel mutation that manifest-level identity cannot see.
 
 ### Stats cache format
 
@@ -264,9 +274,11 @@ Rules:
   flag (`true` when produced under `--sample`); resolution refuses to freeze
   an `estimated` value into a non-sampled run.
 - `dataset_hash` is the cache key. Resolution compares it against the current
-  dataset and ignores the cache on mismatch — recompute, never trust stale.
+  dataset and refuses the cache on mismatch. It does not recompute inside
+  config resolution; run `dojo inspect dataset` to refresh the cache.
 - Aspects are independent: a cache may hold only the aspects that have been
-  run, and resolution computes any missing aspect on demand.
+  run. If a required aspect is missing, resolution fails with a message
+  naming the missing aspect and the inspect command that produces it.
 - Inline aggregates (`normalization`, `bit_depth`, `class_counts`,
   `target_stats`, `tabular_stats`) are the values hashed by content into the
   compatibility hashes; the per-sample Parquet sidecars (`dimensions`,

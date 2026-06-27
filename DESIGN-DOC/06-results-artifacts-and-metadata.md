@@ -121,7 +121,7 @@ source object before canonicalization.
 | `config_id` | id (paired with `config_hash`) | manual, else seedname from `config_hash` | seedname |
 | `config_hash` | hash | canonical hash of resolved config, **excluding** runtime-resolved values, output paths, `output_root`, and all `*_outputs` blocks | always derived |
 | `dataset_id` | id only | the dataset's self-name when the manifest provides one | null (no seedname fallback) |
-| `dataset_hash` | hash | cheap, always-available identity (never reads image pixels): manifest content or URI + size + etag/last-modified, plus backend type. Basis recorded in `dataset_hash_provenance` (`manifest_content` / `uri_etag` / `uri_only` fallback) | always derived |
+| `dataset_hash` | hash | cheap identity (never reads image pixels): manifest content or URI + size + etag/last-modified, plus backend type. Basis recorded in `dataset_hash_provenance` (`manifest_content` / `uri_etag` / `uri_only` fallback). `uri_only` is weak identity and does not reliably auto-invalidate stale stats caches. | always derived |
 | `dataset_content_hash` | hash | true hash over all image bytes; recorded separately when a full pass runs (`dojo inspect dataset --content-hash` / `--normalization`). Integrity / drift verification only — **not** the cache key, identity, or a compatibility hash | derived when a full pass runs, else null |
 | `checkpoint_hash` | hash | SHA-256 of the `.ckpt` file bytes | always derived |
 | `model_id` | id (paired with `model_hash`) | manual on export, else seedname from `model_hash` | seedname |
@@ -162,6 +162,13 @@ defaults and generated schema values are injected, but before run-local
 paths and runtime identifiers matter. The extractor must build a minimal
 canonical JSON object containing only the fields listed below. Do not hash
 whole config branches by reference.
+
+For prediction-space ensembles, not every compatibility hash is a
+cross-member equality requirement. `target_schema_hash` and
+`class_mapping_hash` usually must agree for a shared head, while
+`model_config_hash` and `preprocessing_hash` primarily validate a member's
+own checkpoints, exports, cached rows, and metadata drift. See
+`08-ensembles.md`.
 
 What each hash validates:
 

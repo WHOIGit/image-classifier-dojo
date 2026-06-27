@@ -213,6 +213,17 @@ availability and size. It is a command option only — there is no
 missing-remote-artifact errors surface at runtime, not at inspect time.
 This is intentional.
 
+`dojo inspect config` is not a dataset-stats producer. It never computes
+missing frozen dataset statistics and never updates the stats cache. When a
+config requires frozen stats (`normalize: {mode: dataset}`, tabular
+imputation / normalization, target transforms, cached lengths, or
+count-dependent weighting), inspect config validates the configured cache
+shape and any locally available cache metadata. Without `--check-remote`,
+remote cache contents are not fetched; missing or stale remote cache
+contents surface when run resolution / preflight actually consumes them.
+Use `dojo inspect dataset` with the needed aspect flags, or `--stats`, to
+create or refresh those values.
+
 ## `dojo inspect dataset`
 
 Replaces the old `dojo tools make-manifest`. Read-only by default. May

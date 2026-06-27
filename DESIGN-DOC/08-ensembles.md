@@ -68,8 +68,9 @@ writes a manifest for provenance, even when member prediction rows are not
 materialized into `ensemble_results/`. The manifest records discovered
 candidates, compatibility status, exclusion reasons when available,
 selected members, assigned `ensemble_member_id` values, source result
-selectors / URIs, compatibility hashes, combine config, and selection
-config. Candidate-audit metadata is useful for inspection, but
+selectors / URIs, semantic compatibility status, member-provenance hashes,
+combine config, and selection config. Candidate-audit metadata is useful
+for inspection, but
 `ensemble_hash` is derived from the selected-ensemble identity block
 (selected members + combine + selection), not from every discovered
 candidate.
@@ -237,11 +238,14 @@ Compatibility assessment uses a cascading metadata policy by default:
 4. exported model metadata
 
 Explicit per-metadata-source policies and drift checks across multiple
-metadata targets are supported. Compatibility hashes used for
-fast-equality checks: `target_schema_hash`, `class_mapping_hash`,
-`model_config_hash`, `preprocessing_hash`. See
-`06-results-artifacts-and-metadata.md` for hash field selection rules and
-the human-readable diff path on mismatch.
+metadata targets are supported. Cross-member fast-equality checks apply to
+semantic output contracts such as `target_schema_hash` and
+`class_mapping_hash`. `model_config_hash` and `preprocessing_hash` are
+member-provenance hashes: they validate a member's own artifacts and cached
+rows, and they support drift checks across metadata sources for the same
+candidate, but they are **not** required to match across ensemble members.
+See `06-results-artifacts-and-metadata.md` for hash field selection rules
+and the human-readable diff path on mismatch.
 
 ### Member-specific preprocessing
 
@@ -255,6 +259,13 @@ normalization / etc.
 This enables heterogeneous ensembles such as ViT@224 + ConvNeXt@320 +
 EfficientNet@384 against the same evaluation dataset.
 
+`preprocessing_hash` equality is only a fast-path signal for shared
+preprocessing. A mismatch does not make members incompatible as long as the
+evaluation data provides each member's required input fields and the
+member's own preprocessing metadata is available. Drift within one
+candidate remains an error when multiple metadata sources disagree about
+that candidate's preprocessing contract.
+
 ## Source policy
 
 Controls behavior when candidate-result coverage is partial:
@@ -267,8 +278,11 @@ Ensemble commands default to using existing result files as inputs when
 input dataset and output target match (`inference_as_needed`).
 Cached-result inputs must match the ensemble target by `dataset_hash`, or
 by explicit `dataset_id` plus `split` when the dataset self-names and a
-content hash is unavailable. Compatibility hashes still govern target
-schema, class mapping, model-output shape, and preprocessing compatibility.
+content hash is unavailable. Target schema, class mapping, output tensor
+shape, and output tensor meaning still govern cached-result compatibility.
+`model_config_hash` and `preprocessing_hash` validate cached rows against
+their own producing member when present; they do not need to match other
+members.
 
 ## Selection strategies
 
@@ -519,11 +533,11 @@ Initial modes:
   ensemble manifest only. Do not materialize member-level rows into
   `ensemble_results/`.
 - `transcribe` — require source result rows for every selected member,
-  validate dataset / split and compatibility hashes, then rewrite those
-  rows into canonical ensemble form with `stage=ensemble_eval`,
-  `ensemble_result_scope=member`, `ensemble_id`, `ensemble_hash`, and
-  `ensemble_member_id`. This mode does not run inference just to retain
-  rows.
+  validate dataset / split, semantic output compatibility, and
+  member-provenance hashes, then rewrite those rows into canonical ensemble
+  form with `stage=ensemble_eval`, `ensemble_result_scope=member`,
+  `ensemble_id`, `ensemble_hash`, and `ensemble_member_id`. This mode does
+  not run inference just to retain rows.
 - `inference` — require `ensemble.source_policy: force_inference`; run
   selected member inference and write fresh member-level rows into
   `ensemble_results/`.
@@ -562,8 +576,9 @@ member-only analysis outputs.
 - `05-models-training-and-heads.md` — snapshot-cycle scheduler and
   checkpointing.
 - `06-results-artifacts-and-metadata.md` — `ensemble_result_scope`,
-  `ensemble_member_id`, `stage=ensemble_eval` rows, compatibility hashes,
-  `ensemble_manifests/` JSON manifests, partitioning.
+  `ensemble_member_id`, `stage=ensemble_eval` rows, compatibility and
+  member-provenance hashes, `ensemble_manifests/` JSON manifests,
+  partitioning.
 - `09-sweeps-and-batch-runs.md` — Hydra sweeps over ensemble selection
   / combine axes; sweeps as candidate-source feeders.
 - `10-export.md` — `ensemble_outputs.export` and ensemble model
