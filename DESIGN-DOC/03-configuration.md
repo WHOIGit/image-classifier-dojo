@@ -17,6 +17,27 @@ during composition, before Pydantic validation; dash-prefixed **command
 options** (`--checkpoint`, `--output`, etc.) are not part of the config
 tree. See `02-cli-and-task-types.md` for the overrides-vs-options model.
 
+## Config search path
+
+Config group selectors such as `experiment=ifcb/species_baseline` resolve
+through this search path:
+
+1. explicit command `--config-dir` entries, in the order provided;
+2. local `./configs`, when present;
+3. packaged read-only Dojo configs bundled as package resources.
+
+Earlier entries shadow later entries. Packaged configs make pip-installed
+Dojo usable before a user creates a local config tree. `dojo init`
+materializes packaged configs into an editable local project: either a
+scope-selected starter set, the complete packaged config tree, or the
+dependency closure of a selected config root.
+
+`--config FILE` bypasses group lookup and loads a concrete authored or
+composed root config file. `--resolved-config FILE` loads a saved resolved
+config artifact and is intentionally explicit because resolved configs
+contain generated values and resolved output paths. See
+`02-cli-and-task-types.md` for command-level replay modes.
+
 ## Canonical root shape
 
 ```yaml

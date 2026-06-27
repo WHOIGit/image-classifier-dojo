@@ -169,10 +169,10 @@ frozen: image normalization mean / std (`normalize: {mode: dataset}`),
 tabular normalization stats and imputation fill values, fitted target
 transform statistics, per-class counts, the resolved class map, the
 resolved `input_bit_depth`, per-sample native dimensions, and `ifcb_bins`
-bin lengths. `dojo inspect
-dataset --stats[=URI]` is the **producer**: it computes the fit statistics
-on the `train` split (structural properties such as bit depth and bin
-lengths across all splits) and writes them to a stats cache.
+bin lengths. `dojo inspect dataset --stats[=URI]` is the **producer**: it
+computes the fit statistics on the `train` split (structural properties
+such as bit depth and bin lengths across all splits) and writes them to a
+stats cache.
 
 The cache is keyed by `dataset_hash`. When `dataset_hash_provenance` is
 strong (`manifest_content` or `uri_etag`), this auto-invalidates stale

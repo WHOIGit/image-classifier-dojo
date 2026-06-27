@@ -64,6 +64,8 @@ sweeps are layered on top.
 ### P2.1 Config / CLI / storage foundation
 
 - Full config tree and Pydantic contract.
+- `dojo init` for materializing packaged configs and optional fixture data
+  into a local editable project.
 - `dojo inspect dataset`, folding in old manifest-making behavior and
   acting as the cheapest gate against bad data.
 - `dojo inspect backbone` and `dojo inspect checkpoint`.
@@ -208,6 +210,7 @@ obligations.
 - P4.14 Expanded tabular encoder families beyond `identity`, `linear`,
   and `mlp` (`tab_transformer`, `ft_transformer`, `tabnet`,
   `embedding_bag`, `wide_and_deep`).
+- P4.15 `dojo init --wizard` interactive config/project questionnaire.
 
 ## Historical Notes
 

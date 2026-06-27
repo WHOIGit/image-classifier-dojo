@@ -66,8 +66,8 @@ Read in order:
 - [01. Goals and Scope](01-goals-and-scope.md) — what's in, what's out,
   what's deferred.
 - [02. CLI and Task Types](02-cli-and-task-types.md) — canonical command
-  surface; `dojo train` / `infer` / `eval` / `inspect` / `ensemble` /
-  `export`; `task.type` semantics.
+  surface; `dojo init` / `train` / `infer` / `eval` / `inspect` /
+  `ensemble` / `export`; `task.type` semantics.
 - [03. Configuration](03-configuration.md) — canonical config tree;
   `output_root` and the three peer `*_outputs` blocks; path-template
   syntax; existing-run-dir policy.

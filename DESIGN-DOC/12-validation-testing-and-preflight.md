@@ -151,7 +151,9 @@ inherits their stubbed runtime.
 - **Config tests** — Hydra composition; Pydantic validation success and
   failure; CLI override validation; invalid head / loss combinations;
   invalid objective references; invalid dataset columns; invalid logger
-  sink configs; invalid ensemble configs.
+  sink configs; invalid ensemble configs; `dojo init` materialization,
+  dependency-closure copying, fixture-data copying, and non-clobber /
+  clobber behavior.
 - **Dataset tests** — CSV / Parquet / `parquet_images` / `ifcb_bins`
   backends; multi-head targets; tabular feature extraction;
   `sample_id` / `uri` / `bin_id` / `bin_uri` propagation; mocked

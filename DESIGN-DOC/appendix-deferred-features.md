@@ -189,6 +189,17 @@ tests.
   family is promoted, add real functional tests for its schema,
   construction, hashing, export metadata, and inference behavior.
 
+### P4.15 `dojo init --wizard`
+
+- Interactive project/config questionnaire that writes a local config tree
+  and optionally fixture data.
+- Deferred because the initial `dojo init` should stay deterministic and
+  template-based: copy packaged configs, materialize dependency closures,
+  and optionally materialize a small fixture dataset.
+- This is a usability backlog item, not a runtime stub. When promoted, add
+  CLI interaction tests for questionnaire branching, generated files, and
+  non-clobber behavior.
+
 ## Cross-References
 
 - `01-goals-and-scope.md` — scope and non-goals.

@@ -12,6 +12,7 @@ here rather than re-listing commands.
 
 Top-level groups:
 
+- `dojo init`
 - `dojo train`
 - `dojo infer`
 - `dojo eval`
@@ -22,6 +23,7 @@ Top-level groups:
 Subcommands are config-first shorthands that constrain the target output.
 
 ```text
+dojo init
 dojo train                                # task type comes from task.type
 dojo infer
 dojo infer predictions
@@ -46,9 +48,10 @@ via `task.type` (see below).
 ## CLI architecture and execution model
 
 Dojo's CLI is a **Typer** application (git-style subcommands, `--options`,
-rich help) that composes configs through the **Hydra Compose API**
-(`hydra.compose`). It does **not** use `@hydra.main`, and it does not use
-Hydra's launcher / sweeper plugins. Sweep expansion, runtime-ID
+rich help). `dojo init` bootstraps local project files. All other
+config-aware commands compose configs through the **Hydra Compose API**
+(`hydra.compose`). Dojo does **not** use `@hydra.main`, and it does not
+use Hydra's launcher / sweeper plugins. Sweep expansion, runtime-ID
 generation, output-directory resolution, and existing-directory policy are
 all owned by Dojo (see `09-sweeps-and-batch-runs.md`).
 
@@ -75,6 +78,33 @@ A command mixes both freely:
 dojo inspect dataset data=ifcb/species_manifest --stats --format json
 #                    └─ config override ─┘       └─ command options ─┘
 ```
+
+### Config sources and replay modes
+
+Config-aware commands can start from authored, composed, or resolved config
+inputs:
+
+- **Config group selectors** — dash-free Hydra selectors such as
+  `experiment=ifcb/species_baseline`. These resolve from the active config
+  search path: explicit `--config-dir` entries, then local `./configs` when
+  present, then packaged read-only Dojo configs.
+- **Authored root file** — `--config FILE` loads one human-written root YAML
+  file and then applies CLI overrides. This is useful for project-local
+  configs that are not arranged as Hydra groups.
+- **Composed config artifact** — `--config RUN_DIR/config/composed.yaml`
+  replays composed authored intent and still performs fresh runtime
+  resolution: new generated values, output directories, and frozen-stat
+  checks as appropriate for the command.
+- **Resolved config artifact** — `--resolved-config RUN_DIR/config/resolved.yaml`
+  loads a fully resolved run artifact. Read-only inspection commands may
+  consume it directly. Mutating commands such as `dojo train` require an
+  explicit mode: `--fork-run` to reuse the resolved intent with new run
+  identity / output directories, or `--resume` to continue the same run
+  context.
+
+`--config`, `--resolved-config`, and Hydra group selectors are mutually
+exclusive as root config sources, though ordinary value overrides may still
+be applied where the command permits them.
 
 ### Command I/O is options, not config
 
@@ -103,6 +133,53 @@ config's `sweep:` block defines axes (`sweep.mode: grid` with a non-empty
 `sweep.grid`). Dojo expands the cartesian product itself. See
 `09-sweeps-and-batch-runs.md` for the sweep block and the authored →
 resolved pipeline.
+
+## `dojo init`
+
+`dojo init` bootstraps an editable local project from packaged Dojo config
+templates. It is additive by default: missing files are created and
+existing files are skipped. It writes nothing when `--dry-run` is used, and
+overwrites existing files only with `--clobber`.
+
+```bash
+dojo init
+dojo init ./my-dojo-project --minimal --supervised --data
+dojo init --ssl --sweep
+dojo init --all
+dojo init experiment=ifcb/species_baseline
+dojo init --config ./my_experiment.yaml
+```
+
+The optional positional argument is the project directory, default `.`.
+Configs are written under `<project>/configs`. `--data` materializes a
+small packaged fixture dataset under `<project>/example-data` and writes
+local data config entries that point at the materialized files, so the
+starter experiment can run without separate dataset setup.
+
+Initial options:
+
+- `--minimal` — copy only selected starter roots and their referenced config
+  dependency closure.
+- `--supervised` — include supervised training templates and starter
+  experiments.
+- `--ssl` — include SSL / DINOv2 templates and starter experiments.
+- `--sweep` — include grid-sweep templates and starter experiments.
+- `--data` — materialize the small packaged fixture dataset and matching
+  local data config.
+- `--all` — copy the whole packaged config tree. It does not imply
+  `--data`.
+- `--config FILE` — use a concrete authored YAML file as a materialization
+  root, copying any referenced packaged configs needed by that file.
+- `--dry-run` — report create / skip / overwrite actions without writing.
+- `--clobber` — overwrite existing files.
+
+Scope flags are additive. If no scope flag or explicit materialization root
+is provided, `dojo init` defaults to `--minimal --supervised`. `--all` is
+mutually exclusive with `--minimal`, scope flags, and explicit
+materialization roots. Dash-free config selectors such as
+`experiment=ifcb/species_baseline` are materialization roots for `dojo
+init`: Dojo copies that selected packaged config and any packaged configs
+it references into the local project.
 
 ## Task types
 
@@ -395,9 +472,9 @@ output. Artifact types: `torchscript` and `onnx`. See `10-export.md`.
 
 ## Config-first usage
 
-Every command accepts dash-free Hydra config overrides; command I/O is
-expressed as `--options` (see "CLI architecture and execution model"
-above). Examples:
+Config-aware execution and inspection commands accept dash-free Hydra config
+overrides; command I/O is expressed as `--options` (see "CLI architecture
+and execution model" above). Examples:
 
 ```bash
 dojo inspect config experiment=ifcb/species_baseline training.batch_size=64

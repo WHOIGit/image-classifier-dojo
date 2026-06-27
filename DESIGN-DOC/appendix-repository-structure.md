@@ -35,6 +35,11 @@ image-classifier-dojo/
 
 ## `configs/`
 
+The repository-level `configs/` tree is the editable development copy of
+the packaged config resources. The installable package also carries a
+read-only copy under `src/dojo/configs/`; `dojo init` materializes selected
+packaged configs into a user's local `./configs` tree.
+
 ```text
 configs/
   config.yaml                # top-level Hydra entrypoint
@@ -173,12 +178,24 @@ src/dojo/
   cli/
     __init__.py
     main.py                    # Typer app entrypoint; composes config, dispatches
+    init.py                    # dojo init: materialize configs + optional fixture data
     train.py                   # all task.type values: supervised, ssl, snapshot_ensemble
     eval.py                    # dojo eval, dojo eval holdout, dojo eval representation
     infer.py                   # dojo infer, dojo infer predictions, dojo infer embeddings
     ensemble.py                # dojo ensemble, dojo ensemble candidates
     export.py                  # dojo export
     inspect.py                 # dojo inspect config|dataset|backbone|checkpoint
+
+  configs/                     # packaged read-only config resources for search fallback / dojo init
+    config.yaml
+    experiment/
+    data/
+    transforms/
+    backbone/
+    training/
+    sweep/
+
+  example_data/                # tiny packaged fixture dataset for dojo init --data
 
   config_schemas/              # Pydantic; single source of truth
     __init__.py
