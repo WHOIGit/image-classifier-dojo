@@ -321,8 +321,7 @@ prepared sweep job. If an authored / composed config has a non-empty
       `dojo train --resolved-config JOB_DIR/config/resolved.yaml`.
    4. Use the same resolved-config guard as `dojo train`: if the selected
       run directory contains artifacts beyond prepared config / status
-      files, require explicit `--resume`, `--fork-run`, or `--clobber`
-      behavior.
+      files, require explicit `--resume` or `--clobber` behavior.
    5. Write a simple per-run status file at `JOB_DIR/status.json`.
       `pending` is inferred from the manifest when the file does not
       exist. Written states are `initializing`, `training`, `exporting`,

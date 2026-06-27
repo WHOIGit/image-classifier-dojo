@@ -106,13 +106,14 @@ inputs:
   consume it directly. Mutating commands such as `dojo train` may execute
   it directly when the referenced run directory is absent, empty, or only
   contains prepared config artifacts. If the rest of the run folder is not
-  empty, the command requires an explicit mode: `--fork-run` to reuse the
-  resolved intent with new run identity / output directories, `--resume`
-  to continue the same run context, or `--clobber` to delete the existing
-  directory contents and run the resolved config in place. When output
-  blocks share a physical directory (e.g. the snapshot-ensemble case),
-  `--clobber` clears each resolved physical directory once at startup, so
-  later phases of the same command do not re-clear it.
+  empty, the command requires an explicit override: `--resume` to continue
+  the same run context, or `--clobber` to delete the existing directory
+  contents and run the resolved config in place. To branch instead, copy
+  the composed / resolved config to a new location, edit its output `dir` /
+  `dir_template`, and run that as a fresh config. When output blocks share
+  a physical directory (e.g. the snapshot-ensemble case), `--clobber`
+  clears each resolved physical directory once at startup, so later phases
+  of the same command do not re-clear it.
 
 `--config`, `--resolved-config`, and Hydra group selectors are mutually
 exclusive as root config sources, though ordinary value overrides may still

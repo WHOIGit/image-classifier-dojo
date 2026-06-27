@@ -314,17 +314,26 @@ directory. The recommended pattern is to default
 
 ## Run directory collisions
 
-Freshly composed runs normally avoid collisions because `runtime.run_id`
-renders a unique value per run (e.g. `{coolname}`), so each run resolves to
-its own directory. Re-running a *fixed* resolved config
-(`dojo train --resolved-config`) deliberately targets the same directory
-and is guarded: the directory must be blank apart from prepared `config/`
-artifacts unless an explicit `--resume`, `--fork-run`, or `--clobber` mode
-is given (see `02-cli-and-task-types.md`).
+A run refuses to start when its resolved output directory already contains
+content beyond prepared `config/` artifacts. The guard is **uniform** — it
+applies to every run whether the config was freshly composed or replayed
+from `--resolved-config`. Freshly composed runs rarely trip it because
+`runtime.run_id` renders a unique value per run (e.g. `{coolname}`), so each
+resolves to its own directory; replaying a *fixed* resolved config
+deliberately targets the same directory and is the common collision case.
 
-`--clobber` deletes the resolved directory contents before starting. When
-multiple output blocks resolve to the same physical directory (e.g. the
-snapshot-ensemble case), `--clobber` clears each resolved physical
+Two command options override the guard (see `02-cli-and-task-types.md`):
+
+- `--clobber` — delete the resolved directory contents and run in place.
+  Available to any run.
+- `--resume` — continue the same run context. Meaningful only when
+  replaying a `--resolved-config` run with partial artifacts to resume.
+
+To branch a run, copy its `config/composed.yaml` to a new location, edit the output `dir` / `dir_template`,
+and run that as a fresh config.
+
+When multiple output blocks resolve to the same physical directory (e.g.
+the snapshot-ensemble case), `--clobber` clears each resolved physical
 directory **once** at command startup; later phases of the same command
 must not re-clear directories the earlier phases just wrote.
 
