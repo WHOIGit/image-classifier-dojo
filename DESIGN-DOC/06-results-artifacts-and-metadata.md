@@ -226,7 +226,7 @@ local cache paths
 `target_schema_hash` source fields:
 
 ```text
-version: 1
+version: "1"
 heads:
   <head_name>:
     type
@@ -254,7 +254,7 @@ value, including any resolved fit statistics.
 `class_mapping_hash` source fields:
 
 ```text
-version: 1
+version: "1"
 heads:
   <head_name>:
     target
@@ -276,7 +276,7 @@ label content is the hash input.
 `model_config_hash` source fields:
 
 ```text
-version: 1
+version: "1"
 model:
   image_input:
     backbone:
@@ -324,10 +324,9 @@ inference outputs even though it is stateless.
 `preprocessing_hash` source fields:
 
 ```text
-version: 1
+version: "1"
 data:
   tabular_feature_columns
-  source_extra_columns              # only columns used as model inputs
 transforms:
   image_mode
   input_bit_depth                   # resolved integer (auto resolves to 8/12/16); [0,1] scaling divisor
@@ -592,22 +591,22 @@ and head mappings.
   "compatibility": {
     "target_schema_hash": "sha256:...",
     "target_schema_source": {
-      "version": 1,
+      "version": "1",
       "heads": {}
     },
     "class_mapping_hash": "sha256:...",
     "class_mapping_source": {
-      "version": 1,
+      "version": "1",
       "heads": {}
     },
     "model_config_hash": "sha256:...",
     "model_config_source": {
-      "version": 1,
+      "version": "1",
       "model": {}
     },
     "preprocessing_hash": "sha256:...",
     "preprocessing_source": {
-      "version": 1,
+      "version": "1",
       "data": {},
       "transforms": {},
       "tabular_preprocessing": {}
@@ -666,7 +665,7 @@ record_type
 sweep_id
 ```
 
-Include `sweep_id` automatically when a row is produced as part of a Hydra
+Include `sweep_id` automatically when a row is produced as part of a
 sweep. `ensemble_result_scope` distinguishes combined ensemble rows
 (`ensemble`) from retained member-level rows (`member`).
 `ensemble_member_id` is a union column whose value is the member's

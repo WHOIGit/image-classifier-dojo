@@ -560,9 +560,9 @@ written by `results/writers.py`.
 ### `storage/`
 
 Thin wrapper around `amplify-storage-utils`. The wrapper exists so
-output-path resolution (`output_root`, `dir_template`, `dir`,
-`existing_run_dir` policy) is a project-level concern not pushed into
-the library. It is top-level because storage is shared by data loading,
+output-path resolution (`output_root`, `dir_template`, `dir`, and the
+`--resolved-config` replay guard / `--clobber` handling) is a
+project-level concern not pushed into the library. It is top-level because storage is shared by data loading,
 result writing, checkpointing, export, and artifact inspection.
 
 ### `models/compositors/`

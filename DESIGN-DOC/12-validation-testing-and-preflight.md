@@ -113,10 +113,11 @@ deleted and replaced with real functional tests.
 - Broad automatic registry-based cross-run candidate discovery.
 
 Deprecated package removal is a P4 cleanup milestone, not a runtime stub,
-so it does not have a `NotImplementedError` test. Tabular-only modeling
-and expanded tabular encoder families are schema backlog items: the
-initial schema rejects them clearly rather than accepting unstable config
-slots that later fail at runtime.
+so it does not have a `NotImplementedError` test. Tabular-only modeling,
+expanded tabular encoder families, and the `distributional_regression` /
+`count_regression` heads are schema backlog items: the initial schema
+rejects them clearly rather than accepting unstable config slots that
+later fail at runtime.
 
 See `appendix-deferred-features.md` for the full deferred backlog,
 including which entries are runtime stubs versus schema / cleanup

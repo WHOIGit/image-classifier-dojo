@@ -220,7 +220,7 @@ sidecars referenced by URI.
 
 ```json
 {
-  "schema_version": 1,
+  "schema_version": "1.0.0",
   "dataset_hash": "sha256:1a2b…",
   "dataset_hash_provenance": "manifest_content",
   "dataset_content_hash": "sha256:9f8e…",

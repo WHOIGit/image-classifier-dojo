@@ -71,7 +71,7 @@ Read in order:
   `ensemble` / `sweep` / `export`; `task.type` semantics.
 - [03. Configuration](03-configuration.md) — canonical config tree;
   `output_root` and the three peer `*_outputs` blocks; path-template
-  syntax; existing-run-dir policy.
+  syntax; run-directory collision handling.
 - [04. Data and Storage](04-data-and-storage.md) — supported dataset
   backends (`csv_manifest`, `parquet_manifest`, `parquet_images`,
   `ifcb_bins`); shared sample contract; `dojo inspect dataset`;

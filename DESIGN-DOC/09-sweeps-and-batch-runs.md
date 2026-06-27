@@ -17,8 +17,8 @@ not `@hydra.main`, so there is no Hydra launcher, no Hydra-managed working
 directory, and no `chdir`. A sweep is prepared when `dojo sweep prepare`
 composes a config whose `sweep:` block defines axes (see "Sweep definition
 block" below). Dojo expands the cartesian product itself and owns runtime
-IDs, output-directory resolution, existing-directory policy, and all
-canonical artifacts.
+IDs, output-directory resolution, run-directory collision handling, and
+all canonical artifacts.
 
 `dojo train` executes one concrete training run. It rejects authored /
 composed configs with an active `sweep.grid`; use `dojo sweep prepare`
@@ -321,7 +321,8 @@ prepared sweep job. If an authored / composed config has a non-empty
       `dojo train --resolved-config JOB_DIR/config/resolved.yaml`.
    4. Use the same resolved-config guard as `dojo train`: if the selected
       run directory contains artifacts beyond prepared config / status
-      files, require explicit resume or fork behavior.
+      files, require explicit `--resume`, `--fork-run`, or `--clobber`
+      behavior.
    5. Write a simple per-run status file at `JOB_DIR/status.json`.
       `pending` is inferred from the manifest when the file does not
       exist. Written states are `initializing`, `training`, `exporting`,

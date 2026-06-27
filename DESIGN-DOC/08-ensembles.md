@@ -516,9 +516,9 @@ ensemble outputs share one run directory. In that shared directory:
   `ensemble_eval`), not the primary collision-avoidance mechanism;
 - metrics / figures filenames include the producing block when
   namespacing is needed;
-- the existing-run-dir overwrite policy is evaluated **once** per
-  resolved physical directory at startup so the ensemble step does not
-  delete training artifacts.
+- when `--clobber` is used, each resolved physical directory is cleared
+  **once** at startup, so the ensemble step does not delete training
+  artifacts the training step just wrote.
 
 ### Member result retention
 

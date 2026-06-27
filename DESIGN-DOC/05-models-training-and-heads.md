@@ -587,13 +587,15 @@ multiclass) is not ported. Multi-head multiclass uses one
 `multiclass_classification` head per target. The old module is preserved
 under `dojo_deprecated` for reference.
 
-`distributional_regression` and `count_regression` are schema-reserved
-but **deferred** in the initial implementation: neither has a result
-record type yet (`06-results-artifacts-and-metadata.md` defines no
-`distributional_output` / `count_output`), and their dedicated losses
-(`gaussian_nll`, `negative_binomial_nll`, `poisson_nll`) are deferred
-with them. Plain `regression` is the only functional regression head
-type. See `appendix-deferred-features.md` P4.9.
+`distributional_regression` and `count_regression` are **deferred
+schema-backlog** head types in the initial implementation: the initial
+schema rejects them with a clear validation error (they are not accepted
+and then stubbed at runtime). Neither has a result record type yet
+(`06-results-artifacts-and-metadata.md` defines no `distributional_output`
+/ `count_output`), and their dedicated losses (`gaussian_nll`,
+`negative_binomial_nll`, `poisson_nll`) are deferred with them. Plain
+`regression` is the only functional regression head type. See
+`appendix-deferred-features.md` P4.9.
 
 ### Required head fields and network defaults
 
@@ -906,7 +908,11 @@ Validation enforces:
 - metrics are compatible with the referenced head type;
 - target transforms are compatible with the head type;
 - objective weights are non-negative;
-- at least one objective is enabled for supervised training.
+- at least one objective is enabled for supervised training;
+- for classification / ordinal heads, the head's `num_classes` matches the
+  resolved class map for the referenced `data.targets.<target>` (the
+  ordered labels from `class_names`, or the `--class-counts` class count);
+  a mismatch is a config error.
 
 ## Supervised training
 

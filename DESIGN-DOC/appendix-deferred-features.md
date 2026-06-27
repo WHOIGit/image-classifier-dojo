@@ -137,9 +137,12 @@ tests.
   (`gaussian_nll`, `negative_binomial_nll`, `poisson_nll`) are deferred
   with them; plain `regression` (`mse`, `mae`, `huber`, `smooth_l1`,
   `quantile`) is the only functional regression head type.
-- Stub-test obligation: one test per head type — configure a
-  `distributional_regression` / `count_regression` head; invoke training
-  or inference; assert `NotImplementedError` naming the head type.
+- This is a schema backlog item, not an initial runtime stub. The initial
+  schema rejects `distributional_regression` / `count_regression` heads
+  with a clear validation error naming the head type, rather than accepting
+  the head and raising `NotImplementedError` at runtime. When a head is
+  promoted, add functional tests for its result record type, losses, and
+  inference behavior.
 
 ### P4.10 WebDataset backend
 

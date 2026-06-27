@@ -86,8 +86,9 @@ sweeps are layered on top.
 
 ### P2.3 Model composition
 
-- Backbone registry: `torchvision` and `checkpoint` functional; `timm`
-  gated by extra.
+- Backbone registry: `torchvision` architecture functional, `timm`
+  architecture gated by the `timm` extra; `weights.source` `none` /
+  `library` / `checkpoint` initialization all functional.
 - Head registry with target validation.
 - Objectives binding heads to losses, metrics, and weights.
 - Multi-head / multi-objective normalization.

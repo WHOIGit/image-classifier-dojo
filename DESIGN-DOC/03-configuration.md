@@ -4,9 +4,9 @@
 ## Purpose
 
 Defines the canonical config tree: top-level groups, the peer
-`*_outputs` blocks, path-resolution semantics, run-config artifacts, and
-overwrite policy. This file is the canonical schema source referenced by
-every other file that mentions a config key.
+`*_outputs` blocks, path-resolution semantics, and run-config artifacts.
+This file is the canonical schema source referenced by every other file
+that mentions a config key.
 
 ## Schema source of truth
 
@@ -312,20 +312,21 @@ and `ensemble_outputs.dir_template` typically resolve to the same
 directory. The recommended pattern is to default
 `ensemble_outputs.dir_template` to match `training_outputs.dir_template`.
 
-## Existing-run-dir policy
+## Run directory collisions
 
-`existing_run_dir` controls behavior when a resolved run directory already
-exists:
+Freshly composed runs normally avoid collisions because `runtime.run_id`
+renders a unique value per run (e.g. `{coolname}`), so each run resolves to
+its own directory. Re-running a *fixed* resolved config
+(`dojo train --resolved-config`) deliberately targets the same directory
+and is guarded: the directory must be blank apart from prepared `config/`
+artifacts unless an explicit `--resume`, `--fork-run`, or `--clobber` mode
+is given (see `02-cli-and-task-types.md`).
 
-- `error` — refuse to start. **Default.**
-- `overwrite` — delete all extant content of the resolved directory before
-  starting.
-
-When multiple output blocks resolve to the same physical directory (e.g.
-the snapshot-ensemble case), the policy is evaluated once per resolved
-physical directory at command startup. Later phases of the same command
-must not re-apply `overwrite` and delete artifacts the earlier phases just
-wrote.
+`--clobber` deletes the resolved directory contents before starting. When
+multiple output blocks resolve to the same physical directory (e.g. the
+snapshot-ensemble case), `--clobber` clears each resolved physical
+directory **once** at command startup; later phases of the same command
+must not re-clear directories the earlier phases just wrote.
 
 ## Sweep output reporting
 
@@ -412,7 +413,6 @@ sweep:
 training_outputs:
   dir_template: >-
     {experiment.name}/sweep_runs/{model.image_input.backbone.architecture.name:slug}/bs{training.batch_size:03}/
-  existing_run_dir: error
 
 sweep_outputs:
   dir_template: "{experiment.name}/sweep_results/{runtime.sweep_id}"

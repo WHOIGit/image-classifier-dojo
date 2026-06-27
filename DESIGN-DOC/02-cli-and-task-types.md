@@ -58,8 +58,8 @@ rich help). `dojo init` bootstraps local project files. All other
 config-aware commands compose configs through the **Hydra Compose API**
 (`hydra.compose`). Dojo does **not** use `@hydra.main`, and it does not
 use Hydra's launcher / sweeper plugins. Sweep expansion, runtime-ID
-generation, output-directory resolution, and existing-directory policy are
-all owned by Dojo (see `09-sweeps-and-batch-runs.md`).
+generation, output-directory resolution, and run-directory collision
+handling are all owned by Dojo (see `09-sweeps-and-batch-runs.md`).
 
 ### Config overrides vs. command options
 
@@ -107,8 +107,12 @@ inputs:
   it directly when the referenced run directory is absent, empty, or only
   contains prepared config artifacts. If the rest of the run folder is not
   empty, the command requires an explicit mode: `--fork-run` to reuse the
-  resolved intent with new run identity / output directories, or
-  `--resume` to continue the same run context.
+  resolved intent with new run identity / output directories, `--resume`
+  to continue the same run context, or `--clobber` to delete the existing
+  directory contents and run the resolved config in place. When output
+  blocks share a physical directory (e.g. the snapshot-ensemble case),
+  `--clobber` clears each resolved physical directory once at startup, so
+  later phases of the same command do not re-clear it.
 
 `--config`, `--resolved-config`, and Hydra group selectors are mutually
 exclusive as root config sources, though ordinary value overrides may still
@@ -210,8 +214,8 @@ Initial options:
 - `--sweep` — include grid-sweep templates and starter experiments.
 - `--data` — materialize the small packaged fixture dataset and matching
   local data config.
-- `--all` — copy the whole packaged config tree. It does not imply
-  `--data`.
+- `--all` — copy the whole packaged config tree and materialize the
+  fixture dataset (it includes `--data`).
 - `--config FILE` — use a concrete authored YAML file as a materialization
   root, copying any referenced packaged configs needed by that file.
 - `--dry-run` — report create / skip / overwrite actions without writing.
