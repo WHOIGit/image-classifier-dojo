@@ -81,7 +81,7 @@ sweep:
     runtime.seed: [101, 102, 103]
     optimizer.lr: [1.0e-4, 3.0e-4]
     training.batch_size: [32, 64]
-    model.image_input.backbone.name: [resnet50, convnext_tiny]
+    model.image_input.backbone.architecture.: [resnet50, convnext_tiny]
 ```
 
 `sweep.mode` values:

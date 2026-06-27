@@ -183,12 +183,11 @@ What each hash validates:
   probability position means the same label across artifacts.
 - `model_config_hash` validates the architecture contract governing
   checkpoint loadability and the inference-time forward function:
-  image-input backbone source / name / architecture, tabular-input encoder
-  shape, embedding adapter shape, and head network shapes and activations.
-  It
+  image-input backbone architecture, tabular-input encoder shape,
+  embedding adapter shape, and head network shapes and activations. It
   answers whether checkpoints and exports load under the same model
   definition and compute the same function. It excludes initialization
-  (pretrained weights), trainability (freeze policy), and training-only
+  (library or checkpoint weights), trainability (freeze policy), and training-only
   regularization (dropout) — none change tensor shapes or inference
   outputs.
 - `preprocessing_hash` validates the input contract: image mode,
@@ -281,10 +280,11 @@ version: 1
 model:
   image_input:
     backbone:
-      source
-      name                           # torchvision / timm; absent for source: checkpoint
-      architecture                   # for source: checkpoint — the effective module (source / name / arch params)
-      output_dim
+      architecture:
+        source                       # torchvision / timm
+        name
+        output_dim
+        params                       # architecture params that change module shape / forward behavior
   tabular_input:
     enabled
     columns
@@ -305,21 +305,21 @@ model:
       distribution
 ```
 
-For checkpoint-backed models, include only the effective source
+For checkpoint-initialized models, include only the effective backbone
 architecture (the module the checkpoint instantiates), not the
-checkpoint-loading plumbing. `checkpoint_uri`, `checkpoint_key`, and
-`strict` govern which upstream weights initialize the backbone at build
-time, not the resulting architecture or inference function; that
-initialization provenance lives in `config_hash`, the trained bytes in
-`checkpoint_hash`, and export artifacts in `model_hash`.
+checkpoint-loading plumbing. `weights.source`, `weights.uri`,
+`weights.key`, and `weights.strict` govern which upstream weights
+initialize the backbone at build time, not the resulting architecture or
+inference function; that initialization provenance lives in `config_hash`,
+the trained bytes in `checkpoint_hash`, and export artifacts in
+`model_hash`.
 `model_config_hash` excludes optimizer, scheduler, training loop settings,
 objective loss/metric choices, checkpoint save policy, output paths, and
 runtime identifiers. It also excludes fields that change neither tensor
-shapes nor the inference forward function: `weights` / `pretrained`
-(initialization), `checkpoint_key` / `strict` (source-load init), `freeze`
-(trainability), and `dropout` (training-only regularization). `activation`
-is retained because it changes inference outputs even though it is
-stateless.
+shapes nor the inference forward function: `model.image_input.backbone.weights`
+(initialization), `training.freeze` (trainability), and `dropout`
+(training-only regularization). `activation` is retained because it changes
+inference outputs even though it is stateless.
 
 `preprocessing_hash` source fields:
 

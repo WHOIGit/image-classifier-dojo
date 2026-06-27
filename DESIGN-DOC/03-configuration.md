@@ -97,7 +97,9 @@ Notes:
   `model.image_input.name` names the image input stream and defaults to
   `image`.
 - `model.image_input.backbone` holds the image backbone config.
-  `model.image_input.backbone.name` remains the backbone architecture
+  `model.image_input.backbone.architecture` describes the module shape, and
+  `model.image_input.backbone.weights` describes initialization.
+  `model.image_input.backbone.architecture.name` is the architecture
   selector (`resnet50`, `vit_small_patch16_224`, etc.) and must not be
   reused as the input-stream name.
 - `model.tabular_input` holds optional tabular model-input config.
@@ -158,9 +160,13 @@ model:
   image_input:
     name: image
     backbone:
-      source: torchvision
-      name: resnet50
-      weights: IMAGENET1K_V2
+      architecture:
+        source: torchvision
+        name: resnet50
+        output_dim: auto
+      weights:
+        source: library
+        name: DEFAULT
   tabular_input:
     enabled: false
   embedding_adapter:
@@ -183,6 +189,9 @@ objectives:
 training:
   max_epochs: 50
   batch_size: 64
+  freeze:
+    backbone:
+      policy: none
 
 optimizer:
   name: adamw
@@ -234,7 +243,8 @@ special tokens.
 - **Config-path tokens** — any dotted path into the resolved config; the
   token renders the resolved value at that path. Examples:
   `{experiment.name}`, `{runtime.run_id}`, `{runtime.sweep_id}`,
-  `{training.batch_size}`, `{optimizer.lr}`, `{model.image_input.backbone.name}`.
+  `{training.batch_size}`, `{optimizer.lr}`,
+  `{model.image_input.backbone.architecture.name}`.
 - **Special tokens** (not config paths):
   - `{coolname}` — a fresh, unseeded coolname generated per render (see
     `06-results-artifacts-and-metadata.md`).
@@ -253,8 +263,9 @@ A token may carry a `:spec` suffix applied to its resolved value:
 - `:slug` — a Dojo **custom** formatter that produces a filesystem-safe
   token: characters in `[a-zA-Z0-9-_.]` are kept as-is (so
   `{optimizer.lr:slug}` renders `0.0003` unchanged and
-  `{model.image_input.backbone.name:slug}` keeps `resnet50`), spaces become `-`, and
-  every other character becomes `_`. Uses the `python-slugify` internally.
+  `{model.image_input.backbone.architecture.name:slug}` keeps `resnet50`),
+  spaces become `-`, and every other character becomes `_`. Uses the
+  `python-slugify` internally.
 - Any standard Python format spec works normally, e.g.
   `{training.batch_size:03}` → `032` and `{optimizer.lr:.0e}` → `3e-04`.
 
@@ -358,15 +369,18 @@ output_root: ./runs
 model:
   image_input:
     backbone:
-      source: torchvision
-      name: efficientnet_b0,resnet50
+      architecture:
+        source: torchvision
+        name: efficientnet_b0,resnet50
+      weights:
+        source: library
 
 training:
   batch_size: 32,64
 
 training_outputs:
   dir_template: >-
-    {experiment.name}/sweep_runs/{model.image_input.backbone.name:slug}/bs{training.batch_size:03}/
+    {experiment.name}/sweep_runs/{model.image_input.backbone.architecture.name:slug}/bs{training.batch_size:03}/
   existing_run_dir: error
 
 sweep_outputs:

@@ -274,9 +274,9 @@ src/dojo/
       registry.py
       torchvision.py
       timm.py                   # gated by [timm] extra
-      checkpoint.py             # source: checkpoint transfer learning
+      weights.py                # none/library/checkpoint initialization
       feature_extractor.py
-      freeze.py                 # freeze policies
+      freeze.py                 # apply training.freeze.backbone policies
 
     heads/
       __init__.py

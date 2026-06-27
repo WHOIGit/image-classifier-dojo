@@ -234,28 +234,54 @@ Returned tensor is usually `batch_size x embedding_dim`.
 
 `model.image_input.name` names the image input stream and defaults to
 `image`. `model.image_input.backbone` holds the image backbone config.
+`model.image_input.backbone.architecture` describes the module shape;
+`model.image_input.backbone.weights` describes how that module is
+initialized.
+
 This keeps the input-stream name separate from
-`model.image_input.backbone.name`, which remains the backbone architecture
-selector (`resnet50`, `vit_small_patch16_224`, etc.) and is used by
-config templates such as `{model.image_input.backbone.name:slug}`.
+`model.image_input.backbone.architecture.name`, which is the backbone
+architecture selector (`resnet50`, `vit_small_patch16_224`, etc.) and is
+used by config templates such as
+`{model.image_input.backbone.architecture.name:slug}`.
 
-### Supported sources
+### Architecture and weights sources
 
-`model.image_input.backbone.source`:
+`model.image_input.backbone.architecture.source`:
 
 - `torchvision`
 - `timm`
-- `checkpoint`
+
+`model.image_input.backbone.weights.source`:
+
+- `none` — initialize from the architecture provider's default random
+  initialization.
+- `library` — initialize from provider-native pretrained weights
+  (`weights.name` for torchvision, provider default for timm unless a
+  specific name is supported).
+- `checkpoint` — initialize from a Dojo checkpoint / exported encoder
+  using `weights.uri`, `weights.key`, and `weights.strict`.
+
+Authored configs may use `weights.name: DEFAULT` as a Dojo convenience
+alias for provider-native library weights. For torchvision, Dojo maps it to
+torchvision's native `DEFAULT` weight enum for the selected architecture,
+then stores the concrete resolved enum/name. For timm, Dojo maps it to
+timm's default pretrained configuration for the selected architecture
+(`pretrained=True` behavior), then stores the resolved pretrained config
+identity (for example the resolved tag / config name / HF Hub id when
+available). Resolved configs, saved config artifacts, and provenance never
+store the moving `DEFAULT` alias.
 
 `timm` is **functional** in the initial implementation, gated by the
-`timm` optional extra. The schema accepts `source: timm` regardless of
-install; the runtime raises a clear error if `timm` is not installed.
+`timm` optional extra. The schema accepts `architecture.source: timm`
+regardless of install; the runtime raises a clear error if `timm` is not
+installed.
 
-`source: lightly` is **not** introduced. Lightly remains an SSL framework
-implementation detail; SSL configs select it via `ssl.framework: lightly`
-while the backbone is still selected through `torchvision`, `timm`, or
-`checkpoint`. DINOv2 (Lightly) is allowed to use timm ViT backbones
-internally and through the public `source: timm` selector.
+`architecture.source: lightly` is **not** introduced. Lightly remains an
+SSL framework implementation detail; SSL configs select it via
+`ssl.framework: lightly` while the backbone architecture is still selected
+through `torchvision` or `timm`. DINOv2 (Lightly) is allowed to use timm
+ViT backbones internally and through the public `architecture.source: timm`
+selector.
 
 ### Examples
 
@@ -266,13 +292,18 @@ model:
   image_input:
     name: image
     backbone:
-      source: torchvision
-      name: resnet50
-      pretrained: true
-      weights: DEFAULT
-      output_dim: auto
-      freeze:
-        policy: none
+      architecture:
+        source: torchvision
+        name: resnet50
+        output_dim: auto
+      weights:
+        source: library
+        name: DEFAULT        # resolved config stores the concrete name
+
+training:
+  freeze:
+    backbone:
+      policy: none
 ```
 
 timm:
@@ -282,13 +313,19 @@ model:
   image_input:
     name: image
     backbone:
-      source: timm
-      name: vit_small_patch16_224
-      pretrained: true
-      output_dim: auto
-      freeze:
-        policy: last_n_blocks_trainable
-        n: 2
+      architecture:
+        source: timm
+        name: vit_small_patch16_224
+        output_dim: auto
+      weights:
+        source: library
+        name: default
+
+training:
+  freeze:
+    backbone:
+      policy: last_n_blocks_trainable
+      n: 2
 ```
 
 Checkpoint:
@@ -298,23 +335,31 @@ model:
   image_input:
     name: image
     backbone:
-      source: checkpoint
       architecture:
         source: timm
         name: vit_small_patch14_dinov2
-        pretrained: false
-      checkpoint_uri: s3://bucket/runs/ssl_dino_v2/exports/encoder.pt
-      checkpoint_key: encoder_state_dict
-      strict: false
-      freeze:
-        policy: last_n_blocks_trainable
-        n: 4
+        output_dim: auto
+      weights:
+        source: checkpoint
+        uri: s3://bucket/runs/ssl_dino_v2/exports/encoder.pt
+        key: encoder_state_dict
+        strict: false
+
+training:
+  freeze:
+    backbone:
+      policy: last_n_blocks_trainable
+      n: 4
 ```
 
-`backbone.output_dim: auto` is the default and should usually not be
-changed manually.
+`backbone.architecture.output_dim: auto` is the default and should usually
+not be changed manually.
 
 ### Freeze policies
+
+Freeze policies live under `training.freeze.backbone`, because they control
+trainability and optimizer membership rather than model architecture. They
+are accepted for SSL and supervised training.
 
 Named in terms of what remains trainable:
 
@@ -335,16 +380,17 @@ module names. See `02-cli-and-task-types.md`.
 
 Transfer learning from an SSL-pretrained encoder is **not a new task
 type**. It is plain `task.type: supervised` with
-`model.image_input.backbone.source: checkpoint` and `checkpoint_uri`
-pointing at the SSL encoder export. Freeze policy, embedding adapter,
-and heads are configured exactly as for any supervised run.
+`model.image_input.backbone.weights.source: checkpoint` and `weights.uri`
+pointing at the SSL encoder export. Freeze policy, embedding adapter, and
+heads are configured exactly as for any supervised run.
 
-`strict: false` maps to PyTorch's `load_state_dict(..., strict=False)`
-and governs **backbone** keys only. Heads in the new run come from the
-new `heads:` block; nothing from the source checkpoint's head ever
-appears in the new model.
+`weights.strict: false` maps to PyTorch's
+`load_state_dict(..., strict=False)` and governs **backbone** keys only.
+Heads in the new run come from the new `heads:` block; nothing from the
+source checkpoint's head ever appears in the new model.
 
-When `strict: false`, Dojo logs missing and unexpected keys clearly.
+When `weights.strict: false`, Dojo logs missing and unexpected keys
+clearly.
 
 Frozen feature extractor recipe:
 
@@ -353,16 +399,15 @@ model:
   image_input:
     name: image
     backbone:
-      source: checkpoint
       architecture:
         source: torchvision
         name: resnet50
-        pretrained: false
-      checkpoint_uri: s3://bucket/runs/ssl_dino_v2/exports/encoder.pt
-      checkpoint_key: encoder_state_dict
-      strict: false
-      freeze:
-        policy: all
+        output_dim: auto
+      weights:
+        source: checkpoint
+        uri: s3://bucket/runs/ssl_dino_v2/exports/encoder.pt
+        key: encoder_state_dict
+        strict: false
 
   embedding_adapter:
     enabled: true
@@ -371,6 +416,11 @@ model:
     output_dim: 256
     activation: gelu
     dropout: 0.1
+
+training:
+  freeze:
+    backbone:
+      policy: all
 ```
 
 For a true linear-probe evaluation, leave `embedding_adapter` disabled
@@ -390,8 +440,11 @@ model:
   image_input:
     name: image         # default input-stream name
     backbone:
-      source: torchvision
-      name: resnet50
+      architecture:
+        source: torchvision
+        name: resnet50
+      weights:
+        source: library
 
   tabular_input:
     enabled: true
@@ -877,13 +930,17 @@ class SupervisedTaskModule(L.LightningModule):
     def __init__(
         self,
         model_config: SupervisedModelConfig,
+        training_config: TrainingConfig,
         objectives_config: ObjectiveCollectionConfig,
         optimizer_config: OptimizerConfig,
         scheduler_config: SchedulerConfig | None = None,
     ):
         super().__init__()
         self.save_hyperparameters()
-        self.model = build_supervised_model(model_config)
+        self.model = build_supervised_model(
+            model_config,
+            freeze_config=training_config.freeze,
+        )
         self.objectives = build_objectives(objectives_config)
         self.metrics = build_metrics(objectives_config)
 ```
@@ -894,7 +951,9 @@ hyperparameter checkpoints stay clean.
 ### Model composition
 
 ```python
-backbone = build_backbone(cfg.model.image_input.backbone)
+backbone = build_backbone(cfg.model.image_input.backbone.architecture)
+initialize_backbone_weights(backbone, cfg.model.image_input.backbone.weights)
+apply_freeze_policy(backbone, cfg.training.freeze.backbone)
 
 tabular_encoder = (
     build_tabular_encoder(cfg.model.tabular_input)

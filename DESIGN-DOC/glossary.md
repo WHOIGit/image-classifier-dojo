@@ -84,6 +84,8 @@ both exist.
 - **`transforms`** — Image transform pipeline.
 - **`model`** — `image_input`, `tabular_input`, `embedding_adapter`,
   `heads`. `model.image_input.backbone` holds the image backbone config.
+  `backbone.architecture` describes the module shape; `backbone.weights`
+  describes initialization.
   Image and tabular embeddings concatenate implicitly when both inputs are
   enabled.
 - **`objectives`** — Bind heads to losses, weights, metrics.
@@ -136,9 +138,10 @@ token set: any dotted resolved-config path (e.g. `{experiment.name}`,
 tokens (`{coolname}`, `{timestamp}`, `{job_num}`, `{ensemble_id}`).
 Tokens may carry a `:spec` suffix — the custom `:slug` filesystem-safe
 formatter or any standard Python format spec (e.g.
-`{model.image_input.backbone.name:slug}`, `{training.batch_size:03}`). Resolved after
-config composition, validation, and runtime-value generation. The full
-rules live in `03-configuration.md`.
+`{model.image_input.backbone.architecture.name:slug}`,
+`{training.batch_size:03}`). Resolved after config composition, validation,
+and runtime-value generation. The full rules live in
+`03-configuration.md`.
 
 ## Result taxonomy
 
@@ -186,12 +189,14 @@ rules live in `03-configuration.md`.
 - `distributional_regression` (deferred — see appendix P4.9)
 - `count_regression` (deferred — see appendix P4.9)
 
-## Backbone sources
+## Backbone sources and weights
 
-`model.image_input.backbone.source`: `torchvision`, `timm`, `checkpoint`. `timm` is
-functional, gated by the `timm` extra. Lightly is **not** a public
-backbone source; SSL configs use `ssl.framework: lightly` but still select a
-backbone through one of the three public sources.
+`model.image_input.backbone.architecture.source`: `torchvision`, `timm`.
+`timm` is functional, gated by the `timm` extra. Checkpoint loading is
+`model.image_input.backbone.weights.source: checkpoint`, not an
+architecture source. Lightly is **not** a public backbone source; SSL
+configs use `ssl.framework: lightly` but still select a backbone
+architecture through one of the public architecture sources.
 
 ## Cross-References
 

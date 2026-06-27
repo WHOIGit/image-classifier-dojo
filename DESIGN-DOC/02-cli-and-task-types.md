@@ -61,7 +61,8 @@ option starts with `-`**:
 - **Config overrides** — dash-free `key=value` and `group=option` tokens,
   passed through to the Compose API; they land in the composed config
   tree. Examples: `experiment=ifcb/species_baseline`,
-  `training.batch_size=64`, `model.image_input.backbone.name=resnet50`,
+  `training.batch_size=64`,
+  `model.image_input.backbone.architecture.name=resnet50`,
   `data=ifcb/species_manifest`.
 - **Command options** — Typer `--flags` and positional arguments. They
   control the command itself and are **not** part of the config tree.
@@ -85,9 +86,9 @@ appear in the canonical root shape (`03-configuration.md`).
 
 - **Building a model for the run** → config. A checkpoint that initializes
   the model (transfer learning, representation eval against an encoder) is
-  `model.image_input.backbone.source: checkpoint` +
-  `model.image_input.backbone.checkpoint_uri` — composed, validated, and
-  hashed as part of the model definition. See
+  `model.image_input.backbone.weights.source: checkpoint` +
+  `model.image_input.backbone.weights.uri` — composed, validated, and
+  recorded in the run's config provenance. See
   `05-models-training-and-heads.md`.
 - **Consuming a checkpoint / model artifact** → command option
   `--checkpoint`. `dojo export`, `dojo inspect checkpoint`, and
@@ -329,15 +330,25 @@ applied. Useful for picking `named_modules_trainable` / freeze module
 names. Example:
 
 ```bash
-dojo inspect backbone backbone=torchvision/resnet50
+dojo inspect backbone experiment=ifcb/baseline
+```
+
+This composes the experiment config, then inspects
+`model.image_input.backbone` with `training.freeze.backbone` applied.
+
+```bash
+dojo inspect backbone \
+  model.image_input.backbone.architecture.source=torchvision \
+  model.image_input.backbone.architecture.name=resnet50
 ```
 
 ```bash
 dojo inspect backbone \
-  backbone=torchvision/resnet50 \
-  model.image_input.backbone.freeze.policy=after_module_trainable \
-  model.image_input.backbone.freeze.module=layer3 \
-  model.image_input.backbone.freeze.inclusive=true
+  model.image_input.backbone.architecture.source=torchvision \
+  model.image_input.backbone.architecture.name=resnet50 \
+  training.freeze.backbone.policy=after_module_trainable \
+  training.freeze.backbone.module=layer3 \
+  training.freeze.backbone.inclusive=true
 ```
 
 ## `dojo inspect checkpoint`

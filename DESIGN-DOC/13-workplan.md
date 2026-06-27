@@ -160,7 +160,8 @@ Needed for downstream serving and for ensembling exported models.
   default `tabular`), and tabular encoder. Excluded from the P1 slice and
   P2.3 model composition; layered in here.
 - `model.image_input.name` names the image input stream and defaults to
-  `image`; `model.image_input.backbone.name` remains the architecture selector.
+  `image`; `model.image_input.backbone.architecture.name` remains the
+  architecture selector.
 - When image and tabular inputs are both
   enabled, the supervised compositor concatenates embeddings implicitly in
   canonical order: image first, tabular second. Learned post-concat

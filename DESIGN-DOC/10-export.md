@@ -81,7 +81,8 @@ Exported artifacts include:
 
 ```text
 model architecture
-backbone source / name
+backbone architecture source / name
+backbone weights provenance
 head definitions
 ordinal encoding / decoding (per ordinal head)
 objective summary
@@ -98,7 +99,7 @@ tabular imputation (per-column strategy + frozen fill values)
 tabular missing-indicator columns (when enabled)
 model input names and implicit concatenation order
 input shape
-source checkpoint URI
+checkpoint weight URI
 config_hash
 model_config_hash
 target_schema_hash
@@ -106,6 +107,9 @@ class_mapping_hash
 preprocessing_hash
 Dojo version
 ```
+
+If authored config used `weights.name: DEFAULT`, export metadata records
+the resolved concrete provider weight identity, not the `DEFAULT` alias.
 
 For ONNX, metadata is also embedded into ONNX metadata properties when
 possible, with `metadata.json` written alongside `model.onnx`.

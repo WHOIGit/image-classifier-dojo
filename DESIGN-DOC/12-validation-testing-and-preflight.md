@@ -126,8 +126,9 @@ backlog items.
 
 When the relevant extra is installed:
 
-- `model.image_input.backbone.source: timm` (functional);
-- `model.image_input.backbone.source: torchvision` and `checkpoint`;
+- `model.image_input.backbone.architecture.source: timm` (functional);
+- `model.image_input.backbone.architecture.source: torchvision`;
+- `model.image_input.backbone.weights.source: checkpoint`;
 - `local` logger sink (the only functional sink);
 - `dino_v2` SSL via Lightly;
 - `ifcb_bins` dataset backend (with `[ifcb]`);
