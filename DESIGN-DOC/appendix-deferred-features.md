@@ -163,6 +163,12 @@ tests.
   invoke discovery; assert `NotImplementedError` naming "registry-based
   candidate discovery".
 
+### P4.12 `majority_vote` probability-mass tie-break
+
+Intentionally has no entry here: it is an enhancement to the functional
+lowest-index tie-break, not a `NotImplementedError` stub, so it carries no
+stub-test obligation. Defined in `13-workplan.md` (P4.12).
+
 ### P4.13 Tabular-only model schema
 
 - Initial tabular support is image-backed supervised modeling with optional

@@ -191,14 +191,13 @@ src/dojo/
     export.py                  # dojo export
     inspect.py                 # dojo inspect config|dataset|backbone|checkpoint
 
-  configs/                     # packaged read-only config resources for search fallback / dojo init
+  configs/                     # packaged read-only config resources; mirrors the repository configs/ tree above, materialized by dojo init
     config.yaml
     experiment/
     data/
     transforms/
     backbone/
-    training/
-    sweep/
+    ...                        # same groups as the repository configs/ tree (no training/ group; training params are inline in experiment configs)
 
   example_data/                # tiny packaged fixture dataset for dojo init --data
 

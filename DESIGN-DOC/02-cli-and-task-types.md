@@ -51,6 +51,12 @@ There are **no** `dojo train supervised`, `dojo train ssl`, or
 `dojo train-snapshot-ensemble` subcommands. Training paradigm is selected
 via `task.type` (see below).
 
+Invoking `dojo infer`, `dojo eval`, `dojo inspect`, or `dojo sweep` with no
+subcommand prints that group's help and exits — they have no default
+subcommand. `dojo ensemble` is the exception: bare `dojo ensemble` runs an
+ensemble, with `dojo ensemble candidates` as its only subcommand.
+`dojo init`, `dojo train`, and `dojo export` are leaf commands.
+
 ## CLI architecture and execution model
 
 Dojo's CLI is a **Typer** application (git-style subcommands, `--options`,
