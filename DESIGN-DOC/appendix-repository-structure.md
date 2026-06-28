@@ -87,7 +87,7 @@ configs/
       from_local_checkpoint.yaml
       from_s3_checkpoint.yaml
 
-  head/
+  heads/
     single_classification.yaml
     multihead_species_quality.yaml
     classification_regression_ordinal.yaml
@@ -235,7 +235,7 @@ src/dojo/
       __init__.py
       base.py
       csv.py
-      parquet.py
+      parquet.py                # serves both parquet_manifest and parquet_images backends
       ifcb_bins.py
 
     datasets/
@@ -377,7 +377,7 @@ src/dojo/
     ordinal.py
     multihead.py
     calibration.py
-    confusion.py
+    confusion.py                 # computes confusion matrix + derived metrics
     representation_eval.py       # knn / linear-probe / diagnostic metrics
 
   training/
@@ -395,7 +395,7 @@ src/dojo/
     discovery.py                 # explicit, manifest, run_dir_glob, checkpoint_glob, result_uri_glob, implicit snapshot source
     compatibility.py             # hashes + cascading metadata policy + drift check
     selection.py                 # all, best_candidate, top_k, greedy_forward
-    combine.py                   # logits_mean, probabilities_mean, majority_vote, prediction_mean, prediction_median
+    combine.py                   # logits_mean, probabilities_mean, majority_vote, prediction_mean, prediction_median, ordinal_logits_mean, ordinal_probabilities_mean
     cached_results.py            # offline ensembling from result Parquet
     manifest.py                  # JSON manifest IO
     bundle.py                    # ensemble artifact bundling
@@ -422,12 +422,20 @@ src/dojo/
     parquet.py                   # primary functional backend via amplify-db-utils
     partitioning.py              # split / stage / epoch keys
     metadata.py                  # _metadata.json sidecar
-    confusion.py
     # No csv.py as primary — Parquet is canonical; CSV optional
+
+  figures/                       # renderer behind the figures: output block; PNG / SVG / HTML
+    __init__.py
+    base.py                      # figure-spec dispatch from *_outputs.figures
+    training_curves.py
+    confusion_matrix.py          # heatmap; matrix data computed in metrics/confusion.py
+    calibration.py
+    projections.py               # UMAP / t-SNE / PCA scatter
+    ensemble_comparison.py
 
   artifacts/
     __init__.py
-    paths.py                     # path resolution against output_root + dir_template
+    paths.py                     # run-artifact layout within an already-resolved run dir (output_root + dir_template resolution lives in storage/resolver.py)
     manifest.py                  # run-level artifact manifest
     metrics.py
     checkpoints.py
@@ -462,7 +470,6 @@ src/dojo/
     distributed.py
     torch_utils.py
     serialization.py
-    canonicalizer.py             # canonical JSON for hashing
 
   patches/
     __init__.py
@@ -493,6 +500,7 @@ tests/
     config_schemas/
     runtime/
     data/
+    storage/
     transforms/
     models/
     heads/
@@ -548,10 +556,11 @@ tests/
 Pydantic is the single source of truth for the config tree
 (`03-configuration.md`). The CLI loads Hydra-composed configs and
 validates them through `config_schemas.root`. Hashing rules and the
-canonicalizer (`utils/canonicalizer.py`,
-`config_schemas/hashing.py`) live next to the schemas they consume so
-field-level hash inclusion rules stay co-located with the field
-definitions.
+canonical-JSON canonicalizer both live in `config_schemas/hashing.py`,
+next to the schemas they consume, so field-level hash inclusion rules and
+the canonicalizer stay co-located with the field definitions.
+`artifacts/hashing.py` (checkpoint_hash + filename) imports that
+canonicalizer.
 
 ### `data/record_schemas/`
 
@@ -594,6 +603,17 @@ Process-level concerns separated from training-loop concerns: preflight
 checks, seeding, device selection, autobatch, fast-dev-run wiring.
 `preflight.py` is invoked from CLI entrypoints before any heavy work,
 per `12-validation-testing-and-preflight.md`.
+
+### `figures/`
+
+Renderer behind the configurable `*_outputs.figures` block. Per
+`06-results-artifacts-and-metadata.md`, the two artifact classes stay
+separate: numeric aggregates and confusion-matrix **data** are written to
+`metrics/` (computed in `metrics/`, persisted via `artifacts/metrics.py`),
+while `figures/` owns rendered **images** (PNG / SVG / HTML) — training
+curves, confusion-matrix heatmaps, projection scatter, calibration, and
+ensemble comparison. A confusion matrix is therefore not a `results/` row;
+`results/` is the per-row tall-Parquet writer only.
 
 ### `tasks/representation_eval/`
 
