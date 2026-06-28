@@ -117,7 +117,7 @@ source object before canonicalization.
 
 | Field | Kind | Derivation | Default when not set |
 | --- | --- | --- | --- |
-| `run_id` | id only | manual, else template render. `{coolname}` expands to fresh unseeded coolname; falls back to coolname when unset | template like `{experiment.name}-{timestamp}-{job_num}` or `{coolname}` |
+| `run_id` | id only | manual, else template render — e.g. `{coolname}` (a fresh unseeded coolname) or a composed pattern like `{experiment.name}-{timestamp}-{job_num}` | `{coolname}` |
 | `config_id` | id (paired with `config_hash`) | manual, else seedname from `config_hash` | seedname |
 | `config_hash` | hash | canonical hash of resolved config, **excluding** runtime-resolved values, output paths, `output_root`, and all `*_outputs` blocks. When a loaded config carries blocks the active command does not use, the hash covers only that command's active block-set (see `02-cli-and-task-types.md`). | always derived |
 | `dataset_id` | id only | the dataset's self-name when the manifest provides one | null (no seedname fallback) |
@@ -335,7 +335,7 @@ transforms:
   inference_pipeline                # resolved inference steps, ordered, with parameters
 tabular_preprocessing:
   columns
-  encodings
+  encodings                         # categorical-encoding schema TBD with P3.6; numeric-only initially
   imputation                        # per-column strategy, frozen fill values, missing-indicator set
   normalization_stats
 ```

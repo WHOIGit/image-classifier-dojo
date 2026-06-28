@@ -536,6 +536,12 @@ are resolved preprocessing state: persisted in the config artifact,
 exported with portable models (`10-export.md`), and contributing to
 `preprocessing_hash` by value (`06-results-artifacts-and-metadata.md`).
 
+The initial tabular input targets **numeric** features (normalization +
+imputation). The categorical-encoding schema (one-hot / learned embedding /
+ordinal) is not yet specified; it lands with the P3.6 tabular work
+(`13-workplan.md`), so the `encodings` slot in `preprocessing_hash` and
+export metadata is a reserved placeholder until then.
+
 ### Simple network specs
 
 The same small set of simple network specs appears in several model

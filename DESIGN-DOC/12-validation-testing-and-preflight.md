@@ -69,6 +69,12 @@ runtime:
 Supported `runtime` keys: `seed`, `fast_dev_run`, `precision`,
 `num_workers`, `autobatch`, `preflight`, `run_id`, `sweep_id`.
 
+`autobatch` runs a pre-training batch-size search to size the batch to the
+current device/GPU before training proper begins — a thin wrapper over
+Lightning's `Tuner.scale_batch_size`. It is off unless
+`autobatch.enabled: true`; `mode` is `binsearch` (default) or `power`. The
+found batch size feeds `training.batch_size` for the run.
+
 Early stopping is a training-loop behavior under `training:`, not
 `runtime:` (see `05-models-training-and-heads.md`).
 
