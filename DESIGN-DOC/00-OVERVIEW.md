@@ -24,12 +24,23 @@ regression / ordinal / SSL models. Key shape:
 - **Canonical results.** Per-row Parquet via `amplify-db-utils` with a
   `_metadata.json` sidecar. Configurable partitioning, dictionary
   encoding, and Arrow list columns for vectors.
-- **Three peer output blocks** at the top of the config tree:
-  `training_outputs`, `ensemble_outputs`, and `sweep_outputs`, all
-  rooted under a single `output_root`.
+- **Self-describing model artifacts.** Checkpoints and exports embed a
+  portable *inference contract* (resolved model, inference pipeline + frozen
+  preprocessing stats, class maps, target schema, and the four compatibility
+  hashes), so `dojo infer` / `dojo eval` rebuild a model with no dependency
+  on the producing run's `resolved.yaml`.
+- **Four peer output blocks** at the top of the config tree:
+  `training_outputs`, `ensemble_outputs`, `sweep_outputs`, and
+  `eval_outputs` (the home for `dojo infer` / `dojo eval`), all rooted
+  under a single `output_root`.
 - **Task selection via `task.type`** (`supervised`, `ssl`,
   `snapshot_ensemble`) — there are no `train supervised` / `train ssl`
   subcommands.
+- **Command-gated config blocks.** One root schema; the *command* (not
+  `task.type`) selects which blocks are active — `task.type` only chooses
+  the training paradigm within `dojo train`. Per-operation configs are the
+  norm; a loaded lifecycle config is valid and unused blocks warn rather
+  than fail.
 - **Representation evaluation** (`representation_eval`) is a top-level
   block, usable against supervised or SSL encoders, training-integrated
   or standalone.
@@ -70,7 +81,7 @@ Read in order:
   surface; `dojo init` / `train` / `infer` / `eval` / `inspect` /
   `ensemble` / `sweep` / `export`; `task.type` semantics.
 - [03. Configuration](03-configuration.md) — canonical config tree;
-  `output_root` and the three peer `*_outputs` blocks; path-template
+  `output_root` and the four peer `*_outputs` blocks; path-template
   syntax; run-directory collision handling.
 - [04. Data and Storage](04-data-and-storage.md) — supported dataset
   backends (`csv_manifest`, `parquet_manifest`, `parquet_images`,

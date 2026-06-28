@@ -153,7 +153,13 @@ consumes its slice and **warns** about blocks it does not use rather than
 failing. When a config carries more than the active command needs,
 `config_hash` is computed over that command's active block-set only, so
 editing an unused block never changes the job's identity
-(`06-results-artifacts-and-metadata.md`).
+(`06-results-artifacts-and-metadata.md`). A command's **active block-set**
+is the blocks it consumes (enumerated above) minus the global `config_hash`
+exclusions — runtime-resolved values, output paths, `output_root`, and the
+`*_outputs` blocks. So an `infer` / `eval holdout` job hashes `data`; a
+`train` job hashes its full model / training block-set; an
+`eval representation` job additionally includes `model` / `transforms` /
+`representation_eval`.
 
 ### Two ways a checkpoint enters a command
 
@@ -298,9 +304,10 @@ Ensemble artifacts land under `ensemble_outputs/` sub-directories (default
 `ensemble_results/` and `ensemble_figures/`, controlled by
 `ensemble_outputs.results.dir` and `ensemble_outputs.figures.dir`).
 
-A `task.type: snapshot_ensemble` config must include both a `training:`
-block (with a snapshot-capable scheduler) and an `ensemble:` block
-(selection strategy + combine modes). Pydantic validation enforces both.
+A `task.type: snapshot_ensemble` config must include a `training:` block, a
+snapshot-capable `scheduler:` block (a top-level peer of `training:`, e.g.
+`cosine_warm_restarts`), and an `ensemble:` block (selection strategy +
+combine modes). Pydantic validation enforces all three.
 
 Canonical invocation:
 

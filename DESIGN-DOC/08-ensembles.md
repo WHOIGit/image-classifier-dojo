@@ -495,6 +495,13 @@ ensemble_outputs:
 Peer to `training_outputs:` and `sweep_outputs:`. Sub-blocks:
 `results`, `export`, `metrics`, `figures`, `manifests`, `members`.
 
+Two member-related keys are distinct: `members` configures the
+`ensemble_members/` directory of locally materialized member **artifact
+files** (checkpoints / exports, symlinked or cached), while
+`results.member_results.mode` controls whether selected member **result
+rows** are written into `ensemble_results/`. One is files, the other is
+rows.
+
 Default on-disk sub-directories under the resolved `ensemble_outputs.dir`:
 
 ```text

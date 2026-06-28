@@ -201,6 +201,7 @@ Common exclusions for all compatibility hashes:
 
 ```text
 experiment
+task
 runtime
 storage
 training
@@ -210,6 +211,7 @@ checkpointing
 objectives
 ensemble
 sweep
+ssl
 representation_eval
 output_root
 training_outputs
@@ -689,8 +691,9 @@ objects when hashes differ.
 
 ## Result partitioning
 
-`training_outputs.results.partition_by` and
-`ensemble_outputs.results.partition_by` are configurable lists. Partition
+`training_outputs.results.partition_by`,
+`ensemble_outputs.results.partition_by`, and
+`eval_outputs.results.partition_by` are configurable lists. Partition
 field options include:
 
 ```text
@@ -792,7 +795,6 @@ eval_outputs.dir/
   results/                  # stage=infer | holdout_eval | representation_eval rows
   metrics/
   figures/
-  exports/                  # optional
   eval_manifest.json        # always written: model source + dataset identity + metric summary
 ```
 
