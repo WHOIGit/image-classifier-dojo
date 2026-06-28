@@ -342,8 +342,9 @@ ensemble:
     stop_if_no_improvement: true
 ```
 
-Selection config is normal Hydra config and can be swept. For example,
-Hydra may sweep `ensemble.selection.strategy`,
+Selection config is normal Dojo/Hydra-composed config and can be varied
+through the top-level `sweep:` block. For example, Dojo sweeps may vary
+`ensemble.selection.strategy`,
 `ensemble.selection.max_members`, or combine-mode settings to compare which
 candidate subsets contribute most to ensemble quality.
 

@@ -3,8 +3,9 @@
 
 ## Purpose
 
-Defines portable model export: artifact types, the `*_outputs.export`
-sub-block, the `dojo export` command, and export metadata.
+Defines portable model export: artifact types, training / ensemble
+`export:` sub-blocks, sweep-level artifact promotion, the `dojo export`
+command, and export metadata.
 
 ## Artifact types
 
@@ -25,8 +26,8 @@ checkpointing (`.ckpt`); portable exports go through `torchscript` or
 ## Configuration
 
 Export is explicit. It is controlled by `training_outputs.export`,
-`ensemble_outputs.export`, `sweep_outputs.export`, `eval_outputs.export`,
-the `dojo export` command, or task-orchestration config. ONNX export is
+`ensemble_outputs.export`, `sweep_outputs.artifacts`, the `dojo export`
+command, or task-orchestration config. ONNX export is
 **not** a runtime training config item — it lives in the export config.
 
 ```yaml
@@ -44,9 +45,29 @@ training_outputs:
         dynamic_axes: true
 ```
 
-The same `export:` sub-block shape applies under `ensemble_outputs:`,
-`sweep_outputs:`, and `eval_outputs:`. Each writes into its own `exports/`
-sub-directory under the resolved `*_outputs.dir`.
+The same `export:` sub-block shape applies under `ensemble_outputs:`.
+Sweep-level report-time artifact promotion lives under
+`sweep_outputs.artifacts` and may reuse export artifact specs when it
+converts selected concrete-job checkpoints into portable models.
+
+Meaning by output block:
+
+- `training_outputs.export` exports model artifacts produced by the current
+  training run, typically `source: best_checkpoint` or `source:
+  last_checkpoint`.
+- `ensemble_outputs.export` exports the selected ensemble described by the
+  ensemble manifest.
+- `sweep_outputs.artifacts` runs during `dojo sweep report`. It does not
+  export a separate "sweep model"; it promotes or converts model artifacts
+  from completed concrete jobs recorded in `sweep_manifest.json`, such as
+  the best run's best checkpoint according to a configured collected
+  metric.
+
+`eval_outputs` has no `export:` sub-block in the initial implementation.
+`dojo infer` / `dojo eval` consume an existing model artifact and write
+results, metrics, figures, and `eval_manifest.json`; they do not create a
+new model artifact. Use `dojo export` to convert the evaluated checkpoint or
+model explicitly.
 
 ## `dojo export`
 
@@ -154,7 +175,7 @@ training and ensemble phases; per-artifact `name` values disambiguate.
 ## Cross-References
 
 - `02-cli-and-task-types.md` — `dojo export` command.
-- `03-configuration.md` — `*_outputs.export` placement.
+- `03-configuration.md` — export-block and sweep-artifact placement.
 - `05-models-training-and-heads.md` — supervised model composition
   (export source).
 - `06-results-artifacts-and-metadata.md` — `exports/` sub-directory,

@@ -35,7 +35,8 @@ explain how each goal is satisfied; this file just names them.
 - **Ensembling.** Prediction-space ensembles with explicit candidate
   discovery, candidate manifests, supported selection strategies, and
   combine modes. Snapshot ensembles via `task.type: snapshot_ensemble`.
-- **Export.** TorchScript and ONNX via `*_outputs.export` blocks or
+- **Export.** TorchScript and ONNX via `training_outputs.export`,
+  `ensemble_outputs.export`, sweep-level artifact promotion, or
   `dojo export`.
 - **Lightweight base install plus optional extras.** `train`, `timm`,
   `ssl`, `ifcb`, `repr_eval`, `onnx`, `all`, `dev`. (`aim` is commented

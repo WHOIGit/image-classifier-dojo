@@ -27,6 +27,7 @@ dependencies = [
   "coolname",
   "humanize",
   "tqdm",
+  "imagesize",
 ]
 
 # --- Optional extras, gated by functional area ---

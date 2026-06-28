@@ -110,9 +110,9 @@ tests.
 
 - `.h5` metrics rollups, `results.h5`. Includes the corresponding
   `hdf` extra and `h5py` / `tables` dependencies (which are dropped).
-- Stub-test obligation: configure an HDF export under a
-  `*_outputs.export` block; assert `NotImplementedError` naming
-  "HDF result exports".
+- Stub-test obligation: configure an HDF export under a training /
+  ensemble export block or sweep artifact-promotion block; assert
+  `NotImplementedError` naming "HDF result exports".
 
 ### P4.8 Deprecated package removal
 

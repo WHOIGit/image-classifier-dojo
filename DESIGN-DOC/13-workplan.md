@@ -156,7 +156,8 @@ Needed for downstream serving and for ensembling exported models.
 
 ### P3.5 IFCB bins
 
-- `ifcbkit` integration into SSL.
+- `ifcbkit` integration for the `ifcb_bins` backend across train / eval /
+  infer paths, including SSL where applicable.
 - Custom dataset and dataloaders for IFCB bins.
 
 ### P3.6 Tabular input

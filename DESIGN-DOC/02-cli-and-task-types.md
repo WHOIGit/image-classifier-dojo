@@ -652,7 +652,8 @@ dojo sweep prepare experiment=ifcb/baseline \
   the snapshot-ensemble orchestration step.
 - `09-sweeps-and-batch-runs.md` — `dojo sweep prepare`,
   `dojo sweep train`, `dojo sweep status`, and `dojo sweep report`.
-- `10-export.md` — `dojo export` and `*_outputs.export` blocks.
+- `10-export.md` — `dojo export`, training / ensemble export blocks, and
+  sweep-level artifact promotion.
 - `12-validation-testing-and-preflight.md` — `dojo inspect config`
   validation tiers and preflight checks.
 - `glossary.md` — task type and CLI vocabulary.

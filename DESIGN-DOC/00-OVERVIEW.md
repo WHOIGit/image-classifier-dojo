@@ -106,8 +106,9 @@ Read in order:
   `sweep_outputs:` block; sweep-id provenance; sweeps as candidate-source
   feeders.
 - [10. Export](10-export.md) — TorchScript and ONNX exports;
-  `*_outputs.export` sub-blocks; `dojo export` command; export
-  metadata; bucket-aware ONNX.
+  `training_outputs.export` / `ensemble_outputs.export`,
+  `sweep_outputs.artifacts`; `dojo export` command; export metadata;
+  bucket-aware ONNX.
 - [11. Dependencies](11-dependencies.md) — base install plus optional
   extras (`train`, `timm`, `ssl`, `ifcb`, `repr_eval`, `onnx`, `all`,
   `dev`). The `aim` extra is commented out and no `mlflow` / `s3` extra

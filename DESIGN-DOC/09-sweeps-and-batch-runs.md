@@ -361,22 +361,22 @@ prepared sweep job. If an authored / composed config has a non-empty
    4. Read each run's resolved config and metric artifacts from paths
       recorded in the manifest.
    5. Apply `sweep_outputs.collect`, write sweep-level metrics and
-      figures, and write sweep-level exports only if explicitly
-      configured.
+      figures, and promote / export sweep-level artifacts only if
+      explicitly configured.
 
 ## `sweep_outputs:` block
 
 Peer to `training_outputs:` and `ensemble_outputs:`. Holds **sweep-level
 reporting** outputs.
 
-Sub-blocks: `dir_template`, `enabled`, `collect`, `export`, `metrics`,
+Sub-blocks: `dir_template`, `enabled`, `collect`, `artifacts`, `metrics`,
 `figures`. There is **no** `results` sub-block — per-row data comes from
 the underlying per-job `training_outputs` / `ensemble_outputs`.
 
 `sweep_outputs.enabled` defaults to `true`. When `false`, Dojo still
 prepares the sweep and concrete jobs may still run, but `dojo sweep report`
 skips sweep-level collection, summary metrics, aggregate figures, and
-sweep exports.
+sweep artifact promotion / export.
 
 `sweep_outputs.collect` is a list of metric / artifact collection specs.
 Each item names what to collect from every concrete run and which
@@ -411,6 +411,12 @@ paths, and per-run status path. `dojo sweep status` and
 `dojo sweep report` read the manifest, then read each run's
 `config/resolved.yaml`, `status.json`, and metric artifacts from those
 recorded locations.
+
+`sweep_outputs.artifacts` is a report-time artifact promotion block. It
+does not create a separate "sweep model"; it copies or converts selected
+model artifacts from completed concrete jobs recorded in
+`sweep_manifest.json`, such as the best run's best checkpoint according to
+a configured collected metric.
 
 Default on-disk sub-directories under the resolved `sweep_outputs.dir`:
 

@@ -397,6 +397,7 @@ inference_pipeline      # resolved, ordered inference transforms with frozen par
 preprocessing_stats     # frozen normalization mean/std, resolved input_bit_depth, bucket scheme, tabular normalization/imputation
 class_maps              # ordered index -> label per discrete head (resolved label content, not a URI)
 target_schema           # head types, targets, num_classes/output_dim, ordinal encoding/decoding, target transforms with frozen fit stats
+objective_summary       # objective/head loss and metric metadata needed for holdout eval scoring
 compatibility           # target_schema_hash / class_mapping_hash / model_config_hash / preprocessing_hash plus their canonical source sub-blocks
 provenance              # config_hash, source run_id, dojo_version
 ```
@@ -405,7 +406,8 @@ It deliberately **excludes** training-dataset identity (`manifest_uri`,
 `dataset_hash`, per-class counts): those describe the data a model was
 trained on, not what is needed to run it on new data. `dojo inspect
 checkpoint` reads this contract to report embedded hashes and head /
-preprocessing configuration.
+preprocessing configuration. `objective_summary` is descriptive and
+metric-driving metadata; it is not a compatibility-hash input.
 
 ## Result rows
 

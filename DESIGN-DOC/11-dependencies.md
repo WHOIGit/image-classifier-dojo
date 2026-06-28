@@ -42,6 +42,7 @@ dependencies = [
   "coolname",
   "humanize",
   "tqdm",
+  "imagesize",
 ]
 ```
 
@@ -94,6 +95,8 @@ Notes on the current `pyproject.toml` state:
 
 - `torchmetrics[visual]` pulls the extra needed for figure/visualization
   metrics.
+- `imagesize` supports header-only image dimension inspection for
+  `dojo inspect dataset --dimensions` without requiring Torch.
 - `ifcb` installs `ifcbkit` from git (no `[s3]` extra, to avoid its
   conflicting pinned `amplify-storage-utils` reference).
 - `onnx` uses `onnxruntime-gpu`.
