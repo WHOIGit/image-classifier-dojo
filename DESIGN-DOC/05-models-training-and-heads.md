@@ -581,7 +581,7 @@ metrics, weight). Heads do **not** own loss config.
 ```text
 multiclass_classification
 binary_classification
-multilabel_classification          # reserved for true multi-hot multilabel
+multilabel_classification          # reserved; runtime-stubbed in initial implementation
 regression
 ordinal_classification             # head predicts a discrete ordered bin
 distributional_regression          # deferred — see appendix P4.9
@@ -589,10 +589,12 @@ count_regression                   # deferred — see appendix P4.9
 ```
 
 `multilabel_classification` is reserved for true multi-hot multilabel
-problems; the old `multilabel` module (which was actually multi-head
-multiclass) is not ported. Multi-head multiclass uses one
-`multiclass_classification` head per target. The old module is preserved
-under `dojo_deprecated` for reference.
+problems. The schema slot is present, but runtime support is deferred and
+raises `NotImplementedError` in the initial implementation (see
+`appendix-deferred-features.md` P4.2). The old `multilabel` module (which
+was actually multi-head multiclass) is not ported. Multi-head multiclass
+uses one `multiclass_classification` head per target. The old module is
+preserved under `dojo_deprecated` for reference.
 
 `distributional_regression` and `count_regression` are **deferred
 schema-backlog** head types in the initial implementation: the initial
@@ -644,7 +646,7 @@ Initial supported head network types:
 | --- | --- | --- |
 | `multiclass_classification` | `linear`, `mlp` | `linear` |
 | `binary_classification` | `linear`, `mlp` | `linear` |
-| `multilabel_classification` | `linear`, `mlp` | `linear` |
+| `multilabel_classification` (runtime-stubbed, P4.2) | `linear`, `mlp` | `linear` |
 | `regression` | `linear`, `mlp` | `linear` |
 | `ordinal_classification` | `linear`, `mlp` | `linear` |
 | `distributional_regression` (deferred, P4.9) | `linear`, `mlp` | `linear` |

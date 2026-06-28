@@ -217,6 +217,7 @@ output_root
 training_outputs
 ensemble_outputs
 sweep_outputs
+eval_outputs
 logging
 metrics
 figures
@@ -335,7 +336,7 @@ transforms:
   inference_pipeline                # resolved inference steps, ordered, with parameters
 tabular_preprocessing:
   columns
-  encodings                         # categorical-encoding schema TBD with P3.6; numeric-only initially
+  encodings                         # reserved for P3.6 categorical schema; empty/null for numeric-only initial support
   imputation                        # per-column strategy, frozen fill values, missing-indicator set
   normalization_stats
 ```

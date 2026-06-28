@@ -67,6 +67,9 @@ validation until their schema is introduced. See
   sink is functional; metrics and figures are recorded locally for the
   foreseeable future.
 - MLflow logger sink (schema present; runtime stubbed).
+- True multilabel support (`multilabel_classification`; schema slot
+  reserved, runtime stubbed). Multi-head multiclass is functional and does
+  not depend on this.
 - Non-`dino_v2` SSL methods (SimCLR, VICReg, PMSN, original DINO).
 - Weight-space ensembles (model soup, greedy soup, uniform soup, SWA,
   EMA).

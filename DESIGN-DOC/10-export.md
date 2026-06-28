@@ -25,9 +25,9 @@ checkpointing (`.ckpt`); portable exports go through `torchscript` or
 ## Configuration
 
 Export is explicit. It is controlled by `training_outputs.export`,
-`ensemble_outputs.export`, `sweep_outputs.export`, the `dojo export`
-command, or task-orchestration config. ONNX export is **not** a runtime
-training config item — it lives in the export config.
+`ensemble_outputs.export`, `sweep_outputs.export`, `eval_outputs.export`,
+the `dojo export` command, or task-orchestration config. ONNX export is
+**not** a runtime training config item — it lives in the export config.
 
 ```yaml
 training_outputs:
@@ -44,9 +44,9 @@ training_outputs:
         dynamic_axes: true
 ```
 
-The same `export:` sub-block shape applies under `ensemble_outputs:`
-and `sweep_outputs:`. Each writes into its own `exports/` sub-directory
-under the resolved `*_outputs.dir`.
+The same `export:` sub-block shape applies under `ensemble_outputs:`,
+`sweep_outputs:`, and `eval_outputs:`. Each writes into its own `exports/`
+sub-directory under the resolved `*_outputs.dir`.
 
 ## `dojo export`
 

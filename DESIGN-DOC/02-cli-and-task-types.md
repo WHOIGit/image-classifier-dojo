@@ -143,7 +143,10 @@ and its preprocessing from the artifact's embedded inference contract
 (`06-results-artifacts-and-metadata.md`); `dojo eval representation`
 additionally activates `model` / `transforms` / `representation_eval`
 because it builds an encoder and configured probes; `dojo ensemble` consumes
-`ensemble` / `ensemble_outputs`; `dojo sweep` consumes `sweep` /
+`ensemble` / `ensemble_outputs` and, when member inference is possible or
+required (`inference_as_needed` / `force_inference`), also consumes `data` /
+`runtime` / `storage` for the target dataset and execution context;
+`dojo sweep` consumes `sweep` /
 `sweep_outputs`. `inference` and `eval` are **not** `task.type` values —
 they are commands, exactly like `ensemble` and `export`.
 

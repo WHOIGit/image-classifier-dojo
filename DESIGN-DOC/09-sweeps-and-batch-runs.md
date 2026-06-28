@@ -122,10 +122,21 @@ sweep:
 
 ### Grid sweep syntax
 
-Inside `sweep.grid`, each key is a target config path and each value is a
-YAML list; the concrete runs are the cartesian product of those lists.
-Axes may also be supplied as config overrides onto `sweep.grid` using
-Hydra list-value syntax (e.g. `'sweep.grid.optimizer.lr=[1e-4,3e-4]'`).
+Inside `sweep.grid`, each normalized key is a target config path and each
+value is a YAML list; the concrete runs are the cartesian product of those
+lists. Authored YAML may use flat dotted keys:
+
+```yaml
+sweep:
+  grid:
+    optimizer.lr: [1.0e-4, 3.0e-4]
+```
+
+CLI overrides naturally compose as nested mappings, e.g.
+`'sweep.grid.optimizer.lr=[1e-4,3e-4]'`. After Hydra composition and before
+validation, Dojo normalizes `sweep.grid` by flattening nested leaves under
+`sweep.grid` with dots, so that override becomes the target path
+`optimizer.lr`.
 
 The `sweep:` block is the single sweep definition: there is no CLI
 comma-list shorthand and no normalization of axes scattered elsewhere in
@@ -290,21 +301,22 @@ prepared sweep job. If an authored / composed config has a non-empty
    5. Expand the cartesian product into concrete jobs.
    6. For each job, apply that job's sweep-axis values, validate the
       concrete config, compute `config_hash`, generate `runtime.run_id`,
-      resolve per-run output directories, and write per-run config
-      artifacts:
+      and resolve per-run output directories in memory.
+   7. Check all generated `run_id` values and resolved per-run output
+      directories for collisions before writing any per-run artifacts.
+      Collision errors name the affected sweep indices and suggest adding
+      `{job_num}` or a realized sweep value such as `runtime.seed` to the
+      run-id / directory template.
+   8. Write per-run config artifacts:
       - `config/composed.yaml`
       - `config/resolved.yaml`
       - `config/resolved.json`
       - `config/cli.txt`
       - `config/overrides.txt`
       - `config/sweep_values.txt`
-   7. Check all generated `run_id` values for collisions before writing
-      run artifacts. Collision errors name the affected sweep indices and
-      suggest adding `{job_num}` or a realized sweep value such as
-      `runtime.seed` to the run-id template.
-   8. Resolve `sweep_outputs.dir_template` to `sweep_outputs.dir` once for
+   9. Resolve `sweep_outputs.dir_template` to `sweep_outputs.dir` once for
       the sweep, then resolve sweep-output sub-block paths under it.
-   9. Write sweep-level config artifacts under `sweep_outputs.dir/config/`:
+   10. Write sweep-level config artifacts under `sweep_outputs.dir/config/`:
       - `composed.yaml` — sweep-level composed config with `sweep.grid`;
       - `resolved.yaml` — sweep-level resolved config with finalized
         `runtime.sweep_id`, `sweep_hash`, and output paths, but no

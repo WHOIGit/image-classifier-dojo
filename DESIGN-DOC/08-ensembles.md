@@ -168,6 +168,15 @@ ensemble:
   source_policy: inference_as_needed
 ```
 
+When `ensemble.source_policy` can run member inference
+(`inference_as_needed` or `force_inference`), the active command also
+requires a normal `data:` block describing the target dataset. The
+`ensemble.target` fields are the semantic target selector and cache-matching
+contract; they are not a replacement for the dataset backend configuration.
+For `strict_no_inference` runs that use only cached result rows, `data:` may
+be omitted when the cached result metadata supplies the target
+`dataset_hash` / `dataset_id` and split.
+
 ### Authored config vs. runtime artifacts
 
 Authored config describes candidate sources, target split, source policy,
