@@ -473,6 +473,29 @@ Notes and limitations:
 ## Ensemble run example
 
 ```yaml
+data:
+  backend: parquet_manifest
+  manifest_uri: ./data/ifcb_holdout_manifest.parquet
+  sample_id_column: roi_id
+  image_uri_column: image_uri
+  split_column: split
+  targets:
+    species:
+      column: species_idx
+      type: multiclass_classification
+      class_names: ./data/species_classes.json
+      missing_policy: error
+    biovolume:
+      column: biovolume_um3
+      type: regression
+      transform: log1p_standardize
+      missing_policy: drop_sample
+    quality_grade:
+      column: quality_grade_idx
+      type: ordinal_classification
+      class_names: ./data/quality_grade_classes.json
+      missing_policy: drop_sample
+
 ensemble:
   candidates:
     sources:
@@ -480,7 +503,8 @@ ensemble:
         manifest_uri: ./shared_manifests/ifcb_candidates.json
   target:
     split: holdout
-  source_policy: strict_no_inference
+    dataset_id: ifcb_species_holdout_v4
+  source_policy: inference_as_needed
   selection:
     strategy: greedy_forward_selection
     metric: val/species/macro_f1
@@ -498,6 +522,13 @@ ensemble_outputs:
     member_results:
       mode: none
 ```
+
+With `source_policy: inference_as_needed`, Dojo first uses compatible cached
+member result rows from the candidate manifest, then runs inference for any
+selected member / sample rows that are missing. The `data:` block above is
+therefore required: it defines the target dataset to load for fresh member
+inference, while `ensemble.target` names the split and dataset identity used
+to validate cached rows.
 
 ## `ensemble_outputs:` block
 
