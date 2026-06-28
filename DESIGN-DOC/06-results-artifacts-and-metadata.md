@@ -409,6 +409,61 @@ checkpoint` reads this contract to report embedded hashes and head /
 preprocessing configuration. `objective_summary` is descriptive and
 metric-driving metadata; it is not a compatibility-hash input.
 
+### `objective_summary`
+
+`objective_summary` is the resolved scoring contract for supervised
+artifacts. It lets `dojo eval holdout` compute the same loss / metric family
+the model was trained and validated with, without requiring an `objectives:`
+block in the eval config. It is not used to rebuild the model.
+
+Shape:
+
+```yaml
+objective_summary:
+  schema_version: 1
+  total_loss:
+    reduction: weighted_sum
+  objectives:
+    species:
+      head: species
+      target: species
+      weight: 1.0
+      loss:
+        type: cross_entropy
+        params: {}
+      metrics:
+        - name: accuracy
+          params: {}
+        - name: macro_f1
+          params: {}
+        - name: per_class_f1
+          params: {}
+```
+
+Rules:
+
+- `objectives` contains the enabled resolved objectives, keyed by objective
+  name. Disabled authored objectives are omitted from the portable contract.
+- `head` must name a head in `target_schema`; `target` must match that head's
+  target. This duplication is a validation guard and makes scorer setup
+  straightforward, but `target_schema` remains authoritative for head type,
+  output dimensions, ordinal encoding / decoding, and target transforms.
+- `loss` is the canonical resolved loss spec: string shorthand is expanded to
+  `{type, params}` and any resolved class / sample weighting values needed to
+  reproduce evaluation loss are stored by value, not by dataset-stat URI.
+- `metrics` is the ordered list of canonical resolved metric specs. Metric
+  aliases are expanded before serialization; metric parameters such as
+  averaging mode, top-k values, thresholds, and per-class behavior live under
+  `params`.
+- `weight` is included so holdout eval can report both per-objective losses
+  and the weighted total loss using the same weighted-sum rule as training.
+- Classification and ordinal label names are read from `class_maps`; target
+  inverse transforms and internal-vs-external unit conventions are read from
+  `target_schema`, not duplicated here.
+- Pure embedding artifacts with no supervised objectives serialize
+  `objectives: {}` and `total_loss: null`; `dojo eval holdout` raises a
+  validation error if no objective covers the requested labeled target.
+
 ## Result rows
 
 ### Common provenance columns

@@ -26,9 +26,9 @@ regression / ordinal / SSL models. Key shape:
   encoding, and Arrow list columns for vectors.
 - **Self-describing model artifacts.** Checkpoints and exports embed a
   portable *inference contract* (resolved model, inference pipeline + frozen
-  preprocessing stats, class maps, target schema, and the four compatibility
-  hashes), so `dojo infer` / `dojo eval` rebuild a model with no dependency
-  on the producing run's `resolved.yaml`.
+  preprocessing stats, class maps, target schema, `objective_summary`, and the
+  four compatibility hashes), so `dojo infer` / `dojo eval` rebuild a model
+  with no dependency on the producing run's `resolved.yaml`.
 - **Four peer output blocks** at the top of the config tree:
   `training_outputs`, `ensemble_outputs`, `sweep_outputs`, and
   `eval_outputs` (the home for `dojo infer` / `dojo eval`), all rooted

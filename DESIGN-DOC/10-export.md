@@ -106,7 +106,7 @@ backbone architecture source / name
 backbone weights provenance
 head definitions
 ordinal encoding / decoding (per ordinal head)
-objective summary
+objective_summary scorer spec
 class names
 class index mappings
 normalization mean / std

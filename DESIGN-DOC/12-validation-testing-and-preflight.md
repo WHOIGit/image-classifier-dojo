@@ -176,7 +176,8 @@ inherits their stubbed runtime.
   backbones; freeze policies; head construction; multi-head model
   composition; embedding adapter; tabular input concatenation.
 - **Objective / loss tests** — loss / metric compatibility per head
-  type; objective shorthand; weighted total loss.
+  type; objective shorthand; weighted total loss; resolved
+  `objective_summary` serialization.
 - **Supervised training smoke tests** — minimal-fixture train +
   validate + canonical result writing.
 - **SSL training smoke tests** — DINOv2 functional smoke test.
@@ -185,7 +186,8 @@ inherits their stubbed runtime.
 - **Ensemble tests** — candidate discovery; manifest writing;
   `dojo ensemble candidates`; supported selection strategies and
   combine modes; cached-result and live-inference paths.
-- **Export tests** — TorchScript and ONNX exports; metadata embedding.
+- **Export tests** — TorchScript and ONNX exports; metadata embedding;
+  holdout-eval scorer reconstruction from the embedded inference contract.
 - **Logging tests** — `local` functional; Aim and MLflow
   stub-assertions.
 

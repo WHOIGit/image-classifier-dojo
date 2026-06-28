@@ -100,7 +100,7 @@ sweep_outputs:
   dir_template:
   enabled:
   collect:
-  export:
+  artifacts:
   metrics:
   figures:
 
@@ -362,7 +362,7 @@ must not re-clear directories the earlier phases just wrote.
 `sweep_outputs.enabled` controls sweep-level reporting only. Default:
 `true`. When `false`, Dojo still prepares the sweep and concrete jobs may
 still run, but `dojo sweep report` skips sweep-level collection, summary
-metrics, aggregate figures, and sweep exports.
+metrics, aggregate figures, and artifact promotion.
 
 `sweep_outputs.collect` is a list of metric / artifact collection specs
 used by `dojo sweep report`. Each item names the metric or artifact to

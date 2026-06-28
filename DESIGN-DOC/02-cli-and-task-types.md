@@ -214,7 +214,7 @@ sweep. It reads the sweep manifest, selects one job by `--index` or
 `dojo sweep status` reads the sweep manifest and per-run status files. With
 no selector, it lists every sweep index and `run_id`; with `--index` or
 `--run-id`, it reports one job. `dojo sweep report` reads the same manifest
-and writes sweep-level metrics, figures, and exports according to
+and writes sweep-level metrics, figures, and promoted artifacts according to
 `sweep_outputs`.
 
 `SWEEP_DIR` is the canonical target for `dojo sweep train`, `status`, and
@@ -564,8 +564,8 @@ without retraining.
 - `dojo eval holdout` — evaluate against a holdout split
   (`stage=holdout_eval`). Takes the model as `--checkpoint` / `--model` and
   rebuilds everything from the inference contract; it **requires**
-  `data.targets` and computes metrics from the artifact's objective / target
-  metadata (no `objectives:` block needed).
+  `data.targets` and computes metrics from the artifact's
+  `objective_summary` plus `target_schema` (no `objectives:` block needed).
 - `dojo eval representation` — standalone representation evaluation
   (`stage=representation_eval`). This **builds an encoder** from
   `model.image_input.backbone.weights.source: checkpoint` and attaches the

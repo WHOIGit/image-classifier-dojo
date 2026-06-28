@@ -58,9 +58,10 @@ referenced by every other file. When in doubt, the terms below win.
   training checkpoints (`checkpoint["dojo_inference_contract"]`) and exported
   models: buildable `model_config`, resolved `inference_pipeline` + frozen
   preprocessing stats, per-head class maps, target schema with frozen target
-  transforms, and the four compatibility hashes. `dojo infer` / `dojo eval`
-  rebuild a model from it without the producing run's `resolved.yaml`. Full
-  definition in `06-results-artifacts-and-metadata.md`.
+  transforms, resolved `objective_summary` for holdout scoring, and the four
+  compatibility hashes. `dojo infer` / `dojo eval` rebuild a model from it
+  without the producing run's `resolved.yaml`. Full definition in
+  `06-results-artifacts-and-metadata.md`.
 
 ### Seednames vs. fresh coolnames
 
