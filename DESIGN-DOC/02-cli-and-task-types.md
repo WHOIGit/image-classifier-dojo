@@ -439,13 +439,22 @@ Backend-specific:
 
 Compound and control flags:
 
-- `--stats[=URI]` — run all frozen aspects and write / update the dataset
-  stats cache (the producer for `normalize: {mode: dataset}`, tabular and
-  target stats, imputation, `class-map` / `class-counts`, `bit-depth`, and
-  `bin-lengths`).
+- `--stats` — compute the **cheap** frozen aspects (Tier 0 manifest +
+  Tier 1 header level): tabular and target stats, imputation, `class-map` /
+  `class-counts`, `dimensions`, `bit-depth`, and (`ifcb_bins`)
+  `bin-lengths`. Results are displayed (per `--format`) and, when
+  `data.stats_cache_uri` is configured, written to that cache; with no cache
+  configured it is display-only. The decode-tier frozen aspects are **not**
+  run by `--stats` alone because they need a full pixel pass: add
+  `--normalization` (the producer for `normalize: {mode: dataset}`) or use
+  `--all`. A bare `--stats` reads no pixels and never writes
+  `dataset_content_hash`; that hash is recorded only when a full pass
+  actually runs (`--normalization` / `--content-hash` / `--all`, see
+  `04-data-and-storage.md`).
 - `--report` — run all advisory aspects, print / write a human report,
   write no cache.
-- `--all` — every aspect (warns: incurs a full-decode pass).
+- `--all` — every aspect, including the decode tier (warns: incurs a
+  full-decode pass; this is what also records `dataset_content_hash`).
 - `--split train|val|all` — override split selection; otherwise fit
   statistics default to `train` and structural properties to `all`.
 - `--sample N|FRACTION` — estimate from a subsample. Permitted for advisory
@@ -455,7 +464,8 @@ Compound and control flags:
   in an interactive terminal) draws in-terminal bar charts / histograms for
   distributions (`--bucket-histogram`, `--class-counts`, `--imbalance`,
   target / tabular distributions); `text` is plain tabular; `json` is
-  machine-readable. Frozen values are always written to the cache
+  machine-readable. Frozen values are displayed too, and — when
+  `data.stats_cache_uri` is configured — also written to the cache
   regardless of `--format`.
 - `--output PATH` — write a canonical manifest (incl. `class_folder`
   scan). A command option, not a config key.
@@ -470,9 +480,9 @@ Examples:
 # fast, header-only bucket advisory (sub-second with --sample)
 dojo inspect dataset data=ifcb/species_manifest --bucket-histogram
 
-# produce the frozen stats cache consumed at training time
-dojo inspect dataset data=ifcb/species_manifest \
-  --stats=s3://datasets/ifcb/cache/species_stats.parquet
+# write the frozen stats cache (data.stats_cache_uri) consumed at training time
+# (add --normalization for dataset normalization mean/std; bare --stats reads no pixels)
+dojo inspect dataset data=ifcb/species_manifest --normalization --stats
 
 # canonical manifest from a class-folder source
 dojo inspect dataset data=ifcb/species_manifest \

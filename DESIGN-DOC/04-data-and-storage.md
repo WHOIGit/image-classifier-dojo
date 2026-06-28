@@ -45,6 +45,7 @@ Example:
 data:
   backend: parquet_manifest
   manifest_uri: s3://datasets/ifcb/species_manifest.parquet
+  stats_cache_uri: s3://datasets/ifcb/species_manifest.stats.json  # colocated with the manifest; omit for display-only
   sample_id_column: roi_id
   image_uri_column: image_uri
   split_column: split
@@ -97,9 +98,6 @@ data:
   split_column: split
   exclude_patterns: [bad, skip, beads, temp, data_temp]
   shuffle_buffer_size: 1000
-  length:
-    mode: cached
-    cache_uri: s3://datasets/ifcb/cache/bin_lengths.parquet
   targets:
     species:
       column: species_idx
@@ -113,7 +111,8 @@ IFCB-specific behavior to preserve or port through `ifcbkit`:
 - old-schema handling;
 - shuffle buffer;
 - stable ROI IDs;
-- optional estimated or cached length.
+- optional estimated bin length (exact ROI counts come from the dataset
+  stats cache via `--bin-lengths`).
 
 Dojo does not reimplement IFCB raw-bin parsing — `ifcbkit` is the
 canonical interface.
@@ -169,10 +168,22 @@ frozen: image normalization mean / std (`normalize: {mode: dataset}`),
 tabular normalization stats and imputation fill values, fitted target
 transform statistics, per-class counts, the resolved class map, the
 resolved `input_bit_depth`, per-sample native dimensions, and `ifcb_bins`
-bin lengths. `dojo inspect dataset --stats[=URI]` is the **producer**: it
-computes the fit statistics on the `train` split (structural properties
-such as bit depth and bin lengths across all splits) and writes them to a
-stats cache.
+bin lengths. `dojo inspect dataset --stats` is the **producer**. To
+stay cheap it computes only the manifest- and header-level frozen aspects —
+per-class counts and class map, fitted target / tabular stats, imputation
+fill values, per-sample dimensions, `input_bit_depth`, and `ifcb_bins` bin
+lengths — fitting on the `train` split (structural properties such as bit
+depth and bin lengths across all splits) and writing them to a stats cache.
+Image normalization mean / std is a **decode-tier** frozen aspect: it is not
+part of a bare `--stats` and is produced by `--stats --normalization` (or
+`--all`), which reads every image pixel.
+
+The cache location is `data.stats_cache_uri`, configured in the data config
+and conventionally **colocated with the manifest**. `dojo inspect dataset`
+always **displays** the computed aspects to the terminal (per `--format`)
+and additionally writes the frozen aspects to `data.stats_cache_uri` when
+that field is set; with no `stats_cache_uri` configured, `--stats` is
+display-only and writes nothing.
 
 The cache is keyed by `dataset_hash`. When `dataset_hash_provenance` is
 strong (`manifest_content` or `uri_etag`), this auto-invalidates stale
@@ -183,13 +194,12 @@ etag-derived dataset identity for frozen stats.
 
 Config resolution **consumes** the stats cache; it does not produce or
 repair it. `normalize: {mode: dataset}`, tabular imputation /
-normalization, target transforms, `length: {mode: cached}`, the
+normalization, target transforms, cached `ifcb_bins` bin lengths, the
 count-dependent losses (`weighted_cross_entropy`,
 `class_balanced_effective_number`), and the `class_balanced` sampler read
-their frozen values from the cache instead of recomputing per run. The
-`length: {mode: cached, cache_uri}` block under `ifcb_bins` above is the
-first instance of this pattern; the stats cache generalizes it to every
-dataset-derived frozen value.
+their frozen values from the cache instead of recomputing per run. Every
+dataset-derived frozen value — including `ifcb_bins` bin lengths — lives in
+this one cache; there is no separate per-aspect cache file.
 
 Resolved values are materialized into the resolved config and hashed by
 content (`06-results-artifacts-and-metadata.md`); the cache is a production
@@ -214,7 +224,7 @@ catches in-place pixel mutation that manifest-level identity cannot see.
 ### Stats cache format
 
 The stats cache is a JSON document per dataset, written by `dojo inspect
-dataset --stats[=URI]`. Small aggregates live inline; per-sample arrays
+dataset --stats` to `data.stats_cache_uri`. Small aggregates live inline; per-sample arrays
 (dimensions, bin lengths) are too large for JSON and are written as Parquet
 sidecars referenced by URI.
 

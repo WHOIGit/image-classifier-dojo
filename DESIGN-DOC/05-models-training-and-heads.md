@@ -183,8 +183,9 @@ on. Normalization must match the backbone's pretraining (ImageNet stats for
 torchvision / timm ImageNet weights, DINOv2's expected stats for DINOv2);
 there is deliberately no `pixel_range` enum. When `normalize: {mode:
 dataset}`, the mean / std are produced once by `dojo inspect dataset
---stats`, frozen into the resolved config, and read from the dataset stats
-cache at resolution (`04-data-and-storage.md`).
+--stats --normalization` (the decode-tier pass; bare `--stats` does not
+read pixels), frozen into the resolved config, and read from the dataset
+stats cache at resolution (`04-data-and-storage.md`).
 
 The scale-to-`[0, 1]` divisor depends on source bit depth, set with
 `transforms.input_bit_depth`:
