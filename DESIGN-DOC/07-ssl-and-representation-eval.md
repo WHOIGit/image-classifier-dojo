@@ -82,20 +82,34 @@ model:
         source: none
 
 representation_eval:
+  enabled: true
+  name: ssl_epoch_eval
   schedule:
+    mode: every_n_epochs
     every_n_epochs: 5
-    on_fit_end: true
+    include_fit_end: true
+  dataset:
+    splits:
+      reference: train
+      query: val
+    seed: 123
   embeddings:
     enabled: true
-    split: val
+    kinds: [image_embedding]
+    cache: true
   projections:
-    methods: [umap, tsne]
+    enabled: true
+    methods:
+      - type: umap
+      - type: tsne
   clustering:
-    methods: [hdbscan]
+    enabled: true
+    methods:
+      - type: hdbscan
   probes:
     classification:
       enabled: true
-      heads: [species]
+      targets: [species]
     regression:
       enabled: true
       targets: [biovolume]
@@ -120,6 +134,98 @@ evaluation against its own encoder during training. The standalone
 `dojo eval representation` command works against checkpoints from
 either task type.
 
+### Canonical config shape
+
+`representation_eval` is one schema with optional sub-blocks. Disabled
+sub-blocks are ignored; enabled sub-blocks validate their required fields
+and write canonical result rows.
+
+```yaml
+representation_eval:
+  enabled: true
+  name: default_repr_eval
+
+  schedule:
+    mode: fit_end        # disabled | fit_end | every_n_epochs | every_n_steps | fractional_epoch
+    every_n_epochs: null
+    every_n_steps: null
+    fractional_epoch: null
+    include_fit_end: true
+
+  dataset:
+    splits:
+      reference: train
+      query: val
+    max_reference_samples: null
+    max_query_samples: null
+    include_reference_outputs: false
+    require_labels: auto
+    seed: 123
+
+  embeddings:
+    enabled: true
+    kinds: [image_embedding]
+    batch_size: null
+    cache: true
+
+  diagnostics:
+    enabled: true
+    metrics: [embedding_norm, per_dimension_std, effective_rank]
+
+  nearest_neighbors:
+    enabled: false
+    k: [1, 5, 10]
+    distance: cosine
+    write_neighbors: true
+    write_knn_predictions: true
+
+  probes:
+    classification:
+      enabled: false
+      targets: []
+      model: linear_classifier
+    regression:
+      enabled: false
+      targets: []
+      model: ridge
+    ordinal:
+      enabled: false
+      targets: []
+      model: ordinal_logistic_regression
+
+  projections:
+    enabled: false
+    methods:
+      - type: pca
+        n_components: 2
+      - type: umap
+        n_components: 2
+      - type: tsne
+        n_components: 2
+
+  clustering:
+    enabled: false
+    methods:
+      - type: kmeans
+        n_clusters: auto
+      - type: mini_batch_kmeans
+        n_clusters: auto
+      - type: hdbscan
+      - type: agglomerative
+        n_clusters: auto
+
+  outliers:
+    enabled: false
+    methods:
+      - type: local_outlier_factor
+      - type: isolation_forest
+```
+
+`representation_eval.name` becomes `evaluation_name` on result rows and
+disambiguates multiple scheduled / standalone evaluations in the same run.
+`dataset.seed` controls deterministic subsampling and any representation-eval
+algorithm with a random state.
+
 ### Supported components
 
 - Embedding extraction.
@@ -140,6 +246,29 @@ are **not deferred** — they are functional when the extra is installed.
 Regression and ordinal probes are functional. Supervised fine-tuning from
 an SSL pretrained backbone is supervised transfer learning, not a
 representation-evaluation mode — see `05-models-training-and-heads.md`.
+
+### Reference/query split semantics
+
+Representation evaluation has two logical sample sets:
+
+- **reference** — fit set for learned evaluation artifacts: probe models,
+  k-NN reference indexes, projection fit steps when the method supports
+  transform, clustering fit steps, and outlier/density reference models.
+- **query** — scored / predicted / assigned set that produces the primary
+  output rows.
+
+Defaults: `reference=train`, `query=val`. Learned evaluation artifacts fit
+on the reference split only, then score the query split. Set
+`include_reference_outputs: true` to also write predictions, projections,
+cluster assignments, or outlier scores for the reference samples. Methods
+that do not support a clean fit/transform split, such as t-SNE and HDBSCAN,
+fit on the union of reference + query embeddings for visualization /
+clustering, but query rows remain the primary reported outputs unless
+`include_reference_outputs` is enabled.
+
+Subsampling is deterministic per split from `representation_eval.dataset.seed`.
+When subsampling is enabled, written rows and sidecar metadata record the
+sample counts, requested limits, and seed.
 
 ### Label-required vs. label-free evaluation
 
@@ -163,28 +292,78 @@ documents the probe class (e.g. `ridge`, `linear_classifier`,
 native head record column shape but with the probe-specific
 `record_type`. See `06-results-artifacts-and-metadata.md`.
 
+### Validation contract
+
+Pydantic validation enforces:
+
+- `enabled: false` disables the whole block; enabled sub-blocks validate
+  independently.
+- `schedule.mode: disabled` is allowed only for standalone configs or when
+  the block is present but intentionally inactive during training.
+- `schedule.mode: every_n_epochs` requires `every_n_epochs`; `every_n_steps`
+  requires `every_n_steps`; `fractional_epoch` requires
+  `fractional_epoch` in `(0, 1]`.
+- `dataset.splits.reference` and `dataset.splits.query` must be valid dataset
+  splits for the active command.
+- `max_reference_samples` and `max_query_samples`, when set, must be positive
+  integers.
+- Probe `targets` must reference `data.targets`, and the probe family must
+  match the target type: classification probes for classification targets,
+  regression probes for regression targets, and ordinal probes for
+  `ordinal_classification` targets.
+- `nearest_neighbors.write_knn_predictions: true` requires classification
+  labels for the reference and query samples selected by the active splits.
+- `require_labels: auto` derives the requirement from enabled components;
+  `true` errors if any selected sample lacks required labels; `false` allows
+  label-free components only and rejects enabled probes / k-NN predictions.
+- Standalone `dojo eval representation` must configure an encoder through
+  `model.image_input.backbone.weights.source: checkpoint` or another
+  buildable checkpoint-backed model config. Training-integrated evaluation
+  uses the current run encoder.
+- UMAP, t-SNE, HDBSCAN, sklearn probes, clustering, and outlier methods are
+  gated by the `repr_eval` optional extra. Missing extras raise a clear
+  runtime dependency error, not a deferred-feature error.
+
 ### Scheduling
 
-Evaluations are schedulable by:
+Training-integrated evaluations are schedulable by:
 
 ```text
-every N epochs
-every N train batches
-every fractional epoch
-end of epoch
-end of training
+disabled
+fit_end
+every_n_epochs
+every_n_steps
+fractional_epoch
 ```
 
-`every_fractional_epoch: 0.10` means approximately every 10% of an
-epoch.
+`fractional_epoch: 0.10` means approximately every 10% of an epoch.
+`include_fit_end: true` adds one final evaluation at training end even when
+the main schedule is epoch-, step-, or fractional-epoch-based.
 
 Expensive evaluations support subsampling:
 
 ```yaml
 representation_eval:
-  knn:
+  dataset:
     max_reference_samples: 50000
     max_query_samples: 10000
+```
+
+### Execution and result mapping
+
+Both standalone and training-integrated paths use the same evaluator:
+
+```text
+build / load encoder
+extract embeddings for reference and query splits
+optionally cache embeddings for downstream components
+run diagnostics
+build nearest-neighbor index and optional k-NN predictions
+fit probes on reference embeddings and predict query embeddings
+fit / transform projections
+fit / assign clusters
+fit / score outliers
+write canonical result rows and metrics / figures
 ```
 
 ### Standalone vs. training-integrated
@@ -203,8 +382,28 @@ dojo eval representation \
   experiment=ifcb/dinov2_repr_eval \
   model.image_input.backbone.weights.source=checkpoint \
   model.image_input.backbone.weights.uri=./runs/dinov2/checkpoints/best.ckpt \
-  representation_eval.embeddings.split=holdout
+  representation_eval.dataset.splits.query=holdout
 ```
+
+Result mapping:
+
+| Config block | Result rows |
+| --- | --- |
+| `embeddings` | `record_type=embedding` |
+| `diagnostics` | `record_type=diagnostic` |
+| `nearest_neighbors.write_neighbors` | `record_type=nearest_neighbor` |
+| `nearest_neighbors.write_knn_predictions` | `record_type=knn_prediction` |
+| `probes.classification` | `record_type=classification_probe_prediction` |
+| `probes.regression` | `record_type=regression_probe_prediction` |
+| `probes.ordinal` | `record_type=ordinal_probe_prediction` |
+| `projections` | `record_type=projection` |
+| `clustering` | `record_type=cluster_assignment` |
+| `outliers` | `record_type=outlier_score` |
+
+Training-integrated callbacks write rows, metrics, and figures under the
+current `training_outputs` directory. Standalone `dojo eval representation`
+writes rows / metrics / figures and `eval_manifest.json` under
+`eval_outputs`.
 
 ### Diagnostics
 
