@@ -197,7 +197,7 @@ sweep:
 ```
 
 Sweep reporting can then summarize metrics across seeds, for example
-with box plots / five-number summaries for `macro_f1` or per-class F1.
+with box plots / five-number summaries for `f1_macro` or per-class F1.
 
 ### Sweep conflict policy
 
@@ -387,7 +387,7 @@ collected metric:
 ```yaml
 sweep_outputs:
   collect:
-    - metric: val/species/macro_f1
+    - metric: val/species/f1_macro
       source: best
       mode: max
 ```
@@ -487,10 +487,10 @@ sweep_outputs:
     {experiment.name}/sweep_results/{runtime.sweep_id}
   enabled: true
   collect:
-    - metric: val/species/macro_f1
+    - metric: val/species/f1_macro
       source: best
       mode: max
-    - metric: val/species/per_class_f1
+    - metric: val/species/f1_per_class/*
       source: best
       mode: max
   metrics:

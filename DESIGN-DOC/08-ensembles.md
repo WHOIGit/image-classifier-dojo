@@ -328,7 +328,7 @@ ensemble:
   selection:
     strategy: top_k
     k: 5
-    metric: val/species/macro_f1
+    metric: val/species/f1_macro
     mode: max
 ```
 
@@ -336,7 +336,7 @@ ensemble:
 ensemble:
   selection:
     strategy: greedy_forward_selection
-    metric: val/species/macro_f1
+    metric: val/species/f1_macro
     mode: max
     max_members: 8
     stop_if_no_improvement: true
@@ -508,7 +508,7 @@ ensemble:
   source_policy: inference_as_needed
   selection:
     strategy: greedy_forward_selection
-    metric: val/species/macro_f1
+    metric: val/species/f1_macro
     mode: max
     max_members: 8
   inference:

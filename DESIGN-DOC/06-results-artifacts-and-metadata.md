@@ -447,11 +447,17 @@ objective_summary:
         params: {}
       metrics:
         - name: accuracy
-          params: {}
-        - name: macro_f1
-          params: {}
-        - name: per_class_f1
-          params: {}
+          params:
+            top_k: 1
+          output: accuracy
+        - name: f1_macro
+          params:
+            average: "macro"
+          output: f1_macro
+        - name: f1_per_class
+          params:
+            average: null
+          output: "f1_per_class/{label}"
 ```
 
 Rules:
@@ -465,10 +471,11 @@ Rules:
 - `loss` is the canonical resolved loss spec: string shorthand is expanded to
   `{type, params}` and any resolved class / sample weighting values needed to
   reproduce evaluation loss are stored by value, not by dataset-stat URI.
-- `metrics` is the ordered list of canonical resolved metric specs. Metric
-  aliases are expanded before serialization; metric parameters such as
-  averaging mode, top-k values, thresholds, and per-class behavior live under
-  `params`.
+- `metrics` is the ordered list of canonical resolved metric specs from the
+  metric registry (`05-models-training-and-heads.md`). Aliases are not
+  accepted. Registry defaults such as averaging mode, top-k values,
+  thresholds, and per-class behavior are materialized under `params`; output /
+  logging names are materialized under `output`.
 - `weight` is included so holdout eval can report both per-objective losses
   and the weighted total loss using the same weighted-sum rule as training.
 - Classification and ordinal label names are read from `class_maps`; target

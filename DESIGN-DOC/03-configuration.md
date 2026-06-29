@@ -225,7 +225,7 @@ objectives:
   species:
     head: species
     loss: cross_entropy
-    metrics: [accuracy, macro_f1, per_class_f1]
+    metrics: [accuracy, f1_macro, f1_per_class]
     weight: 1.0
 
 training:
@@ -245,7 +245,7 @@ scheduler:
   warmup_epochs: 3
 
 checkpointing:
-  monitor: val/species/macro_f1
+  monitor: val/species/f1_macro
   mode: max
   save_top_k: 3
 
@@ -380,7 +380,7 @@ ranking / best-run selection for that collected metric:
 sweep_outputs:
   enabled: true
   collect:
-    - metric: val/species/macro_f1
+    - metric: val/species/f1_macro
       source: best
       mode: max
 ```
@@ -453,7 +453,7 @@ sweep_outputs:
   dir_template: "{experiment.name}/sweep_results/{runtime.sweep_id}"
   enabled: true
   collect:
-    - metric: val/species/macro_f1
+    - metric: val/species/f1_macro
       source: best
       mode: max
 ```

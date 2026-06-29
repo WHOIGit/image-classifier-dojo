@@ -176,8 +176,9 @@ inherits their stubbed runtime.
   construction; multi-head model composition; embedding adapter; tabular input
   concatenation.
 - **Objective / loss tests** — loss / metric compatibility per head
-  type; objective shorthand; weighted total loss; resolved
-  `objective_summary` serialization.
+  type; metric registry canonical names / params / output names; objective
+  shorthand; weighted total loss; resolved `objective_summary`
+  serialization.
 - **Supervised training smoke tests** — minimal-fixture train +
   validate + canonical result writing.
 - **SSL training smoke tests** — DINOv2 functional smoke test.

@@ -888,7 +888,7 @@ objectives:
   species:
     head: species
     loss: cross_entropy
-    metrics: [macro_f1, per_class_f1]
+    metrics: [f1_macro, f1_per_class]
     weight: 1.0
   life_stage:
     head: life_stage
@@ -922,6 +922,58 @@ Count-dependent losses (`weighted_cross_entropy`,
 frozen train-split class counts in the dataset stats cache (`dojo inspect
 dataset --class-counts`, `04-data-and-storage.md`). The resolved weights are
 frozen into config, not recomputed per run.
+
+### Metric registry
+
+Metric names are canonical and aliases are not accepted. Prefer
+TorchMetrics semantics and TorchMetrics-style option names. Dojo owns the
+canonical defaults it materializes; those defaults do not have to rely on
+whatever defaults a TorchMetrics release happens to choose. Config validation
+checks metric compatibility through a small registry keyed by head type; the
+implementation may keep the registry central or merge per-head metric specs,
+but validation, logging, and `objective_summary` serialization must consume
+one canonical registry.
+
+Each metric registry entry defines:
+
+```text
+canonical name
+compatible head types
+TorchMetrics class / factory and Dojo default params
+allowed authored params
+prediction / target space used for computation
+logging output name(s)
+whether the metric emits one scalar or labeled per-class values
+```
+
+Initial metric names:
+
+| Head type | Metric | TorchMetrics semantics / default params | Output name |
+| --- | --- | --- | --- |
+| `multiclass_classification` | `accuracy` | multiclass top-1 accuracy, `top_k: 1` | `accuracy` |
+| `multiclass_classification` | `f1_macro` | multiclass F1, `average: "macro"` | `f1_macro` |
+| `multiclass_classification` | `f1_per_class` | multiclass F1, `average: null` / per-class output | `f1_per_class/{label}` |
+| `regression` | `mae` | mean absolute error on external target units | `mae` |
+| `regression` | `rmse` | square root of mean squared error on external target units | `rmse` |
+| `regression` | `r2` | coefficient of determination on external target units | `r2` |
+| `ordinal_classification` | `mae` | decoded ordinal class index | `mae` |
+| `ordinal_classification` | `quadratic_weighted_kappa` | decoded ordinal class index | `quadratic_weighted_kappa` |
+
+Regression metrics use external target units after inverse target transforms.
+Ordinal metrics use the decoded ordinal class index unless a future registry
+entry explicitly says otherwise. Missing labels are handled before metric
+updates by the target's missing policy; metrics receive only valid examples for
+their objective.
+
+Resolved configs and `objective_summary` materialize registry defaults into
+each metric spec. For example, authored `f1_macro` resolves to:
+
+```yaml
+name: f1_macro
+params:
+  average: "macro"
+output: f1_macro
+```
 
 ### Target transforms
 
@@ -1080,7 +1132,7 @@ and snapshot checkpoints. Snapshot-cycle checkpointing for
 
 ```yaml
 checkpointing:
-  monitor: val/species/macro_f1
+  monitor: val/species/f1_macro
   mode: max
   save_top_k: 3
   save_last: true
