@@ -78,18 +78,31 @@ resize_height_px
 Identity and content-equality are tracked separately:
 
 - A **`*_hash`** is derived deterministically from object content.
-- A **`*_id`** is either manually set or generated as a **seedname**: a
-  coolname produced by seeding `random.Random(*_hash)`. Same hash → same
-  seedname.
+- A **`*_id`** is either manually set or generated from an explicit coolname
+  template. Hash-paired IDs use hash-seeded coolnames by default.
+
+Coolname template forms:
+
+| Form | Seed behavior | Deterministic? | Intended use |
+| --- | --- | --- | --- |
+| `{coolname:<source>}` | Seed from the named resolved value, usually a hash such as `config_hash`, `model_hash`, `ensemble_hash`, or `sweep_hash` | yes | hash-derived IDs |
+| `{coolname}` | Seed from resolved `runtime.seed` | yes | rare/debug; collision-prone for run IDs |
+| `{coolname:noseed}` | Fresh unseeded coolname | no | invocation IDs such as `run_id` |
+
+The seed material includes the source label as well as the source value
+(for example `model_hash:<hash>`), so identical raw hash strings in different
+domains do not imply identical names. A hash-seeded coolname can only be
+rendered after that hash has been computed; generated IDs are excluded from
+the source hash and do not feed back into it.
 
 Explicit exceptions:
 
-- `run_id` may be generated from a fresh, unseeded `{coolname}` template
+- `run_id` may be generated from a fresh `{coolname:noseed}` template
   token. There is no `run_hash`.
-- `dataset_id` is only set when the dataset self-names; no seedname
+- `dataset_id` is only set when the dataset self-names; no generated
   fallback.
-- `sweep_id` may be a template render like `run_id`, or fall back to
-  seedname from `sweep_hash` when neither is configured.
+- `sweep_id` may be manually set, rendered from a coolname template, or fall
+  back to `{coolname:sweep_hash}` when unset.
 
 Full hashes are recorded by default. The only standard truncation is the
 first 6 hex characters embedded in checkpoint filenames.
@@ -117,18 +130,18 @@ source object before canonicalization.
 
 | Field | Kind | Derivation | Default when not set |
 | --- | --- | --- | --- |
-| `run_id` | id only | manual, else template render — e.g. `{coolname}` (a fresh unseeded coolname) or a composed pattern like `{experiment.name}-{timestamp}-{job_num}` | `{coolname}` |
-| `config_id` | id (paired with `config_hash`) | manual, else seedname from `config_hash` | seedname |
+| `run_id` | id only | manual, else template render — e.g. `{coolname:noseed}` (fresh unseeded) or a composed pattern like `{experiment.name}-{timestamp}-{job_num}` | `{coolname:noseed}` |
+| `config_id` | id (paired with `config_hash`) | manual, else `{coolname:config_hash}` | `{coolname:config_hash}` |
 | `config_hash` | hash | canonical hash of resolved config, **excluding** runtime-resolved values, output paths, `output_root`, and all `*_outputs` blocks. When a loaded config carries blocks the active command does not use, the hash covers only that command's active block-set (see `02-cli-and-task-types.md`). | always derived |
-| `dataset_id` | id only | the dataset's self-name when the manifest provides one | null (no seedname fallback) |
+| `dataset_id` | id only | the dataset's self-name when the manifest provides one | null (no generated fallback) |
 | `dataset_hash` | hash | cheap identity (never reads image pixels or tabular cell payloads): manifest identity / canonical manifest projection or URI + size + etag/last-modified, plus backend type and declared logical tabular column names / bindings. Basis recorded in `dataset_hash_provenance` (`manifest_content` / `uri_etag` / `uri_only` fallback). `uri_only` is weak identity and does not reliably auto-invalidate stale stats caches. | always derived |
 | `dataset_content_hash` | hash | true hash over sample content: all image bytes plus tabular feature values for declared tabular columns when present; recorded separately when a content pass runs (`dojo inspect dataset --content-hash` / `--normalization`). Integrity / drift verification only — **not** the cache key, identity, or a compatibility hash | derived when a content pass runs, else null |
 | `checkpoint_hash` | hash | SHA-256 of the `.ckpt` file bytes | always derived |
-| `model_id` | id (paired with `model_hash`) | manual on export, else seedname from `model_hash` | seedname |
+| `model_id` | id (paired with `model_hash`) | manual on export, else `{coolname:model_hash}` after export bytes are hashed | `{coolname:model_hash}` |
 | `model_hash` | hash | SHA-256 of the exported `.pt` / `.onnx` file bytes | always derived |
-| `ensemble_id` | id (paired with `ensemble_hash`) | manual on ensemble, else seedname from `ensemble_hash` | seedname |
+| `ensemble_id` | id (paired with `ensemble_hash`) | manual on ensemble, else `{coolname:ensemble_hash}` after selected-ensemble identity is hashed | `{coolname:ensemble_hash}` |
 | `ensemble_hash` | hash | canonical hash of the selected-ensemble identity block (selected members + combine + selection). Candidate-audit metadata in the manifest is excluded. | always derived |
-| `sweep_id` | id (paired with `sweep_hash`) | manual, else template render (e.g. `{coolname}`); falls back to seedname from `sweep_hash` when unset | seedname or `{coolname}` |
+| `sweep_id` | id (paired with `sweep_hash`) | manual, else template render; falls back to `{coolname:sweep_hash}` when unset | `{coolname:sweep_hash}` |
 | `sweep_hash` | hash | canonical hash of sweep definition (base config + sweep axes + value lists), excluding runtime-resolved values and output paths | always derived |
 | `ensemble_member_id` | union column | for member-level rows / partitioning; member's `checkpoint_hash` (checkpoint member) or `model_id` (exported model member) | derived per-row |
 

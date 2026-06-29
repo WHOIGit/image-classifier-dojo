@@ -295,13 +295,17 @@ prepared sweep job. If an authored / composed config has a non-empty
       metadata. Exclude generated IDs, output paths, `output_root`, and
       all `*_outputs` blocks.
    4. Generate `runtime.sweep_id` once for the sweep: manual value as-is;
-      template rendered from non-generated sweep / base config fields;
-      `{coolname}` as a fresh unseeded coolname; unset value as a seedname
-      from `sweep_hash`.
+      template rendered from non-generated sweep / base config fields or
+      already-computed hash sources such as `{coolname:sweep_hash}`;
+      `{coolname:noseed}` as a fresh unseeded coolname; unset value falls
+      back to `{coolname:sweep_hash}`. Bare `{coolname}` is deterministic
+      from `runtime.seed` and is not the default.
    5. Expand the cartesian product into concrete jobs.
    6. For each job, apply that job's sweep-axis values, validate the
-      concrete config, compute `config_hash`, generate `runtime.run_id`,
-      and resolve per-run output directories in memory.
+      concrete config, compute `config_hash`, generate `runtime.run_id`
+      (default `{coolname:noseed}`; hash-seeded templates such as
+      `{coolname:config_hash}` can render because `config_hash` already
+      exists), and resolve per-run output directories in memory.
    7. Check all generated `run_id` values and resolved per-run output
       directories for collisions before writing any per-run artifacts.
       Collision errors name the affected sweep indices and suggest adding
@@ -436,9 +440,10 @@ sweep_outputs.dir/
 
 ### Sweep ID
 
-`runtime.sweep_id` may be manually set, rendered from a template (e.g.
-`{coolname}`), or fall back to a seedname from `sweep_hash`. See
-`06-results-artifacts-and-metadata.md` for the full ID / hash rules.
+`runtime.sweep_id` may be manually set, rendered from a coolname source
+template such as `{coolname:sweep_hash}`, or fall back to
+`{coolname:sweep_hash}` when unset. See `06-results-artifacts-and-metadata.md`
+for the full ID / hash rules.
 
 Result rows produced as part of a sweep carry both `sweep_id` and
 `sweep_hash` provenance columns, and may include `sweep_id` in their
@@ -448,7 +453,7 @@ Result rows produced as part of a sweep carry both `sweep_id` and
 
 ```yaml
 runtime:
-  sweep_id: "{coolname}"
+  sweep_id: "{coolname:sweep_hash}"
 
 model:
   image_input:

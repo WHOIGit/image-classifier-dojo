@@ -177,7 +177,7 @@ task:
 
 runtime:
   seed: 123
-  run_id: "{coolname}"
+  run_id: "{coolname:noseed}"
   precision: bf16-mixed
   num_workers: 8
   fast_dev_run: false
@@ -288,8 +288,13 @@ special tokens.
   `{training.batch_size}`, `{optimizer.lr}`,
   `{model.image_input.backbone.architecture.name}`.
 - **Special tokens** (not config paths):
-  - `{coolname}` — a fresh, unseeded coolname generated per render (see
-    `06-results-artifacts-and-metadata.md`).
+  - `{coolname:<source>}` — a coolname generated from an explicit seed
+    source, usually a hash such as `{coolname:config_hash}`,
+    `{coolname:model_hash}`, `{coolname:ensemble_hash}`, or
+    `{coolname:sweep_hash}`. `{coolname:noseed}` generates a fresh unseeded
+    name. Bare `{coolname}` is deterministic from `runtime.seed` and should
+    not be used for unique run directories. See
+    `06-results-artifacts-and-metadata.md`.
   - `{timestamp}` — the run's start time as a filesystem-safe string
     (e.g. `2026-06-26_14-30-05`).
   - `{job_num}` — Dojo's per-run sweep index (`sweep.active_run.index`,
@@ -318,10 +323,17 @@ A token may carry a `:spec` suffix applied to its resolved value:
 - Any standard Python format spec works normally, e.g.
   `{training.batch_size:03}` → `032` and `{optimizer.lr:.0e}` → `3e-04`.
 
-Templates resolve **after** config composition, validation, and
-runtime-value generation (so generated `run_id` / `sweep_id` /
-`ensemble_id` values are available). Use this syntax over OmegaConf
-`${...}` for string composition in configs, typically output paths. See `09-sweeps-and-batch-runs.md` for the
+For the special `{coolname:<source>}` token, the suffix names the coolname
+seed source rather than a value formatter.
+
+Template rendering has two phases. ID templates that create generated runtime
+or artifact values (`runtime.run_id`, `runtime.sweep_id`, `config_id`,
+`model_id`, `ensemble_id`) render during ID generation; if they use
+`{coolname:<hash>}`, the referenced hash is computed first and the generated
+ID does not feed back into that hash. Output/path templates render after ID
+generation, so generated `run_id` / `sweep_id` / `ensemble_id` values are
+available. Use this syntax over OmegaConf `${...}` for string composition in
+configs, typically output paths. See `09-sweeps-and-batch-runs.md` for the
 unified runtime ID and output resolution order.
 
 For ensemble runs that use `{ensemble_id}`,
@@ -344,8 +356,8 @@ A run refuses to start when its resolved output directory already contains
 content beyond prepared `config/` artifacts. The guard is **uniform** — it
 applies to every run whether the config was freshly composed or replayed
 from `--resolved-config`. Freshly composed runs rarely trip it because
-`runtime.run_id` renders a unique value per run (e.g. `{coolname}`), so each
-resolves to its own directory; replaying a *fixed* resolved config
+`runtime.run_id` renders a unique value per run (e.g. `{coolname:noseed}`), so
+each resolves to its own directory; replaying a *fixed* resolved config
 deliberately targets the same directory and is the common collision case.
 
 Two command options override the guard (see `02-cli-and-task-types.md`):
@@ -420,8 +432,8 @@ resolved-config artifacts.
 
 ```yaml
 runtime:
-  run_id: "{coolname}"
-  sweep_id: "{coolname}"
+  run_id: "{coolname:noseed}"
+  sweep_id: "{coolname:sweep_hash}"
 
 output_root: ./runs
 

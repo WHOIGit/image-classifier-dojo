@@ -10,13 +10,13 @@ referenced by every other file. When in doubt, the terms below win.
 ## Identifiers and hashes
 
 - **`run_id`** — Identifier for one `dojo train` / `dojo eval` / `dojo ensemble`
-  invocation. Either manually set, rendered from a template, or generated as a
-  fresh (unseeded) `{coolname}`. There is no `run_hash`.
+  invocation. Either manually set, rendered from a template, or generated from
+  the fresh unseeded `{coolname:noseed}` default. There is no `run_hash`.
 - **`config_id` / `config_hash`** — `config_hash` is a deterministic hash of
   the resolved config excluding runtime-resolved values, output paths,
   `output_root`, and the `*_outputs` blocks. `config_id` is either manually
-  set or generated as a **seedname** from `config_hash` (a coolname produced
-  by seeding `random.Random` with `config_hash`).
+  set or generated from `{coolname:config_hash}` after `config_hash` is
+  computed.
 - **`dataset_id` / `dataset_hash`** — `dataset_hash` is a cheap, always-available
   identity that never reads image pixels or tabular cell payloads: manifest
   identity / canonical manifest projection or URI plus size/etag/last-modified
@@ -24,7 +24,7 @@ referenced by every other file. When in doubt, the terms below win.
   included when present. Falls back to URI-only hashing with
   `dataset_hash_provenance: uri_only` when size/etag are unavailable.
   `dataset_id` is only present when the manifest provides a self-name; there is
-  no seedname fallback.
+  no generated fallback.
 - **`dataset_content_hash`** — a separate, optional true hash over sample
   content: image bytes plus declared tabular feature values when present,
   recorded only when `dojo inspect dataset` runs a content pass
@@ -36,15 +36,16 @@ referenced by every other file. When in doubt, the terms below win.
   (`{stem}.{first6_hex}.{ext}`). There is no `checkpoint_id`.
 - **`model_id` / `model_hash`** — Applies to exported portable model
   artifacts (`.pt` / `.onnx`). `model_hash` is SHA-256 of the exported file
-  bytes; `model_id` is either manual or seedname.
+  bytes; `model_id` is either manual or generated from
+  `{coolname:model_hash}`.
 - **`ensemble_id` / `ensemble_hash`** — `ensemble_hash` is canonical hash of
   the selected-ensemble identity block (selected members + selection +
   combine config), excluding candidate-audit metadata; `ensemble_id` is
-  either manual or seedname.
+  either manual or generated from `{coolname:ensemble_hash}`.
 - **`sweep_id` / `sweep_hash`** — `sweep_hash` is canonical hash of the
   sweep definition (base config + axes + value lists), excluding
   runtime-resolved values and output paths. `sweep_id` may be a template
-  render (e.g. `{coolname}`) or seedname fallback from `sweep_hash`.
+  render or fallback to `{coolname:sweep_hash}`.
 - **`ensemble_member_id`** — Union column for ensemble member-level
   result rows. Equals the member's `checkpoint_hash` (for checkpoint
   members) or `model_id` (for exported-model members). Populated only when
@@ -66,13 +67,16 @@ referenced by every other file. When in doubt, the terms below win.
   without the producing run's `resolved.yaml`. Full definition in
   `06-results-artifacts-and-metadata.md`.
 
-### Seednames vs. fresh coolnames
+### Coolname seed sources
 
-`{coolname}` as a template token expands to a **fresh** unseeded coolname per
-invocation. A **seedname** is a coolname produced by seeding
-`random.Random(*_hash)`, so the same hash always produces the same human-readable
-name. Most `*_id` fields paired with a `*_hash` fall back to seednames;
-`run_id` and `sweep_id` are exceptions that may use fresh `{coolname}` tokens.
+`{coolname:<source>}` generates a deterministic coolname from the named
+resolved value, usually a hash such as `config_hash`, `model_hash`,
+`ensemble_hash`, or `sweep_hash`. The seed material includes the source label
+as well as the value, so identical raw hash strings in different domains do
+not imply identical names. `{coolname}` without a source is deterministic from
+resolved `runtime.seed`; use `{coolname:noseed}` for a fresh unseeded name per
+invocation. Defaults use explicit sources where determinism matters and
+`{coolname:noseed}` where uniqueness matters.
 
 ### Storage and truncation
 
@@ -156,8 +160,9 @@ For any `dir` key:
 `dir_template` uses Dojo-owned `{...}` template syntax with an **open**
 token set: any dotted resolved-config path (e.g. `{experiment.name}`,
 `{runtime.run_id}`, `{training.batch_size}`) plus a fixed set of special
-tokens (`{coolname}`, `{timestamp}`, `{job_num}`, `{ensemble_id}`,
-`{source_run_dir}`, `{dataset_id}`).
+tokens (`{coolname:<source>}`, `{coolname:noseed}`, `{coolname}`,
+`{timestamp}`, `{job_num}`, `{ensemble_id}`, `{source_run_dir}`,
+`{dataset_id}`).
 Tokens may carry a `:spec` suffix — the custom `:slug` filesystem-safe
 formatter or any standard Python format spec (e.g.
 `{model.image_input.backbone.architecture.name:slug}`,
