@@ -170,8 +170,7 @@ inherits their stubbed runtime.
   behavior; S3 optional-import behavior;
   `open_bytes` / `localize` / `write_bytes` / `exists`.
 - **Transform tests** — letterbox, aspect / size buckets,
-  foreground-aware crop, grayscale repeat-to-3, normalization, DINOv2
-  multi-view transform, extreme aspect ratios, small native resolutions.
+  foreground-aware crop, grayscale repeat-to-3, `normalize`, `rotate`, flips, DINOv2 multi-view transform, extreme aspect ratios, small native resolutions.
 - **Model tests** — torchvision, timm (with `[timm]`), and checkpoint
   backbones; freeze policies; head construction; multi-head model
   composition; embedding adapter; tabular input concatenation.

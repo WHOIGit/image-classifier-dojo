@@ -25,19 +25,24 @@ Python transform modules = reusable operations
 YAML configs             = experiment/domain-specific recipes
 ```
 
-Initial transform modules:
+Canonical image transform step names:
 
 ```text
 letterbox
 aspect_bucket
 foreground_crop
 grayscale
-normalization
+normalize
 crop
 blur
 noise
-rotation
+rotate
+horizontal_flip
+vertical_flip
 ```
+
+Authored configs use these canonical `name` values. Resolved configs keep
+these same names and only materialize defaults / frozen parameters.
 
 Pipeline example:
 
@@ -71,7 +76,7 @@ transforms:
           max_aspect: 3.0
           canvas_size: [224, 448]
 
-    - name: random_rotation
+    - name: rotate
       mode: multiples_of_90
       p: 0.5
       train_only: true
@@ -134,14 +139,14 @@ resize → augment → normalize). Each step may set:
 - `enabled` — global on/off (default `true`).
 - `train_only` — when `true`, the step runs during `train` only and is
   dropped for every non-train stage (`val`, `predict`, export). Default
-  `false` (always-on). Stochastic augmentation (random rotation, flip,
+  `false` (always-on). Stochastic augmentation (`rotate`, flips,
   blur, noise) sets `train_only: true`; deterministic preprocessing
   (foreground crop, bucketed resize, normalize) leaves it `false`.
 
 A step is augmentation by **stochastic intent**, marked per step — not by
 module identity. A `crop` may be a deterministic center crop (always-on)
-or a random crop (`train_only`), and `rotation` may be a fixed or a random
-rotation; the flag, not the module, draws the line.
+or a random crop (`train_only`), and `rotate` may be a fixed rotation or a
+random rotation; the flag and parameters, not the name, draw the line.
 
 `image_mode` is a load-time channel-layout policy, not a pipeline step: it
 is singular, always-on, and defines the channel **contract** (count /
@@ -174,6 +179,9 @@ not be hand-edited. Resolved configs therefore carry both the full
 training `pipeline` and the derived `inference_pipeline`; SSL multi-view
 augmentation is configured separately under `ssl:`
 (`07-ssl-and-representation-eval.md`) and is not part of this pipeline.
+Both authored `pipeline` steps and resolved `inference_pipeline` steps use
+the same canonical step names; resolution never rewrites alternate spellings
+because alternate spellings are invalid.
 
 ### Pixel value range and bit depth
 

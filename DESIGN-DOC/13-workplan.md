@@ -98,7 +98,7 @@ sweeps are layered on top.
 ### P2.4 Transforms
 
 - Transform builder.
-- Letterbox, aspect buckets, foreground crop, grayscale, normalization.
+- Letterbox, aspect buckets, foreground crop, grayscale, `normalize`.
 - Per-step `train_only` flag and the derived, resolved-only
   `inference_pipeline` consumed by non-train stages, export, and
   `preprocessing_hash`.

@@ -354,7 +354,8 @@ resolved `inference_pipeline` (`05-models-training-and-heads.md`), which
 excludes `train_only` augmentation by construction; the full training
 `pipeline` is not hashed, and normalization, resize / bucket, and
 foreground-crop parameters are the parameters of their steps inside
-`inference_pipeline`, not separate fields.
+`inference_pipeline`, not separate fields. The `inference_pipeline` uses the
+same canonical transform step names accepted in authored configs.
 
 Tabular preprocessing comes from resolved `transforms.tabular` for the
 selected model-input features only, excluding train-only
