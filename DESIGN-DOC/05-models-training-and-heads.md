@@ -442,7 +442,7 @@ and let the head's `network: linear` consume the raw backbone embedding.
 ## Tabular input and implicit concatenation
 
 Tabular features may be useful model inputs (size descriptors, depth,
-temperature, etc.). Tabular preprocessing is configured under
+temperature, instrument id, etc.). Tabular preprocessing is configured under
 `transforms.tabular`; `model.tabular_input` declares the tabular input stream,
 the selected logical feature columns, and the tabular encoder. There is no
 `model.fusion` config block: when both image and tabular inputs are enabled,
@@ -474,6 +474,13 @@ transforms:
           fill_value: 35.0
         normalization:
           type: identity
+      instrument:
+        encoding:
+          type: one_hot
+          unknown_policy: use_unknown_token
+          unknown_token: "__UNKNOWN__"
+          missing_policy: use_missing_token
+          missing_token: "__MISSING__"
 
 model:
   image_input:
@@ -488,7 +495,7 @@ model:
   tabular_input:
     enabled: true
     name: tabular       # default input-stream name
-    columns: [depth_m, temperature_c, salinity_psu]
+    columns: [depth_m, temperature_c, salinity_psu, instrument]
     encoder:
       type: mlp
       hidden_dims: [64, 64]
@@ -551,8 +558,8 @@ missing **labels**: a missing label may drop a sample, but a missing
 feature is filled so the sample can still produce a prediction at inference
 time.
 
-`transforms.tabular` configures train-only augmentation, imputation, and
-normalization:
+`transforms.tabular` configures train-only augmentation, numeric imputation /
+normalization, and categorical encoding:
 
 - `augmentations` — optional train-only tabular perturbations. There is no
   per-augmentation `train_only` flag; this block is train-only by definition
@@ -579,33 +586,84 @@ normalization:
   clipping, winsorization, etc.), they should get an explicit field rather
   than being folded into `normalization`.
 - `add_missing_indicator` — when `true`, append one synthetic binary
-  feature per configured column marking whether the original value was
+  feature per configured numeric column marking whether the original value was
   present (`0`) or missing-and-imputed (`1`), letting the model use
   missingness as a signal. The indicator set is fixed by config (all
-  configured columns), not by which columns happen to contain nulls in a
+  configured numeric columns), not by which columns happen to contain nulls in a
   given split, so the tabular input width stays reproducible across
-  datasets. Because it widens the tabular encoder input, it is part of the
+  datasets. Categorical missingness is represented by the configured missing
+  token in the one-hot vocabulary, so no extra missing-indicator column is
+  emitted for categorical features. Because missing indicators widen the
+  tabular encoder input, they are part of the
   model architecture contract (`model_config_hash`) as well as the input
   contract.
 
-Statistic-based fill values and tabular normalization statistics are computed
-on the train split only by the dataset-stats cache producer and frozen,
-exactly like dataset image normalization mean/std. The frozen fill values,
-per-column strategy, categorical encodings, and normalization statistics are
-resolved preprocessing state: persisted in the config artifact, exported with
-portable models (`10-export.md`), and contributing to `preprocessing_hash` by
-value (`06-results-artifacts-and-metadata.md`).
+Statistic-based fill values, tabular normalization statistics, and categorical
+vocabularies are computed on the train split only by the dataset-stats cache
+producer and frozen, exactly like dataset image normalization mean/std. The
+frozen fill values, per-column strategy, categorical encodings / vocabularies,
+and normalization statistics are resolved preprocessing state: persisted in the
+config artifact, exported with portable models (`10-export.md`), and
+contributing to `preprocessing_hash` by value
+(`06-results-artifacts-and-metadata.md`).
 
 Tabular `augmentations` remain in the resolved training config for
 reproducibility and contribute to `config_hash`, but they are excluded from the
 resolved inference preprocessing contract, export metadata, and
 `preprocessing_hash`.
 
-The initial tabular input targets **numeric** features (normalization +
-imputation). The categorical-encoding schema (one-hot / learned embedding /
-ordinal) is not yet specified; it lands with the P3.6 tabular work
-(`13-workplan.md`), so the `encodings` slot in `preprocessing_hash` and
-export metadata is a reserved placeholder until then.
+### Tabular categorical features
+
+P3.6 initial categorical support is deliberately narrow: categorical features
+are transformed into one-hot numeric vectors before they reach
+`model.tabular_input.encoder`. Learned categorical embeddings, embedding bags,
+TabTransformer-style models, and other categorical-specialized encoder
+families are deferred with the expanded tabular encoder backlog
+(`appendix-deferred-features.md` P4.14).
+
+Feature type is dataset schema. `data.tabular_feature_columns` declares each
+logical feature as `type: numeric` or `type: categorical`; the string-list
+shorthand remains numeric-only (see `04-data-and-storage.md`). A categorical
+feature may configure:
+
+```yaml
+transforms:
+  tabular:
+    columns:
+      instrument:
+        encoding:
+          type: one_hot
+          unknown_policy: use_unknown_token  # error | use_unknown_token
+          unknown_token: "__UNKNOWN__"
+          missing_policy: use_missing_token  # error | use_missing_token
+          missing_token: "__MISSING__"
+```
+
+Rules:
+
+- `encoding.type: one_hot` is the only initial categorical encoding.
+- Categorical values are canonicalized to strings before fitting or lookup.
+- `dojo inspect dataset --stats` fits categorical vocabularies on the
+  training split and writes them to the dataset stats cache. Config
+  resolution reads the frozen vocabulary; infer / eval / export never refit
+  it.
+- The resolved vocabulary contains observed train-split categories in
+  deterministic sorted order, followed by `missing_token` when
+  `missing_policy: use_missing_token`, then `unknown_token` when
+  `unknown_policy: use_unknown_token`. Reserved token strings must not collide
+  with observed category strings.
+- `missing_policy: error` rejects null categorical values. `use_missing_token`
+  maps nulls to the configured missing token.
+- `unknown_policy: error` rejects inference-time categories not present in the
+  frozen vocabulary. `use_unknown_token` maps them to the configured unknown
+  token.
+- Numeric imputation / normalization fields are invalid on categorical
+  features, and categorical `encoding` is invalid on numeric features.
+- Tensor order is deterministic from `model.tabular_input.columns`: each
+  selected numeric feature emits its scalar value plus any configured numeric
+  missing indicator; each selected categorical feature emits one one-hot
+  vector in resolved vocabulary order. Config resolution materializes the
+  expanded tabular input contract and `model.tabular_input.encoder.input_dim`.
 
 ### Simple network specs
 

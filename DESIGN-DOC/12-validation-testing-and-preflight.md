@@ -150,7 +150,8 @@ validation at load.
   dependency-closure copying, fixture-data copying, and non-clobber /
   clobber behavior.
 - **Dataset tests** — CSV / Parquet / `parquet_images` / `ifcb_bins`
-  backends; multi-head targets; tabular feature extraction;
+  backends; multi-head targets; tabular feature extraction; categorical
+  vocabulary fitting and frozen one-hot lookup;
   `sample_id` / `uri` / `bin_id` / `bin_uri` propagation; mocked
   storage resolver for S3-style paths.
 - **Storage tests** — local amplify-backed storage; cache resolver
@@ -160,8 +161,8 @@ validation at load.
   foreground-aware crop, grayscale repeat-to-3, `normalize`, `rotate`, flips, DINOv2 multi-view transform, extreme aspect ratios, small native resolutions.
 - **Model tests** — torchvision, timm (with `[timm]`), checkpoint inspection
   gated by `[train]`, and checkpoint backbones; freeze policies; head
-  construction; multi-head model composition; embedding adapter; tabular input
-  concatenation.
+  construction; multi-head model composition; embedding adapter; numeric and
+  one-hot categorical tabular input concatenation.
 - **Objective / loss tests** — loss / metric compatibility per head
   type; metric registry canonical names / params / output names; objective
   shorthand; weighted total loss; resolved `objective_summary`

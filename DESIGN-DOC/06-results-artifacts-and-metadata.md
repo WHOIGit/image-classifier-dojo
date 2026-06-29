@@ -353,7 +353,7 @@ transforms:
   inference_pipeline                # resolved inference steps, ordered, with parameters
 tabular_preprocessing:
   selected_columns                  # resolved model.tabular_input.columns after default expansion
-  encodings                         # reserved for P3.6 categorical schema; empty/null for numeric-only initial support
+  encodings                         # per selected categorical feature: one_hot policy, frozen vocabulary, tokens, expanded positions
   imputation                        # per-column strategy, frozen fill values, missing-indicator set
   normalization                     # per-column type plus resolved mean/std for mean_std
 ```
@@ -377,12 +377,13 @@ schema: adding an unused available feature does not change the
 `preprocessing_hash`. Tabular augmentations affect training behavior and
 therefore `config_hash`, but they are not part of the export inference
 contract or `preprocessing_hash`. Resolved dataset statistics such as
-normalization mean/std, tabular normalization stats, and frozen tabular
-imputation fill values are included by value, not by the URI from which they
-were loaded. These resolved statistics are produced by `dojo inspect dataset`
-and cached (`04-data-and-storage.md`) — `--stats` for the manifest/header-level
-stats, `--stats --normalization` for dataset normalization mean/std — but the
-hash always uses their resolved content, never the cache location. The
+normalization mean/std, numeric tabular normalization stats, frozen tabular
+imputation fill values, and categorical vocabularies are included by value,
+not by the URI from which they were loaded. These resolved statistics are
+produced by `dojo inspect dataset` and cached (`04-data-and-storage.md`) —
+`--stats` for the manifest/header-level stats, `--stats --normalization` for
+dataset normalization mean/std — but the hash always uses their resolved
+content, never the cache location. The
 `imputation` entry captures the per-column fill strategy, the frozen fill
 values, and the missing-indicator set. The `normalization` entry captures the
 per-column normalization type (`identity` or `mean_std`) and the frozen
@@ -391,6 +392,14 @@ statistics. When `add_missing_indicator` is enabled the resulting encoder
 input width is additionally reflected in `model_config_hash` via the resolved
 `model.tabular_input.encoder.input_dim` and any downstream resolved
 concatenated / adapter dimensions (see `05-models-training-and-heads.md`).
+For categorical features, the `encodings` entry captures the resolved
+`one_hot` encoding contract by value: canonical feature name, source type,
+resolved vocabulary in tensor order, `missing_policy`, `missing_token`,
+`unknown_policy`, `unknown_token`, and the expanded tabular input positions.
+This ensures exported models and cached-result consumers agree on how raw
+category values become numeric model inputs. Adding, removing, or reordering a
+category changes `preprocessing_hash`; the resulting input width also changes
+`model_config_hash` through the resolved tabular encoder input dimension.
 
 The Pydantic schema should keep these field lists close to the relevant
 models, for example with compatibility-hash extractor methods or field

@@ -424,7 +424,7 @@ Tier 0 — manifest only (no image I/O):
 | `--class-counts` | per-class counts + frequencies | frozen |
 | `--class-map` | resolved index ↔ label mapping | frozen |
 | `--target-stats` | regression / ordinal target distribution + fitted transform stats (standardize mean / std, Box-Cox λ) | frozen |
-| `--tabular-stats` | tabular normalization stats + imputation fill values | frozen |
+| `--tabular-stats` | numeric tabular normalization stats + imputation fill values; categorical vocabularies | frozen |
 | `--imbalance` | imbalance ratio, empty-class, non-contiguous-index checks | advisory |
 
 Tier 1 — image headers only (`imagesize` / lazy open, no pixel decode):
@@ -451,8 +451,8 @@ Backend-specific:
 Compound and control flags:
 
 - `--stats` — compute the **cheap** frozen aspects (Tier 0 manifest +
-  Tier 1 header level): tabular and target stats, imputation, `class-map` /
-  `class-counts`, `dimensions`, `bit-depth`, and (`ifcb_bins`)
+  Tier 1 header level): tabular and target stats, imputation, categorical
+  vocabularies, `class-map` / `class-counts`, `dimensions`, `bit-depth`, and (`ifcb_bins`)
   `bin-lengths`. Results are displayed (per `--format`) and, when
   `data.stats_cache_uri` is configured, written to that cache; with no cache
   configured it is display-only. The decode-tier frozen aspects are **not**

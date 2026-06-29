@@ -114,6 +114,7 @@ image mode
 resize policy
 bucket definitions
 tabular feature names / order
+tabular categorical encoding specs and frozen vocabularies
 tabular encoder config and resolved input / output dimensions
 tabular normalization specs and resolved stats
 tabular imputation (per-column strategy + frozen fill values)

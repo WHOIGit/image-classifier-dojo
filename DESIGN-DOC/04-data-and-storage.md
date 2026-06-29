@@ -79,14 +79,39 @@ the available logical tabular column names / physical bindings are part of
 ### Tabular features
 
 `data.tabular_feature_columns` declares the available logical tabular
-features in the dataset. In the initial list form, each entry is both the
-logical feature name and the physical manifest column. If a future object form
-is needed, the object key remains the logical feature name and a `column`
-field binds it to the physical manifest column.
+features in the dataset. The simple list form is shorthand for numeric
+features where each entry is both the logical feature name and the physical
+manifest column:
+
+```yaml
+data:
+  tabular_feature_columns:
+    - depth_m
+    - temperature_c
+```
+
+P3.6 adds the explicit object form for categorical features. In object form,
+the mapping key is the logical feature name, `column` binds it to the physical
+manifest column, and `type` is `numeric` or `categorical`:
+
+```yaml
+data:
+  tabular_feature_columns:
+    depth_m:
+      column: depth_m
+      type: numeric
+    instrument:
+      column: instrument_id
+      type: categorical
+```
+
+String-list entries resolve to object entries with `type: numeric`.
+Categorical feature values are canonicalized to strings before vocabulary
+fitting and inference-time lookup.
 
 This block is dataset schema, not model input order and not preprocessing.
 `transforms.tabular` owns tabular preprocessing such as imputation,
-normalization, train-only augmentation, and future categorical encodings /
+normalization, train-only augmentation, categorical encoding, and future
 value transforms.
 `model.tabular_input.columns` selects the logical tabular features consumed by
 a model and fixes tensor order; every selected feature must exist in
@@ -190,14 +215,16 @@ The full aspect-flag surface (`--stats`, `--normalization`,
 
 Several resolved values are dataset-derived statistics computed once and
 frozen: image normalization mean / std (`normalize: {mode: dataset}`),
-tabular normalization stats and imputation fill values, fitted target
-transform statistics, per-class counts, the resolved class map, the
+numeric tabular normalization stats and imputation fill values, categorical
+tabular vocabularies, fitted target transform statistics, per-class counts, the
+resolved class map, the
 resolved `input_bit_depth`, per-sample native dimensions, and `ifcb_bins`
 bin lengths. `dojo inspect dataset --stats` is the **producer**. To
 stay cheap it computes only the manifest- and header-level frozen aspects —
 per-class counts and class map, fitted target / tabular stats, imputation
-fill values, per-sample dimensions, `input_bit_depth`, and `ifcb_bins` bin
-lengths — fitting on the `train` split (structural properties such as bit
+fill values, categorical vocabularies, per-sample dimensions,
+`input_bit_depth`, and `ifcb_bins` bin lengths — fitting on the `train` split
+(structural properties such as bit
 depth and bin lengths across all splits) and writing them to a stats cache.
 Image normalization mean / std is a **decode-tier** frozen aspect: it is not
 part of a bare `--stats` and is produced by `--stats --normalization` (or
@@ -219,8 +246,8 @@ etag-derived dataset identity for frozen stats.
 
 Config resolution **consumes** the stats cache; it does not produce or
 repair it. `normalize: {mode: dataset}`, tabular imputation /
-normalization, target transforms, cached `ifcb_bins` bin lengths, the
-count-dependent losses (`weighted_cross_entropy`,
+normalization / categorical vocabularies, target transforms, cached
+`ifcb_bins` bin lengths, the count-dependent losses (`weighted_cross_entropy`,
 `class_balanced_effective_number`), and the `class_balanced` sampler read
 their frozen values from the cache instead of recomputing per run. Every
 dataset-derived frozen value — including `ifcb_bins` bin lengths — lives in
@@ -288,7 +315,20 @@ sidecars referenced by URI.
     "tabular_stats": {
       "split": "train",
       "per_column": {
-        "depth_m": { "mean": 48.2, "std": 31.7, "impute": 45.0 }
+        "depth_m": {
+          "type": "numeric",
+          "mean": 48.2,
+          "std": 31.7,
+          "impute": 45.0
+        },
+        "instrument": {
+          "type": "categorical",
+          "encoding": "one_hot",
+          "observed_categories": ["IFCB101", "IFCB102"],
+          "vocabulary": ["IFCB101", "IFCB102", "__MISSING__", "__UNKNOWN__"],
+          "missing_token": "__MISSING__",
+          "unknown_token": "__UNKNOWN__"
+        }
       }
     },
     "dimensions": {
@@ -318,7 +358,8 @@ Rules:
   naming the missing aspect and the inspect command that produces it.
 - Inline aggregates (`normalization`, `bit_depth`, `class_counts`,
   `target_stats`, `tabular_stats`) are the values hashed by content into the
-  compatibility hashes; the per-sample Parquet sidecars (`dimensions`,
+  compatibility hashes; `tabular_stats` includes both numeric tabular
+  statistics and categorical vocabularies. The per-sample Parquet sidecars (`dimensions`,
   `bin_lengths`) are derivation inputs (bucket assignment, sampler lengths),
   not hash inputs.
 

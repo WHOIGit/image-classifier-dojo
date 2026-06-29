@@ -156,7 +156,7 @@ Notes:
 - `model.tabular_input` holds optional tabular model-input config:
   input-stream name, selected logical tabular features, and encoder.
   `model.tabular_input.name` defaults to `tabular`. Tabular imputation,
-  normalization, and future categorical encodings live under
+  normalization, and categorical encodings live under
   `transforms.tabular`, not under `model.tabular_input`.
 - There is no `model.fusion` config block. When both image and tabular
   inputs are enabled, Dojo concatenates their embeddings implicitly in
