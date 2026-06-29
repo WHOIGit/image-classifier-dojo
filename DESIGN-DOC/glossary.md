@@ -89,7 +89,9 @@ both exist.
 - **`storage`** — Storage resolver config (local cache dir, etc.). Peer to
   `runtime`.
 - **`data`** — Dataset backend + targets.
-- **`transforms`** — Image transform pipeline.
+- **`transforms`** — Input preprocessing: image transform pipeline plus
+  tabular preprocessing. Config resolution derives the non-train
+  `inference_pipeline` from it.
 - **`model`** — `image_input`, `tabular_input`, `embedding_adapter`,
   `heads`. `model.image_input.backbone` holds the image backbone config.
   `backbone.architecture` describes the module shape; `backbone.weights`

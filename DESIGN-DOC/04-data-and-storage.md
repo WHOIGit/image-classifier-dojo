@@ -69,6 +69,24 @@ data:
 inlines image bytes in the same Parquet file as the manifest — preferred
 for test fixtures because it avoids path-resolution combinatorics.
 
+### Tabular features
+
+`data.tabular_feature_columns` declares the available logical tabular
+features in the dataset. In the initial list form, each entry is both the
+logical feature name and the physical manifest column. If a future object form
+is needed, the object key remains the logical feature name and a `column`
+field binds it to the physical manifest column.
+
+This block is dataset schema, not model input order and not preprocessing.
+`transforms.tabular` owns tabular preprocessing such as imputation,
+normalization, train-only augmentation, and future categorical encodings /
+value transforms.
+`model.tabular_input.columns` selects the logical tabular features consumed by
+a model and fixes tensor order; every selected feature must exist in
+`data.tabular_feature_columns`. If `model.tabular_input.columns` is omitted
+while tabular input is enabled, it resolves to all declared tabular features in
+data order.
+
 ### Targets
 
 `data.targets` declares logical data targets (named keys). Heads

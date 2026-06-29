@@ -290,7 +290,7 @@ model:
         params                       # architecture params that change module shape / forward behavior
   tabular_input:
     enabled
-    columns
+    columns                         # selected logical features in tensor order
     encoder                         # type, input_dim, output_dim, hidden_dims, activation
   embedding_adapter:
     enabled
@@ -324,48 +324,59 @@ shapes nor the inference forward function: `model.image_input.backbone.weights`
 (training-only regularization). `activation` is retained because it changes
 inference outputs even though it is stateless.
 
+`model.tabular_input.columns` is retained because it maps tabular encoder
+input positions to feature semantics; changing the selected features or their
+order changes the inference function even when the tensor width is unchanged.
+Available-but-unused tabular features from `data.tabular_feature_columns` are
+not part of `model_config_hash`.
+
 `preprocessing_hash` source fields:
 
 ```text
 version: "1"
-data:
-  tabular_feature_columns
 transforms:
   image_mode
   input_bit_depth                   # resolved integer (auto resolves to 8/12/16); [0,1] scaling divisor
   inference_pipeline                # resolved inference steps, ordered, with parameters
 tabular_preprocessing:
-  columns
+  selected_columns                  # resolved model.tabular_input.columns after default expansion
   encodings                         # reserved for P3.6 categorical schema; empty/null for numeric-only initial support
   imputation                        # per-column strategy, frozen fill values, missing-indicator set
-  normalization_stats
+  normalization                     # per-column type plus resolved mean/std for mean_std
 ```
 
 Only inference-time preprocessing belongs in `preprocessing_hash`. Manifest
 column-name bindings (`image_uri_column`, `sample_id_column`,
 `split_column`) and the storage `backend` are excluded: they locate a
 sample, they do not transform it, so they must not make otherwise-identical
-input contracts hash differently. Image transform steps come solely from
-the resolved `inference_pipeline`
-(`05-models-training-and-heads.md`), which excludes `train_only`
-augmentation by construction; the full training `pipeline` is not hashed,
-and normalization, resize / bucket, and foreground-crop parameters are the
-parameters of their steps inside `inference_pipeline`, not separate fields.
-Resolved dataset statistics such as
+input contracts hash differently. Image transform steps come solely from the
+resolved `inference_pipeline` (`05-models-training-and-heads.md`), which
+excludes `train_only` augmentation by construction; the full training
+`pipeline` is not hashed, and normalization, resize / bucket, and
+foreground-crop parameters are the parameters of their steps inside
+`inference_pipeline`, not separate fields.
+
+Tabular preprocessing comes from resolved `transforms.tabular` for the
+selected model-input features only, excluding train-only
+`transforms.tabular.augmentations`. `data.tabular_feature_columns` is dataset
+schema: adding an unused available feature does not change the
+`preprocessing_hash`. Tabular augmentations affect training behavior and
+therefore `config_hash`, but they are not part of the export inference
+contract or `preprocessing_hash`. Resolved dataset statistics such as
 normalization mean/std, tabular normalization stats, and frozen tabular
-imputation fill values are included by value, not by the URI from which
-they were loaded. These resolved statistics are produced by
-`dojo inspect dataset` and cached (`04-data-and-storage.md`) — `--stats` for
-the manifest/header-level stats, `--stats --normalization` for dataset
-normalization mean/std — but the hash always uses their resolved content,
-never the cache location. The
-`imputation` entry captures the per-column fill
-strategy, the frozen fill values, and the missing-indicator set; when
-`add_missing_indicator` is enabled the resulting encoder input width is
-additionally reflected in `model_config_hash` via the resolved
+imputation fill values are included by value, not by the URI from which they
+were loaded. These resolved statistics are produced by `dojo inspect dataset`
+and cached (`04-data-and-storage.md`) — `--stats` for the manifest/header-level
+stats, `--stats --normalization` for dataset normalization mean/std — but the
+hash always uses their resolved content, never the cache location. The
+`imputation` entry captures the per-column fill strategy, the frozen fill
+values, and the missing-indicator set. The `normalization` entry captures the
+per-column normalization type (`identity` or `mean_std`) and the frozen
+train-split `mean` / `std` values for `mean_std`; `identity` carries no fitted
+statistics. When `add_missing_indicator` is enabled the resulting encoder
+input width is additionally reflected in `model_config_hash` via the resolved
 `model.tabular_input.encoder.input_dim` and any downstream resolved
-concatenated / adapter dimensions (see
-`05-models-training-and-heads.md`).
+concatenated / adapter dimensions (see `05-models-training-and-heads.md`).
 
 The Pydantic schema should keep these field lists close to the relevant
 models, for example with compatibility-hash extractor methods or field
@@ -704,7 +715,6 @@ and head mappings.
     "preprocessing_hash": "sha256:...",
     "preprocessing_source": {
       "version": "1",
-      "data": {},
       "transforms": {},
       "tabular_preprocessing": {}
     }

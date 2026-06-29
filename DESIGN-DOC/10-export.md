@@ -115,7 +115,7 @@ resize policy
 bucket definitions
 tabular feature names / order
 tabular encoder config and resolved input / output dimensions
-tabular normalization stats
+tabular normalization specs and resolved stats
 tabular imputation (per-column strategy + frozen fill values)
 tabular missing-indicator columns (when enabled)
 model input names and implicit concatenation order

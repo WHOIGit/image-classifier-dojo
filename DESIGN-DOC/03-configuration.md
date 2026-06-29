@@ -121,6 +121,9 @@ Notes:
   `runtime`.
 - `optimizer`, `scheduler`, `checkpointing` are top-level peers of
   `training`.
+- `transforms` owns input preprocessing: the image pipeline plus tabular
+  preprocessing. Config compilation derives resolved inference-time
+  preprocessing from it.
 - `model.image_input` holds the required image model-input config.
   `model.image_input.name` names the image input stream and defaults to
   `image`.
@@ -130,8 +133,11 @@ Notes:
   `model.image_input.backbone.architecture.name` is the architecture
   selector (`resnet50`, `vit_small_patch16_224`, etc.) and must not be
   reused as the input-stream name.
-- `model.tabular_input` holds optional tabular model-input config.
-  `model.tabular_input.name` defaults to `tabular`.
+- `model.tabular_input` holds optional tabular model-input config:
+  input-stream name, selected logical tabular features, and encoder.
+  `model.tabular_input.name` defaults to `tabular`. Tabular imputation,
+  normalization, and future categorical encodings live under
+  `transforms.tabular`, not under `model.tabular_input`.
 - There is no `model.fusion` config block. When both image and tabular
   inputs are enabled, Dojo concatenates their embeddings implicitly in
   canonical input order: image first, tabular second. With one enabled

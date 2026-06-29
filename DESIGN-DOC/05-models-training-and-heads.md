@@ -16,6 +16,10 @@ training.
 Avoid hard-coding domain-specific transform modules where YAML
 composition can express the behavior.
 
+In this section, `transforms.pipeline` is the **image** pipeline. Tabular
+preprocessing uses the separate `transforms.tabular` block defined in
+"Tabular input and implicit concatenation" below.
+
 ```text
 Python transform modules = reusable operations
 YAML configs             = experiment/domain-specific recipes
@@ -430,13 +434,39 @@ and let the head's `network: linear` consume the raw backbone embedding.
 ## Tabular input and implicit concatenation
 
 Tabular features may be useful model inputs (size descriptors, depth,
-temperature, etc.). Tabular preprocessing and encoding are configured
-under `model.tabular_input`. There is no `model.fusion` config block:
-when both image and tabular inputs are enabled, Dojo concatenates their
-embeddings implicitly in canonical input order, image first and tabular
-second.
+temperature, etc.). Tabular preprocessing is configured under
+`transforms.tabular`; `model.tabular_input` declares the tabular input stream,
+the selected logical feature columns, and the tabular encoder. There is no
+`model.fusion` config block: when both image and tabular inputs are enabled,
+Dojo concatenates their embeddings implicitly in canonical input order, image
+first and tabular second.
 
 ```yaml
+transforms:
+  tabular:
+    add_missing_indicator: true
+    augmentations:
+      - name: random_missing
+        columns: [depth_m, temperature_c]
+        p: 0.05
+    columns:
+      depth_m:
+        imputation:
+          strategy: median              # statistic can come from the stats cache
+        normalization:
+          type: mean_std                # resolved config adds mean/std from the stats cache
+      temperature_c:
+        imputation:
+          strategy: median
+        normalization:
+          type: mean_std
+      salinity_psu:
+        imputation:
+          strategy: constant
+          fill_value: 35.0
+        normalization:
+          type: identity
+
 model:
   image_input:
     name: image         # default input-stream name
@@ -451,14 +481,6 @@ model:
     enabled: true
     name: tabular       # default input-stream name
     columns: [depth_m, temperature_c, salinity_psu]
-    imputation:
-      default:
-        strategy: median              # train-split statistic, frozen at fit time
-      per_column:
-        salinity_psu:
-          strategy: constant
-          fill_value: 35.0
-      add_missing_indicator: false
     encoder:
       type: mlp
       hidden_dims: [64, 64]
@@ -480,6 +502,14 @@ model:
 and tabular input is optional; tabular-only model schema is deferred to
 P4.13.
 
+`model.tabular_input.columns` names logical tabular features declared in
+`data.tabular_feature_columns`, after `transforms.tabular` preprocessing. It
+selects the subset consumed by the model and fixes tensor order. If omitted
+while tabular input is enabled, config resolution expands it to all declared
+tabular features in data order. Resolved configs materialize the final ordered
+tabular input contract, including missing-indicator columns and the derived
+`model.tabular_input.encoder.input_dim`.
+
 If only image input is enabled, the backbone embedding flows directly to
 the optional `embedding_adapter`. If image and tabular inputs are enabled,
 Dojo concatenates the two embeddings along the feature dimension in fixed
@@ -499,8 +529,8 @@ image_embedding + tabular_embedding → implicit concat → fused_input_embeddin
 ```
 
 Exported model artifacts must include tabular feature names, ordering,
-input-stream names, encodings, normalization statistics, imputation fill
-values, and implicit concatenation order (see `10-export.md`).
+input-stream names, encodings, normalization specs / statistics, imputation
+fill values, and implicit concatenation order (see `10-export.md`).
 
 ### Tabular missing values
 
@@ -513,12 +543,33 @@ missing **labels**: a missing label may drop a sample, but a missing
 feature is filled so the sample can still produce a prediction at inference
 time.
 
-`model.tabular_input.imputation` configures the fill:
+`transforms.tabular` configures train-only augmentation, imputation, and
+normalization:
 
-- `default.strategy` — rule applied to every column without an override:
-  `mean`, `median`, or `most_frequent` (computed on the train split and
-  frozen), or `constant` with an explicit `fill_value`.
-- `per_column.<col>` — per-column override of `strategy` / `fill_value`.
+- `augmentations` — optional train-only tabular perturbations. There is no
+  per-augmentation `train_only` flag; this block is train-only by definition
+  and is dropped from non-train stages and export inference metadata.
+- initial augmentation: `random_missing`, which masks observed values to
+  missing before imputation. It accepts `columns` and per-value probability
+  `p`; masked values then flow through the same imputation and
+  missing-indicator path as real missing values.
+
+- per-column `imputation.strategy` — `mean`, `median`, or `most_frequent`
+  (computed on the train split by `dojo inspect dataset --stats` and frozen),
+  or `constant` with an explicit `fill_value`.
+- authored configs may provide defaults plus per-column overrides, but
+  resolved configs materialize the concrete strategy / fill value for every
+  selected feature.
+- per-column `normalization.type` — `identity` leaves the imputed value
+  unchanged; `mean_std` standardizes as `(x - mean) / std` using train-split
+  statistics from the stats cache. Authored configs name the normalization
+  type; resolved configs materialize the frozen `mean` / `std` values for
+  `mean_std`.
+- `mean_std` is the canonical enum spelling. Do not use `mean-std`.
+- Tabular `normalization` is scalar numeric scaling, not a general ordered
+  transform chain. If broader value transforms are added later (`log1p`,
+  clipping, winsorization, etc.), they should get an explicit field rather
+  than being folded into `normalization`.
 - `add_missing_indicator` — when `true`, append one synthetic binary
   feature per configured column marking whether the original value was
   present (`0`) or missing-and-imputed (`1`), letting the model use
@@ -529,12 +580,18 @@ time.
   model architecture contract (`model_config_hash`) as well as the input
   contract.
 
-Statistic-based fill values are computed on the train split only and
-frozen, exactly like normalization mean/std. The frozen fill values,
-per-column strategy, categorical encodings, and normalization statistics
-are resolved preprocessing state: persisted in the config artifact,
-exported with portable models (`10-export.md`), and contributing to
-`preprocessing_hash` by value (`06-results-artifacts-and-metadata.md`).
+Statistic-based fill values and tabular normalization statistics are computed
+on the train split only by the dataset-stats cache producer and frozen,
+exactly like dataset image normalization mean/std. The frozen fill values,
+per-column strategy, categorical encodings, and normalization statistics are
+resolved preprocessing state: persisted in the config artifact, exported with
+portable models (`10-export.md`), and contributing to `preprocessing_hash` by
+value (`06-results-artifacts-and-metadata.md`).
+
+Tabular `augmentations` remain in the resolved training config for
+reproducibility and contribute to `config_hash`, but they are excluded from the
+resolved inference preprocessing contract, export metadata, and
+`preprocessing_hash`.
 
 The initial tabular input targets **numeric** features (normalization +
 imputation). The categorical-encoding schema (one-hot / learned embedding /
