@@ -5,8 +5,9 @@
 
 Defines layered validation (Pydantic, `dojo inspect config`, dataset
 preflight, runtime validation), `runtime.preflight` controls, the
-testing policy for deferred features (one `NotImplementedError` test
-per stubbed runtime path), and the functional-feature testing scope.
+strict-schema policy for deferred features (they are absent from the
+schema and fail generic validation), and the functional-feature testing
+scope.
 
 ## Layered validation
 
@@ -78,56 +79,41 @@ found batch size feeds `training.batch_size` for the run.
 Early stopping is a training-loop behavior under `training:`, not
 `runtime:` (see `05-models-training-and-heads.md`).
 
-## Testing policy for deferred features
+## Policy for deferred features
 
-For features that are stubbed in the initial implementation, tests
-assert the stub behavior and nothing else. **The stub itself is the
-contract.**
+Deferred features are **absent from the schema**, not stubbed. The
+Pydantic config models are strict (`extra="forbid"`), and enum /
+discriminated-union fields list only implemented values, so configuring
+a deferred feature fails generic validation at config load — exactly as
+a typo or nonsense key would. There are no reserved-but-inert config
+slots and no runtime `NotImplementedError` stubs.
 
-Each stubbed runtime path has **exactly one** test that:
+Deferred features therefore carry **no per-feature test obligation**. The
+whole class is covered by a small number of generic strict-schema tests:
 
-1. constructs a config that exercises the deferred feature;
-2. invokes the runtime path;
-3. asserts a `NotImplementedError` is raised;
-4. asserts the error message names the deferred feature and points at
-   the deferred-feature backlog.
+1. an unknown key anywhere in the tree is rejected (`extra="forbid"`);
+2. an out-of-enum value / unknown discriminated-union tag is rejected,
+   and the error lists the implemented values.
 
-Stubbed features get **no** schema-only tests, **no** inspect-output
-enumeration tests, and **no** scaffolded runtime tests.
+The generic validation error names the offending key or value only; it
+does **not** advertise the feature as planned. The deferred roadmap lives
+in `appendix-deferred-features.md` and `13-workplan.md`, never in the
+running schema. When a deferred feature is built, its value is added to
+the schema and gains real functional tests; nothing feature-specific
+needs to be deleted first.
 
-When a deferred feature is later unstubbed, the stub-assertion test is
-deleted and replaced with real functional tests.
+The one validation message that stays curated is for **invalid
+combinations of implemented features** (incompatible head / loss pairs,
+bad objective references, invalid dataset columns); those are real
+current contract and keep their specific messages.
 
-### Stubbed features in the initial implementation
+Two deferred entries are not config tokens and so are handled in kind:
+deprecated-package removal (P4.8) is a cleanup milestone with a
+no-imports verification obligation, and the `majority_vote`
+probability-mass tie-break (P4.12) is an enhancement to functional
+behavior. Neither is a stub.
 
-- Bayesian / AutoML HPO (`sweep.mode: bayesian`).
-- Multilabel support (`model.heads.<name>.type:
-  multilabel_classification`).
-- Aim logger sink (`training_outputs.logging.sinks[].type: aim`). Only
-  the `local` sink is functional; metrics and figures are recorded
-  locally for the foreseeable future.
-- MLflow logger sink (`training_outputs.logging.sinks[].type: mlflow`).
-- Non-`dino_v2` SSL methods (`ssl.method: simclr | vicreg | pmsn |
-  dino`).
-- Weight-space ensembles (model soup, greedy soup, uniform soup, SWA,
-  EMA).
-- Weighted ensemble combine modes (weighted logits / probabilities /
-  vote / mean).
-- `prediction_trimmed_mean`.
-- HDF / HDF5 result exports.
-- WebDataset dataset backend.
-- Broad automatic registry-based cross-run candidate discovery.
-
-Deprecated package removal is a P4 cleanup milestone, not a runtime stub,
-so it does not have a `NotImplementedError` test. Tabular-only modeling,
-expanded tabular encoder families, and the `distributional_regression` /
-`count_regression` heads are schema backlog items: the initial schema
-rejects them clearly rather than accepting unstable config slots that
-later fail at runtime.
-
-See `appendix-deferred-features.md` for the full deferred backlog,
-including which entries are runtime stubs versus schema / cleanup
-backlog items.
+See `appendix-deferred-features.md` for the full deferred backlog.
 
 ## Functional features get full functional tests
 
@@ -150,9 +136,10 @@ When the relevant extra is installed:
   source).
 
 The `local` sink is the only functional logging sink, so functional
-logging tests exercise `local` alone. Multi-sink composition is
-supported structurally, but any config involving `aim` or `mlflow`
-inherits their stubbed runtime.
+logging tests exercise `local` alone. Multi-sink composition is supported
+structurally (`CompositeExperimentLogger`), but `aim` and `mlflow` are
+not registered sink types — a config naming either fails schema
+validation at load.
 
 ## Test scope by area
 
@@ -189,8 +176,8 @@ inherits their stubbed runtime.
   combine modes; cached-result and live-inference paths.
 - **Export tests** — TorchScript and ONNX exports; metadata embedding;
   holdout-eval scorer reconstruction from the embedded inference contract.
-- **Logging tests** — `local` functional; Aim and MLflow
-  stub-assertions.
+- **Logging tests** — `local` functional; configs naming `aim` or
+  `mlflow` sinks rejected at schema validation.
 
 ## Test fixtures
 
@@ -218,7 +205,7 @@ Integration tests consume Tier 1 fixtures exclusively.
 - `03-configuration.md` — `runtime:` block placement.
 - `04-data-and-storage.md` — dataset preflight checks.
 - `06-results-artifacts-and-metadata.md` — logging-sink behavior.
-- `appendix-deferred-features.md` — deferred runtime stubs, schema
-  backlog items, and cleanup milestones.
+- `appendix-deferred-features.md` — deferred-feature backlog (absent
+  from the schema) and the P4.8 cleanup milestone.
 - `11-dependencies.md` — extras gate which functional tests run.
 - `glossary.md` — preflight / runtime vocabulary.

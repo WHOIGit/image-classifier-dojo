@@ -10,8 +10,8 @@ canonical decisions in `03-configuration.md`,
 `08-ensembles.md`, `09-sweeps-and-batch-runs.md`, `10-export.md`,
 `11-dependencies.md`, `12-validation-testing-and-preflight.md`, and
 `13-workplan.md`. It is populated according to the priority order in the
-workplan; modules shown here may start as stubs or remain unimplemented
-until their priority is reached.
+workplan; modules shown here may be added incrementally and remain
+unimplemented until their priority is reached.
 
 This is intent, not contract. Implementers may collapse, split, or
 rename leaf modules to fit emergent code shape; the *areas of
@@ -58,8 +58,7 @@ configs/
       grid_lr_wd.yaml
       batch_seed_5.yaml
       ensemble_axis_sweep.yaml
-      bayesian_optuna_stub.yaml
-      
+
   data/
     csv_local.yaml
     csv_s3.yaml
@@ -134,7 +133,6 @@ configs/
     disabled.yaml
     grid.yaml
     batch_seed_5.yaml              # grid sweep over runtime.seed only
-    bayesian_optuna_stub.yaml      # schema present; runtime stubbed
 
   training_outputs/
     default.yaml
@@ -164,9 +162,7 @@ configs/
     onnx_model.yaml
 
   logging/
-    local.yaml                 # only functional sink
-    # aim.yaml is provided but stubbed at runtime
-    # mlflow.yaml is provided but stubbed at runtime
+    local.yaml                 # only registered sink
 ```
 
 No `task/` config group — `task.type` is set in the experiment config.
@@ -445,9 +441,7 @@ src/dojo/
     __init__.py
     base.py
     factory.py                   # multi-sink composition
-    local.py                     # functional (only functional sink)
-    aim.py                       # stubbed; raises NotImplementedError at runtime
-    mlflow.py                    # stubbed; raises NotImplementedError at runtime
+    local.py                     # functional (only registered sink)
 
   runtime/
     __init__.py
@@ -534,19 +528,6 @@ tests/
     test_export_onnx.py
     test_sweep_expansion_config.py
     test_sweep_outputs.py
-
-  deferred_stubs/                # NotImplementedError contract tests
-    test_bayesian_hpo_stub.py
-    test_multilabel_stub.py
-    test_aim_logger_stub.py
-    test_mlflow_logger_stub.py
-    test_non_dinov2_ssl_stubs.py
-    test_weight_space_ensemble_stubs.py
-    test_weighted_combine_stubs.py
-    test_prediction_trimmed_mean_stub.py
-    test_hdf_export_stub.py
-    test_webdataset_backend_stub.py
-    test_registry_discovery_stub.py
 ```
 
 ## Notes on key directories
@@ -555,7 +536,12 @@ tests/
 
 Pydantic is the single source of truth for the config tree
 (`03-configuration.md`). The CLI loads Hydra-composed configs and
-validates them through `config_schemas.root`. Hashing rules and the
+validates them through `config_schemas.root`. The models are strict
+(`extra="forbid"`) and enums list only implemented values, so unknown
+keys and out-of-enum / unknown-tag values — including any deferred
+feature — fail generic validation at load; that behavior is covered by
+generic tests in `tests/unit/config_schemas/`, not per-feature stub
+tests. Hashing rules and the
 canonical-JSON canonicalizer both live in `config_schemas/hashing.py`,
 next to the schemas they consume, so field-level hash inclusion rules and
 the canonicalizer stay co-located with the field definitions.
@@ -645,5 +631,5 @@ from the supervised task).
 - `12-validation-testing-and-preflight.md` — `runtime/preflight.py` and
   the `tests/` tree.
 - `13-workplan.md` — priority order for populating this tree.
-- `appendix-deferred-features.md` — runtime paths deliberately stubbed
-  until promoted into active work.
+- `appendix-deferred-features.md` — deferred features absent from the
+  strict schema until promoted into active work.

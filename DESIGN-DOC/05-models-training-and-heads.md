@@ -646,25 +646,25 @@ metrics, weight). Heads do **not** own loss config.
 ```text
 multiclass_classification
 binary_classification
-multilabel_classification          # reserved; runtime-stubbed in initial implementation
+multilabel_classification          # deferred — see appendix P4.2 (not a schema member)
 regression
 ordinal_classification             # head predicts a discrete ordered bin
 distributional_regression          # deferred — see appendix P4.9
 count_regression                   # deferred — see appendix P4.9
 ```
 
-`multilabel_classification` is reserved for true multi-hot multilabel
-problems. The schema slot is present, but runtime support is deferred and
-raises `NotImplementedError` in the initial implementation (see
-`appendix-deferred-features.md` P4.2). The old `multilabel` module (which
-was actually multi-head multiclass) is not ported. Multi-head multiclass
-uses one `multiclass_classification` head per target. The old module is
-preserved under `dojo_deprecated` for reference.
+`multilabel_classification` is for true multi-hot multilabel problems. It
+is **deferred and not a member of the head-type union** in the initial
+implementation, so authoring it fails schema validation as an unknown
+head type (see `appendix-deferred-features.md` P4.2). The old `multilabel`
+module (which was actually multi-head multiclass) is not ported.
+Multi-head multiclass uses one `multiclass_classification` head per
+target. The old module is preserved under `dojo_deprecated` for reference.
 
-`distributional_regression` and `count_regression` are **deferred
-schema-backlog** head types in the initial implementation: the initial
-schema rejects them with a clear validation error (they are not accepted
-and then stubbed at runtime). Neither has a result record type yet
+`distributional_regression` and `count_regression` are **deferred** head
+types in the initial implementation: they are not members of the
+head-type union, so authoring either fails schema validation as an
+unknown head type. Neither has a result record type yet
 (`06-results-artifacts-and-metadata.md` defines no `distributional_output`
 / `count_output`), and their dedicated losses (`gaussian_nll`,
 `negative_binomial_nll`, `poisson_nll`) are deferred with them. Plain
@@ -711,7 +711,7 @@ Initial supported head network types:
 | --- | --- | --- |
 | `multiclass_classification` | `linear`, `mlp` | `linear` |
 | `binary_classification` | `linear`, `mlp` | `linear` |
-| `multilabel_classification` (runtime-stubbed, P4.2) | `linear`, `mlp` | `linear` |
+| `multilabel_classification` (deferred, P4.2) | `linear`, `mlp` | `linear` |
 | `regression` | `linear`, `mlp` | `linear` |
 | `ordinal_classification` | `linear`, `mlp` | `linear` |
 | `distributional_regression` (deferred, P4.9) | `linear`, `mlp` | `linear` |

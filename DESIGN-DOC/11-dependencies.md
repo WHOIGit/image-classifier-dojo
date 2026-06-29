@@ -14,10 +14,10 @@ reading) from extras gated by functional area.
   introspection **without requiring Torch**. Inspecting Lightning `.ckpt`
   files requires the Torch stack.
 - Training, SSL, ONNX, and IFCB support live behind extras. Logging
-  sinks other than `local` (Aim, MLflow) are deferred / stubbed at
-  runtime; metrics and figures are recorded locally for the foreseeable
-  future. The `aim` extra is commented out (undeliverable on current
-  Python) and no `mlflow` extra is currently declared.
+  sinks other than `local` (Aim, MLflow) are deferred and not registered
+  sink types; metrics and figures are recorded locally for the
+  foreseeable future. The `aim` extra is commented out (undeliverable on
+  current Python) and no `mlflow` extra is currently declared.
 - `amplify-db-utils` and `amplify-storage-utils` are core dependencies.
 
 ## Base dependencies
@@ -73,9 +73,9 @@ repr_eval = [
   "scikit-learn",
 ]
 
-# aim extra is defined but its runtime is stubbed and it is currently
-# undeliverable on Python 3.13/3.14 (aimrocks has no wheel), so it is
-# commented out in pyproject.toml and excluded from `all`.
+# aim extra is defined but the sink is deferred (not a registered sink
+# type) and it is currently undeliverable on Python 3.13/3.14 (aimrocks
+# has no wheel), so it is commented out and excluded from `all`.
 # aim = ["aim"]
 onnx = ["onnx", "onnxruntime-gpu"]
 
@@ -102,9 +102,9 @@ Notes on the current `pyproject.toml` state:
   conflicting pinned `amplify-storage-utils` reference).
 - `onnx` uses `onnxruntime-gpu`.
 - The `mlflow` extra and a standalone `s3` extra are **not currently
-  declared**. MLflow remains a deferred logger sink (schema present;
-  see `appendix-deferred-features.md`); its extra can be re-added when
-  the runtime is unstubbed. S3 capability rides along with the git
+  declared**. MLflow remains a deferred logger sink (not a registered
+  sink type; see `appendix-deferred-features.md`); its extra can be added
+  when the sink is built. S3 capability rides along with the git
   `amplify-storage-utils` dependency rather than a separate extra.
 
 ### Extra purpose summary
@@ -126,15 +126,15 @@ Notes on the current `pyproject.toml` state:
 - `repr_eval` — UMAP, HDBSCAN, and scikit-learn for representation
   evaluation (projections, clustering, linear / ridge probes, baseline
   metrics). Usable against supervised encoders, not SSL-only.
-- `aim` — Aim logger sink (schema present; **runtime stubbed** — see
+- `aim` — Aim logger sink, deferred (**not a registered sink type** — see
   `appendix-deferred-features.md`). For the foreseeable future only the
   `local` sink is functional; metrics and figures are recorded locally.
   The `aim` extra is additionally undeliverable on current Python
   (`aimrocks` ships no 3.13/3.14 wheel) and is commented out in
   `pyproject.toml`.
-- `mlflow` — MLflow logger sink, deferred (schema present; runtime
-  stubbed — see `appendix-deferred-features.md`). **No extra is
-  currently declared** in `pyproject.toml`; re-add when unstubbed.
+- `mlflow` — MLflow logger sink, deferred (**not a registered sink type**
+  — see `appendix-deferred-features.md`). **No extra is currently
+  declared** in `pyproject.toml`; add it when the sink is built.
 - `onnx` — ONNX export and runtime (`onnxruntime-gpu`).
 - *(no standalone `s3` extra)* — S3 storage capability comes through the
   base `amplify-storage-utils` git dependency rather than a separate

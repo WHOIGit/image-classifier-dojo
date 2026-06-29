@@ -70,7 +70,7 @@ sweeps are layered on top.
   acting as the cheapest gate against bad data.
 - `dojo inspect backbone` and `dojo inspect checkpoint`.
 - Composite logger abstraction: `local` functional; Aim and MLflow
-  stubbed.
+  deferred (not registered sink types).
 
 ### P2.2 Dataset backends
 
@@ -184,12 +184,11 @@ Needed for downstream serving and for ensembling exported models.
 
 ## Priority 4 — Deferred backlog
 
-These features are lower priority. Runtime-deferred features are
-represented as explicit stubs with `NotImplementedError` contracts until
-they are promoted into active work. Schema backlog, cleanup, and
-enhancement items name their validation or verification obligation
-instead. See `appendix-deferred-features.md` for the deferred-feature
-obligations.
+These features are lower priority. Deferred features are **absent from
+the strict schema** until promoted into active work, so configuring one
+fails generic validation — there are no `NotImplementedError` stubs or
+reserved slots. Cleanup and enhancement items name their verification
+obligation instead. See `appendix-deferred-features.md`.
 
 - P4.1 Bayesian sweeps.
 - P4.2 Multilabel support: one classifier head can emit several
@@ -208,9 +207,9 @@ obligations.
 - P4.12 `majority_vote` probability-mass tie-break: when members carry
   `probabilities`, break vote ties by highest summed member probability
   across the tied classes (falling back to lowest class index). An
-  enhancement to the functional lowest-index tie-break, not a
-  `NotImplementedError` stub, so it carries no stub-test obligation and
-  has no `appendix-deferred-features.md` entry.
+  enhancement to the functional lowest-index tie-break, not a deferred
+  config token, so it carries no obligation and has no
+  `appendix-deferred-features.md` entry.
 - P4.13 Tabular-only model schema.
 - P4.14 Expanded tabular encoder families beyond `identity`, `linear`,
   and `mlp` (`tab_transformer`, `ft_transformer`, `tabnet`,
@@ -258,7 +257,7 @@ deleted (the P4.8 cleanup milestone).
 - `09-sweeps-and-batch-runs.md` — grid sweeps, batch-run-style seed
   sweeps, and sweep outputs.
 - `11-dependencies.md` — base install and extras.
-- `12-validation-testing-and-preflight.md` — validation and stub-test
-  policy.
-- `appendix-deferred-features.md` — deferred runtime stubs, schema
-  backlog items, and cleanup milestones.
+- `12-validation-testing-and-preflight.md` — validation and strict-schema
+  deferral policy.
+- `appendix-deferred-features.md` — deferred-feature backlog (absent from
+  the strict schema) and the P4.8 cleanup milestone.

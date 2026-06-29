@@ -5,7 +5,7 @@
 
 Defines config-defined sweeps (Dojo-owned expansion over the Hydra
 Compose API), batch-run-style grid sweeps, deferred Bayesian / AutoML
-sweep schema, and the `sweep_outputs:` block. Sweeps
+HPO, and the `sweep_outputs:` block. Sweeps
 can explore training hyperparameters, ensemble strategy / combine-mode
 combinations, random-seed sensitivity, or feed candidate manifests into
 a subsequent ensembling step. Bayesian / AutoML HPO is deferred.
@@ -110,8 +110,10 @@ sweep:
 `sweep.mode` values:
 
 - `grid` — functional; explicit cartesian product over parameter lists.
-- `bayesian` — schema slot only in the initial implementation; runtime
-  raises `NotImplementedError`.
+
+`bayesian` is deferred and **not a schema value**: authoring
+`sweep.mode: bayesian` fails validation as an out-of-enum value (see
+`appendix-deferred-features.md` P4.1).
 
 `sweep.execution.mode` values:
 
@@ -235,48 +237,15 @@ sweep:
       model.image_input.backbone.architecture.name: convnext_tiny
 ```
 
-### Bayesian sweep schema
+### Bayesian sweep (deferred)
 
-Bayesian / AutoML HPO is deferred. The schema slot is reserved so config
-shape has a clear destination when the runtime is later implemented:
-
-```yaml
-sweep:
-  mode: bayesian
-  conflict_policy: default
-  bayesian:
-    engine: optuna
-    metric: val/loss
-    mode: min
-    max_trials: 50
-    sampler: tpe
-    params:
-      optimizer.lr:
-        type: float
-        low: 1.0e-5
-        high: 1.0e-3
-        log: true
-      optimizer.weight_decay:
-        type: float
-        low: 0.0
-        high: 0.1
-      training.batch_size:
-        type: categorical
-        values: [16, 32, 64]
-      model.image_input.backbone.architecture.name:
-        type: categorical
-        values: [resnet50, convnext_tiny, efficientnet_b0]
-```
-
-Initial Bayesian parameter types:
-
-- `categorical` — explicit `values`.
-- `int` — `low`, `high`, optional `step`, optional `log`.
-- `float` — `low`, `high`, optional `step`, optional `log`.
-- `bool` — boolean choice.
-
-Runtime support for `mode: bayesian` raises `NotImplementedError` in the
-initial implementation; see `appendix-deferred-features.md`.
+Bayesian / AutoML HPO is deferred and **not represented in the schema**:
+`bayesian` is not a `sweep.mode` value and there is no `sweep.bayesian`
+block, so authoring either fails generic validation at load (out-of-enum
+value / unknown key). The eventual config shape — engine, metric,
+sampler, trial budget, and a per-parameter search space — is sketched in
+`appendix-deferred-features.md` (P4.1) and lands with the schema when the
+runtime is built.
 
 ## Sweep preparation, training, status, and reporting order
 
@@ -288,8 +257,8 @@ prepared sweep job. If an authored / composed config has a non-empty
 1. **Prepare the sweep with `dojo sweep prepare`**
    1. Compose the authored config and CLI overrides through Hydra.
    2. Validate `sweep.mode`, `sweep.grid`, and `sweep.execution`.
-      `sweep.execution.mode: manual` is functional; deferred modes raise
-      `NotImplementedError`.
+      `sweep.execution.mode: manual` is functional; deferred execution
+      modes are not schema values and fail validation.
    3. Compute `sweep_hash` from stable sweep-definition inputs: base
       config, sweep mode, sweep axes / search params, and explicit sweep
       metadata. Exclude generated IDs, output paths, `output_root`, and

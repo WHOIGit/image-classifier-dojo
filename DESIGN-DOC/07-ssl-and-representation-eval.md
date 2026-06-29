@@ -38,10 +38,11 @@ ssl:
 
 ### Deferred SSL methods
 
-SimCLR, VICReg, PMSN, and the original DINO method are intentionally
-removed from the initial-implementation runtime. Their config slots
-exist (`ssl.method: simclr | vicreg | pmsn | dino`); the runtime raises
-`NotImplementedError`. See `appendix-deferred-features.md`.
+SimCLR, VICReg, PMSN, and the original DINO method are intentionally out
+of scope for the initial implementation. They are **not** `ssl.method`
+schema values, so authoring `ssl.method: simclr | vicreg | pmsn | dino`
+fails generic validation as an out-of-enum value. See
+`appendix-deferred-features.md`.
 
 ### Model structure
 

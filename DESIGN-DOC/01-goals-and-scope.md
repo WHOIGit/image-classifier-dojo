@@ -4,8 +4,8 @@
 ## Purpose
 
 Defines the scope of the refactor: what the initial implementation must
-deliver, what is out of scope, and what is stubbed / deferred. Other files
-explain how each goal is satisfied; this file just names them.
+deliver, what is out of scope, and what is deferred. Other files explain
+how each goal is satisfied; this file just names them.
 
 ## Core goals
 
@@ -57,20 +57,17 @@ explain how each goal is satisfied; this file just names them.
 ## Deferred-feature backlog
 
 The following are out of scope for the initial implementation but are
-intentionally preserved as deferred backlog items. Runtime-stubbed items
-each have exactly one test that asserts a `NotImplementedError` at the
-relevant runtime path. Schema-only backlog items are rejected during
-validation until their schema is introduced. See
-`appendix-deferred-features.md` and
-`12-validation-testing-and-preflight.md`.
+intentionally preserved as deferred backlog items. Deferred features are
+**absent from the strict (`extra="forbid"`) schema**, so configuring one
+fails generic validation at load — there are no reserved config slots,
+runtime stubs, or per-feature tests. See `appendix-deferred-features.md`
+and `12-validation-testing-and-preflight.md`.
 
-- Aim logger sink (schema present; runtime stubbed). Only the `local`
-  sink is functional; metrics and figures are recorded locally for the
-  foreseeable future.
-- MLflow logger sink (schema present; runtime stubbed).
-- True multilabel support (`multilabel_classification`; schema slot
-  reserved, runtime stubbed). Multi-head multiclass is functional and does
-  not depend on this.
+- Aim logger sink. Only the `local` sink is functional; metrics and
+  figures are recorded locally for the foreseeable future.
+- MLflow logger sink same.
+- True multilabel support (`multilabel_classification`). Multi-head
+  multiclass is functional and does not depend on this.
 - Non-`dino_v2` SSL methods (SimCLR, VICReg, PMSN, original DINO).
 - Weight-space ensembles (model soup, greedy soup, uniform soup, SWA,
   EMA).
@@ -99,6 +96,6 @@ refactor phase", or "post-Phase-8".
 - `11-dependencies.md` — base + extras layout.
 - `13-workplan.md` — priority order for the new `src/dojo`
   implementation.
-- `appendix-deferred-features.md` — deferred features with their
-  stub-test obligations.
+- `appendix-deferred-features.md` — deferred-feature roadmap (absent from
+  the strict schema).
 - `glossary.md` — terminology.

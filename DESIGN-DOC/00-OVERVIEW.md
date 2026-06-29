@@ -52,13 +52,16 @@ regression / ordinal / SSL models. Key shape:
   `mode: grid` supports ordinary hyperparameter sweeps and
   batch-run-style seed sweeps. Initial execution is manual through
   `dojo sweep prepare`, selected per-run training, `dojo sweep status`,
-  and `dojo sweep report`; `mode: bayesian` is a deferred schema slot.
+  and `dojo sweep report`.
 - **Lightweight base install + extras.** Base install supports config /
   schema / storage / result reading without Torch.
 
 ## Design principles
 
 - Pydantic schemas are the runtime contract.
+- Strict schema (`extra="forbid"`): deferred features are absent, not
+  stubbed — configuring one fails generic validation, with no reserved
+  slots or runtime `NotImplementedError`.
 - Keep task logic separate from model composition.
 - Prefer canonical internal representations (single-head normalizes to
   the multi-head shape).
@@ -115,16 +118,16 @@ Read in order:
   is currently declared (Aim/MLflow logging is deferred; S3 rides on the
   base `amplify-storage-utils` dependency).
 - [12. Validation, Testing, and Preflight](12-validation-testing-and-preflight.md)
-  — layered validation; `runtime.preflight` controls; stub-test policy
-  for deferred features; test scope by area; fixture tiers.
+  — layered validation; `runtime.preflight` controls; strict-schema
+  policy for deferred features; test scope by area; fixture tiers.
 - [13. Workplan](13-workplan.md) — priority order for the new
   `src/dojo` implementation; thin-slice gate; deferred backlog.
 
 Appendices and reference:
 
 - [Appendix — Deferred Features](appendix-deferred-features.md) —
-  runtime stubs with their `NotImplementedError` test obligations, plus
-  schema backlog and cleanup items.
+  the deferred-feature roadmap; deferred features are absent from the
+  strict schema, plus the P4.8 cleanup milestone.
 - [Appendix — Repository Structure](appendix-repository-structure.md) —
   proposed `configs/`, `src/dojo/`, and `tests/` tree derived from the
   canonical decisions above.
@@ -151,6 +154,6 @@ Bookmark these pairs:
   `sweep_outputs:` schema; `sweep_id` provenance on result rows;
   sweeps that feed ensemble candidate discovery.
 - `12-validation-testing-and-preflight.md` &
-  `appendix-deferred-features.md` — runtime-stub entries name their
-  `NotImplementedError` tests; schema backlog and cleanup items name
-  their validation or verification obligations.
+  `appendix-deferred-features.md` — deferred features are absent from the
+  strict schema (generic validation failure, no stubs); the cleanup
+  milestone names its verification obligation.

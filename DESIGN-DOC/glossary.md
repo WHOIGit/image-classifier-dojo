@@ -115,9 +115,9 @@ both exist.
 - **`ensemble`** — Ensemble selection/combine/candidate config for the
   `dojo ensemble` family and `task.type: snapshot_ensemble`.
 - **`sweep`** — Sweep-generation config. `sweep.mode: grid` is
-  functional; `sweep.mode: bayesian` is a deferred schema slot. Sweep
-  axes normalize into this block before concrete runs are expanded by
-  `dojo sweep prepare`. Initial `sweep.execution.mode` is `manual`;
+  functional; `sweep.mode: bayesian` is deferred and not a schema value.
+  Sweep axes normalize into this block before concrete runs are expanded
+  by `dojo sweep prepare`. Initial `sweep.execution.mode` is `manual`;
   automated local sequential and Slurm execution are deferred.
 - **`output_root`** — Single filepath string used as the base for rendered
   `*_outputs.dir_template` values and bare-relative `*_outputs.dir` values.
@@ -135,9 +135,9 @@ both exist.
   run-varying parameter is `runtime.seed`. Used to measure sensitivity
   to random initialization, data order, and other seeded behavior while
   holding model / training settings fixed.
-- **Bayesian sweep** — A deferred `sweep.mode: bayesian` schema slot for
-  search engines such as Optuna. Runtime support is stubbed in the
-  initial implementation.
+- **Bayesian sweep** — A deferred `sweep.mode: bayesian` for search
+  engines such as Optuna. Not represented in the schema initially;
+  authoring it fails validation. See `appendix-deferred-features.md` P4.1.
 - **`sweep.active_run`** — Generated resolved-config metadata for one
   concrete run in a sweep. It records the realized sweep-axis values for
   that run and is not written in source configs.
@@ -213,7 +213,7 @@ blocks apply (`02-cli-and-task-types.md`).
 
 - `multiclass_classification`
 - `binary_classification`
-- `multilabel_classification` (reserved for true multi-hot multilabel)
+- `multilabel_classification` (deferred — see appendix P4.2)
 - `regression`
 - `ordinal_classification` (not `ordinal_regression`; the head predicts a
   discrete ordered bin)

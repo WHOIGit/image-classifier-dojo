@@ -17,6 +17,26 @@ during composition, before Pydantic validation; dash-prefixed **command
 options** (`--checkpoint`, `--output`, etc.) are not part of the config
 tree. See `02-cli-and-task-types.md` for the overrides-vs-options model.
 
+## Strict schema, no reserved slots
+
+The Pydantic config models are strict: every model sets `extra="forbid"`,
+and enum / discriminated-union fields list only **implemented** values. An
+unrecognized key or an unimplemented value therefore fails generic
+validation at config load — exactly as a typo would. There are no
+reserved-but-inert config slots and no runtime `NotImplementedError`
+stubs: a deferred feature is simply absent from the schema until it is
+built, and its validation error names the offending key/value without
+advertising it as planned. The deferred roadmap lives only in
+`appendix-deferred-features.md` and `13-workplan.md`.
+
+This strictness concerns *unknown* keys and values and is orthogonal to
+command-gating: a loaded lifecycle config may legitimately carry blocks
+that are inactive for the current command (those warn, not fail — see
+`02-cli-and-task-types.md`), but every block and value it carries must be
+a recognized, implemented one. The one place curated messages remain is
+invalid combinations of *implemented* features (incompatible head / loss
+pairs, bad objective references), which are real current contract.
+
 ## Config search path
 
 Config group selectors such as `experiment=ifcb/species_baseline` resolve

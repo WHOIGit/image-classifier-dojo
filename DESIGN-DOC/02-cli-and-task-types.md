@@ -289,8 +289,9 @@ input encoder, implicit input concatenation, and embedding adapter. See
 ### `ssl`
 
 Self-supervised training. The functional method is `dino_v2` via Lightly.
-Other SSL methods (SimCLR, VICReg, PMSN, original DINO) have config-schema
-slots but stubbed runtime paths — see `appendix-deferred-features.md`.
+Other SSL methods (SimCLR, VICReg, PMSN, original DINO) are deferred and
+not schema values; authoring them fails validation — see
+`appendix-deferred-features.md`.
 
 ### `snapshot_ensemble`
 
@@ -365,7 +366,7 @@ Replaces the old `dojo validate-config`. Behavior:
 - render output-path templates;
 - show expected output folder structure;
 - warn about run/sweep directory collisions;
-- show enabled outputs and deferred/stubbed features;
+- show enabled outputs;
 - optionally emit machine-readable JSON for CI/tests.
 
 ### Remote-artifact validation strength
