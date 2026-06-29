@@ -130,12 +130,23 @@ target → head → objective reference chain. Per-target fields:
 - `type` — target type (`multiclass_classification`, `regression`,
   `ordinal_classification`, etc.).
 - `class_names` — optional URI to a class-label JSON.
-- `missing_policy` — `error` (default), `drop_sample`, etc.
+- `missing_policy` — label-missing behavior for this target:
+  - `error` (default) — missing labels for this target in active supervised /
+    eval splits fail preflight.
+  - `drop_sample` — remove samples missing this target from the run when the
+    target is required by an enabled objective or eval scorer.
+  - `mask_objective` — keep the sample, but exclude it from losses and metrics
+    for objectives / scorers that use this target.
 - `transform` — optional target transform for regression / ordinal targets
   (e.g. `log1p`, `log1p_standardize`). Authored as the functional form;
   resolved configs add any fitted statistics (e.g. standardize mean / std)
   frozen at fit time. This is the single home for target transforms —
   objectives carry none.
+
+`missing_policy` applies only to target labels. Missing tabular feature values
+are handled separately by `transforms.tabular` imputation / categorical
+missing-token rules, so a missing feature does not drop or mask a supervised
+target.
 
 ## IFCB bins
 
@@ -196,8 +207,8 @@ Behavior:
 - Resolves the configured backend.
 - For `class_folder` source: scans the directory tree and produces a
   canonical manifest.
-- Reports missing targets and summarizes how many samples would be
-  dropped, skipped, or fail validation.
+- Reports missing targets per target and split, including how many samples
+  would fail validation, be dropped, or be masked from an objective.
 - Default missing-target policy is `error` for all heads / head counts.
 - Optionally writes a CSV or Parquet manifest:
 

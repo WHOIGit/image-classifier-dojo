@@ -403,9 +403,12 @@ is an inspect-dataset source, **not** a train / eval / infer backend.
 Inspect outputs are not normal run outputs and do not require a run
 directory.
 
-With no aspect flag it reports missing targets and summarizes how many
-samples will be dropped, skipped, or fail validation (default
-missing-target policy `error` for all heads).
+With no aspect flag it reports missing targets per target and split, including
+`missing_count`, `valid_count`, `drop_sample_count`, `mask_objective_count`,
+and whether the configured `missing_policy` would fail validation (default
+policy: `error`). For multi-head configs this report is per target, because
+`mask_objective` can keep a partially labeled sample usable for other
+objectives.
 
 Aspect flags scope **both what is computed and the I/O cost paid**, so a
 header-level histogram never triggers a full pixel decode. Each aspect is
@@ -420,7 +423,7 @@ Tier 0 — manifest only (no image I/O):
 
 | Flag | Computes | Kind |
 |---|---|---|
-| `--targets` | missing-target / drop / skip counts (default) | advisory |
+| `--targets` | per-target missing / valid / drop / mask / validation-failure counts (default) | advisory |
 | `--class-counts` | per-class counts + frequencies | frozen |
 | `--class-map` | resolved index ↔ label mapping | frozen |
 | `--target-stats` | regression / ordinal target distribution + fitted transform stats (standardize mean / std, Box-Cox λ) | frozen |

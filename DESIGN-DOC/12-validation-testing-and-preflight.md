@@ -34,6 +34,8 @@ include:
 
 - `empty_train_classes`
 - `empty_eval_classes`
+- `missing_required_targets`
+- `no_remaining_valid_target_labels`
 - `non_contiguous_class_indices`
 - `imbalance_ratio_gt`
 
@@ -44,6 +46,16 @@ max_class_count / min_nonzero_class_count > configured_threshold
 ```
 
 Defaults to a warning, not an error.
+
+Missing-label preflight follows each target's `data.targets.<target>.missing_policy`:
+
+- `error` — missing labels in active supervised / eval splits fail preflight.
+- `drop_sample` — report the number of rows dropped for that target and fail if
+  the active split becomes empty or an enabled objective / scorer has zero valid
+  labels.
+- `mask_objective` — report the number of rows masked for that target and fail
+  if an enabled objective / scorer has zero valid labels in an active training
+  or eval split.
 
 ```yaml
 runtime:
@@ -59,6 +71,8 @@ runtime:
     checks:
       empty_train_classes: error
       empty_eval_classes: warn
+      missing_required_targets: error
+      no_remaining_valid_target_labels: error
       non_contiguous_class_indices: error
       imbalance_ratio_gt:
         severity: warn
@@ -150,7 +164,8 @@ validation at load.
   dependency-closure copying, fixture-data copying, and non-clobber /
   clobber behavior.
 - **Dataset tests** — CSV / Parquet / `parquet_images` / `ifcb_bins`
-  backends; multi-head targets; tabular feature extraction; categorical
+  backends; multi-head targets; target `missing_policy` reporting and
+  preflight behavior; tabular feature extraction; categorical
   vocabulary fitting and frozen one-hot lookup;
   `sample_id` / `uri` / `bin_id` / `bin_uri` propagation; mocked
   storage resolver for S3-style paths.
@@ -165,7 +180,8 @@ validation at load.
   one-hot categorical tabular input concatenation.
 - **Objective / loss tests** — loss / metric compatibility per head
   type; metric registry canonical names / params / output names; objective
-  shorthand; weighted total loss; resolved `objective_summary`
+  shorthand; `mask_objective` valid-label masking; weighted total loss;
+  resolved `objective_summary`
   serialization.
 - **Supervised training smoke tests** — minimal-fixture train +
   validate + canonical result writing.

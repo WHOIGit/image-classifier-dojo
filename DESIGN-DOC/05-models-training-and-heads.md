@@ -1052,11 +1052,26 @@ block: it is carried in export metadata and contributes to
 
 ### Total loss
 
-The total loss is the weighted sum of objective losses:
+For each objective, the task module builds a valid-label mask from the
+referenced target's `missing_policy`:
+
+- `error` means preflight should already have rejected missing labels.
+- `drop_sample` means missing rows for that target are removed before batching
+  when that target is required by an enabled objective / scorer.
+- `mask_objective` keeps the sample in the batch but excludes rows with missing
+  labels for that target from that objective's loss and metrics.
+
+Objective losses are reduced over valid rows only. If an objective has zero
+valid rows in a batch, that objective contributes no loss for that batch. The
+total loss is the weighted sum of available objective losses, with no automatic
+renormalization of weights:
 
 ```text
-total_loss = sum( objective_i.weight * objective_i.loss )
+total_loss = sum( objective_i.weight * objective_i.loss for objectives with valid rows )
 ```
+
+If an enabled objective has zero valid labels across an active training or eval
+split, preflight fails before training / scoring starts.
 
 ### Objective shorthand
 

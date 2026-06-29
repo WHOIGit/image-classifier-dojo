@@ -187,6 +187,16 @@ and runtime-value generation. The full rules live in
 - **`embedding_kind`** — `image_embedding`, `tabular_embedding`,
   `fused_input_embedding`, `head_input_embedding`.
 
+## Missing target policies
+
+- **`error`** — Missing labels for the target fail preflight in active
+  supervised / eval splits.
+- **`drop_sample`** — Samples missing the target are removed when that target
+  is required by an enabled objective or eval scorer.
+- **`mask_objective`** — Samples missing the target remain in the batch, but
+  losses and metrics for objectives / scorers using that target ignore those
+  rows. Other objectives can still use labels present on the same sample.
+
 ### External vs. internal target/prediction columns
 
 - `target` / `prediction_value` are **external** (original units).
