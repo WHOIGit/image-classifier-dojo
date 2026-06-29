@@ -1185,7 +1185,36 @@ model = SupervisedModel(
 
 `optimizer`, `scheduler`, and `checkpointing` are top-level config groups
 peer to `training`. Checkpointing supports best-k, last, epoch, step,
-and snapshot checkpoints. Snapshot-cycle checkpointing for
+and snapshot checkpoints.
+
+P1/P2 executable baseline:
+
+```yaml
+optimizer:
+  name: adamw
+  lr: 0.0003
+  weight_decay: 0.01
+
+scheduler:
+  name: cosine              # none | cosine | cosine_warm_restarts | step
+  warmup_epochs: 3
+
+checkpointing:
+  monitor: val/species/f1_macro
+  mode: max                 # min | max
+  save_top_k: 3
+  save_last: true
+```
+
+Initial optimizer support is `adamw`. Initial scheduler support is
+`none`, epoch-based `cosine`, `cosine_warm_restarts` for snapshot ensembles,
+and `step`; warmup values are epoch counts unless a scheduler explicitly
+states otherwise. `checkpointing.monitor` must match a logged metric name
+from the objective / metric registry. If the monitored metric is never logged,
+checkpoint setup fails with a config/runtime validation error rather than
+silently saving no best checkpoint.
+
+Snapshot-cycle checkpointing for
 `task.type: snapshot_ensemble`:
 
 ```yaml
