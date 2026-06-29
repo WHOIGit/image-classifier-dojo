@@ -120,6 +120,19 @@ sweeps are layered on top.
   `preprocessing_hash` source field lists from
   `06-results-artifacts-and-metadata.md`.
 
+### P2.6 Inference and holdout evaluation
+
+- `dojo infer predictions` and `dojo infer embeddings`.
+- `dojo eval holdout`.
+- `eval_outputs` directory handling, canonical result writing, and the
+  always-written `eval_manifest.json`.
+- Checkpoint / export loading through the embedded portable inference
+  contract, without depending on the producing run's `resolved.yaml`.
+- Holdout scorer reconstruction from `objective_summary` and
+  `target_schema`.
+- Result rows with `stage=infer` / `stage=holdout_eval`, including
+  canonical provenance, embedding, and prediction columns.
+
 ## Priority 3 — Major capability layers
 
 ### P3.1 Export
