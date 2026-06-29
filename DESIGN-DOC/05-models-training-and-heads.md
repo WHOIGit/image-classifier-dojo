@@ -1043,7 +1043,7 @@ column convention.
 Target transforms are configured once, on the data target
 (`data.targets.<t>.transform`) — not on the objective. The functional form
 is authored; config compilation freezes any fitted statistics (standardize
-mean / std, Box-Cox λ) into the resolved transform — the same
+mean / std, Box-Cox lambda) into the resolved transform — the same
 authored-vs-resolved pattern used for normalization and imputation stats.
 The inverse is applied to predictions at inference to recover external
 units, so the resolved transform must survive without an `objectives`

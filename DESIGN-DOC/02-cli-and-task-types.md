@@ -88,7 +88,7 @@ A command mixes both freely:
 
 ```bash
 dojo inspect dataset data=ifcb/species_manifest --stats --format json
-#                    └─ config override ─┘       └─ command options ─┘
+#                    [config override]           [command options]
 ```
 
 ### Config sources and replay modes
@@ -425,8 +425,8 @@ Tier 0 — manifest only (no image I/O):
 |---|---|---|
 | `--targets` | per-target missing / valid / drop / mask / validation-failure counts (default) | advisory |
 | `--class-counts` | per-class counts + frequencies | frozen |
-| `--class-map` | resolved index ↔ label mapping | frozen |
-| `--target-stats` | regression / ordinal target distribution + fitted transform stats (standardize mean / std, Box-Cox λ) | frozen |
+| `--class-map` | resolved index <-> label mapping | frozen |
+| `--target-stats` | regression / ordinal target distribution + fitted transform stats (standardize mean / std, Box-Cox lambda) | frozen |
 | `--tabular-stats` | numeric tabular normalization stats + imputation fill values; categorical vocabularies | frozen |
 | `--imbalance` | imbalance ratio, empty-class, non-contiguous-index checks | advisory |
 
