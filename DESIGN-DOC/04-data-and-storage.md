@@ -69,6 +69,13 @@ data:
 inlines image bytes in the same Parquet file as the manifest — preferred
 for test fixtures because it avoids path-resolution combinatorics.
 
+`parquet_images` uses the same `dataset_hash` / `dataset_content_hash`
+contract as every other backend. Embedded image bytes are not folded into the
+cheap `dataset_hash`; they belong to `dataset_content_hash`. For tabular data,
+the available logical tabular column names / physical bindings are part of
+`dataset_hash`, while the per-row tabular values are part of
+`dataset_content_hash`.
+
 ### Tabular features
 
 `data.tabular_feature_columns` declares the available logical tabular
@@ -228,16 +235,18 @@ errors with an actionable fix: run `dojo inspect dataset` with the needed
 frozen aspect flags, or `--stats`, to write an updated cache before
 training / evaluation / inference.
 
-`dataset_hash` itself stays cheap and usually available without reading
-image pixels — manifest content, or URI + size + etag / last-modified when
-available — so it remains a stable identity for the cache key, result rows,
-and ensemble compatibility. Because a `--normalization` / `--content-hash`
-pass already reads every image byte, `dojo inspect dataset` additionally
-records a separate **`dataset_content_hash`** (a true hash over all image
-bytes) for integrity / drift verification. It is recorded alongside, never
-folded into, `dataset_hash`: the cheap identity must not change value
-depending on whether a full pass happened to run. `dataset_content_hash`
-catches in-place pixel mutation that manifest-level identity cannot see.
+`dataset_hash` itself stays cheap and usually available without reading image
+pixels or tabular cell payloads — manifest identity / canonical manifest
+projection, or URI + size + etag / last-modified when available — so it
+remains a stable identity for the cache key, result rows, and ensemble
+compatibility. Because a `--normalization` / `--content-hash` pass already
+reads sample content, `dojo inspect dataset` additionally records a separate
+**`dataset_content_hash`** (a true hash over image bytes and, when present,
+tabular feature values) for integrity / drift verification. It is recorded
+alongside, never folded into, `dataset_hash`: the cheap identity must not
+change value depending on whether a full pass happened to run.
+`dataset_content_hash` catches in-place pixel or tabular-value mutation that
+manifest-level identity cannot see.
 
 ### Stats cache format
 

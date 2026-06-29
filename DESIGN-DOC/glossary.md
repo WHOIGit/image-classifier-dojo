@@ -18,16 +18,19 @@ referenced by every other file. When in doubt, the terms below win.
   set or generated as a **seedname** from `config_hash` (a coolname produced
   by seeding `random.Random` with `config_hash`).
 - **`dataset_id` / `dataset_hash`** — `dataset_hash` is a cheap, always-available
-  identity that never reads image pixels: manifest content or URI plus
-  size/etag/last-modified plus backend type; falls back to URI-only hashing
-  with `dataset_hash_provenance: uri_only` when size/etag are unavailable.
-  `dataset_id` is only present when the manifest provides a self-name; there
-  is no seedname fallback.
-- **`dataset_content_hash`** — a separate, optional true hash over all image
-  bytes, recorded only when `dojo inspect dataset` runs a full pass
+  identity that never reads image pixels or tabular cell payloads: manifest
+  identity / canonical manifest projection or URI plus size/etag/last-modified
+  plus backend type; declared logical tabular column names / bindings are
+  included when present. Falls back to URI-only hashing with
+  `dataset_hash_provenance: uri_only` when size/etag are unavailable.
+  `dataset_id` is only present when the manifest provides a self-name; there is
+  no seedname fallback.
+- **`dataset_content_hash`** — a separate, optional true hash over sample
+  content: image bytes plus declared tabular feature values when present,
+  recorded only when `dojo inspect dataset` runs a content pass
   (`--content-hash` / `--normalization`). It is integrity / drift verification
-  and is never folded into `dataset_hash`, which must stay stable regardless
-  of whether a full pass ran.
+  and is never folded into `dataset_hash`, which must stay stable regardless of
+  whether a content pass ran.
 - **`checkpoint_hash`** — SHA-256 of the `.ckpt` file bytes. The first 6 hex
   characters appear in the checkpoint filename
   (`{stem}.{first6_hex}.{ext}`). There is no `checkpoint_id`.

@@ -439,7 +439,7 @@ Tier 2 — full pixel decode / full byte read (opt-in, expensive):
 | Flag | Computes | Kind |
 |---|---|---|
 | `--normalization` | per-channel mean / std (streaming) for `normalize: {mode: dataset}` | frozen |
-| `--content-hash` | true `dataset_content_hash` over all image bytes; folds into any full pass for free (see `04-data-and-storage.md`) | frozen (verification) |
+| `--content-hash` | true `dataset_content_hash` over image bytes plus declared tabular feature values when present; folds into any full pass for free (see `04-data-and-storage.md`) | frozen (verification) |
 
 Backend-specific:
 
