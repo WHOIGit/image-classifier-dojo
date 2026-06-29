@@ -388,9 +388,11 @@ extractors must satisfy.
 
 `dojo infer` and `dojo eval` rebuild a model and its exact input pipeline
 from the model artifact alone — they do **not** require the producing run's
-`resolved.yaml`. Everything they need is bundled as a single **inference
-contract** object, defined once and serialized identically by both artifact
-kinds:
+`resolved.yaml`. `dojo inspect checkpoint` also reads this contract from
+`.ckpt` files, but `.ckpt` deserialization requires the Torch stack
+(`11-dependencies.md`). Everything these consumers need is bundled as a single
+**inference contract** object, defined once and serialized identically by both
+artifact kinds:
 
 - **Checkpoints** embed it under a dedicated
   `checkpoint["dojo_inference_contract"]` key, written by the task module's

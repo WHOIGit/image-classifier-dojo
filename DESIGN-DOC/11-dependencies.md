@@ -10,8 +10,9 @@ reading) from extras gated by functional area.
 ## Principles
 
 - Base install supports config validation, inspection, storage / result
-  access, schema handling, and artifact introspection **without
-  requiring Torch**.
+  access, schema handling, and non-checkpoint artifact / metadata
+  introspection **without requiring Torch**. Inspecting Lightning `.ckpt`
+  files requires the Torch stack.
 - Training, SSL, ONNX, and IFCB support live behind extras. Logging
   sinks other than `local` (Aim, MLflow) are deferred / stubbed at
   runtime; metrics and figures are recorded locally for the foreseeable
@@ -108,7 +109,8 @@ Notes on the current `pyproject.toml` state:
 
 ### Extra purpose summary
 
-- `train` — Torch stack required to run training / inference.
+- `train` — Torch stack required to run training / inference and to inspect
+  Lightning `.ckpt` checkpoint files.
 - `timm` — first-class
   `model.image_input.backbone.architecture.source: timm` support. **Not
   deferred**; gated by this extra and raises a clear runtime error when

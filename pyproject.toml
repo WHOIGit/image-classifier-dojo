@@ -12,7 +12,8 @@ authors = [{ name = "Sidney Batchelder", email = "sbatchelder@whoi.edu" }]
 
 # --- Base dependencies ---
 # Config validation, inspection, storage / result access, schema handling,
-# and artifact introspection — no Torch required (see DESIGN-DOC/11-dependencies.md).
+# and non-checkpoint artifact / metadata introspection — no Torch required.
+# Lightning .ckpt inspection requires the train extra (see DESIGN-DOC/11-dependencies.md).
 dependencies = [
   "pydantic",
   "pydantic-settings",

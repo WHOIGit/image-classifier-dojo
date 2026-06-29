@@ -171,9 +171,10 @@ inherits their stubbed runtime.
   `open_bytes` / `localize` / `write_bytes` / `exists`.
 - **Transform tests** — letterbox, aspect / size buckets,
   foreground-aware crop, grayscale repeat-to-3, `normalize`, `rotate`, flips, DINOv2 multi-view transform, extreme aspect ratios, small native resolutions.
-- **Model tests** — torchvision, timm (with `[timm]`), and checkpoint
-  backbones; freeze policies; head construction; multi-head model
-  composition; embedding adapter; tabular input concatenation.
+- **Model tests** — torchvision, timm (with `[timm]`), checkpoint inspection
+  gated by `[train]`, and checkpoint backbones; freeze policies; head
+  construction; multi-head model composition; embedding adapter; tabular input
+  concatenation.
 - **Objective / loss tests** — loss / metric compatibility per head
   type; objective shorthand; weighted total loss; resolved
   `objective_summary` serialization.

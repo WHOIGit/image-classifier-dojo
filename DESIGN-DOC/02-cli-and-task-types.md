@@ -533,7 +533,9 @@ dojo inspect backbone \
 Reports the checkpoint's embedded inference contract — compatibility hashes,
 head / preprocessing configuration (see "Portable inference contract",
 `06-results-artifacts-and-metadata.md`) — and the checkpoint-hash filename
-match.
+match. This command requires the Torch stack (`image_classifier_dojo[train]`)
+for `.ckpt` deserialization; base installs do not inspect Lightning
+checkpoints.
 
 ## `dojo infer`
 
