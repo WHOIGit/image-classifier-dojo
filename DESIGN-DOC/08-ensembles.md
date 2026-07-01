@@ -447,9 +447,8 @@ Required columns per combine mode (column definitions live in
 | `ordinal_probabilities_mean` | `probabilities` (per-bin) |
 
 Every member must also carry the standard provenance columns
-(`sample_id`, `head_name`, `target`) and the partition keys needed to
-locate its rows; see `06-results-artifacts-and-metadata.md` for the full
-schema.
+(`sample_id`, `head_name`) and the partition keys needed to locate its rows;
+see `06-results-artifacts-and-metadata.md` for the full schema.
 
 Notes and limitations:
 

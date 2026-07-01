@@ -56,7 +56,8 @@ data:
     - salinity_psu
   targets:
     species:
-      column: species_idx
+      label_index_column: species_idx
+      label_name_column: species_name
       type: multiclass_classification
       missing_policy: error
     biovolume:
@@ -75,6 +76,51 @@ cheap `dataset_hash`; they belong to `dataset_content_hash`. For tabular data,
 the available logical tabular column names / physical bindings are part of
 `dataset_hash`, while the per-row tabular values are part of
 `dataset_content_hash`.
+
+### Split assignment
+
+Each sample's `split` (`train` / `val` / `test` / `unlabeled` / `holdout`)
+comes from one of two mutually exclusive sources, exactly one of which must be
+configured:
+
+- `split_column` — read the split from a manifest column. The column values
+  must already be the canonical split names above.
+- `split_from_filename` — derive the split from the source file each row was
+  read from. This covers manifest sets that shard split into separate files
+  (a common Hugging Face / sharded-Parquet layout) and carry no split column.
+
+`split_from_filename` maps each canonical split name to a filename glob
+matched against the basename of the file a row came from:
+
+```yaml
+data:
+  backend: parquet_images
+  manifest_uri: ./datasets/nes-plankton/data
+  file_pattern: "*.parquet"
+  split_from_filename:
+    train: "train-*.parquet"
+    val: "validation-*.parquet"
+  sample_id_column: ifcb_roi_pid
+  images:
+    column: image
+  targets:
+    species:
+      label_index_column: label
+      label_name_column: classname
+      type: multiclass_classification
+```
+
+Rules:
+
+- The mapping keys are canonical split names, so a `validation-*` file is
+  assigned `split: val` — the split vocabulary is normalized at config time, not
+  inherited from filenames.
+- Patterns are matched against the file basename. A file matching no pattern
+  contributes no labeled split and its rows are excluded; a file matching more
+  than one pattern is a configuration error.
+- `split_from_filename` only assigns the split; `file_pattern` still governs
+  which files are discovered under `manifest_uri`. Patterns should be a subset
+  of what `file_pattern` admits.
 
 ### Tabular features
 
@@ -126,10 +172,15 @@ reference these targets by name; objectives bind heads to losses,
 metrics, and weights. See `05-models-training-and-heads.md` for the
 target → head → objective reference chain. Per-target fields:
 
-- `column` — physical manifest column.
-- `type` — target type (`multiclass_classification`, `regression`,
-  `ordinal_classification`, etc.).
-- `class_names` — optional URI to a class-label JSON.
+- `label_index_column` — manifest column holding each sample's integer class
+  index.
+- `label_name_column` — manifest column holding each sample's readable class
+  name. At least one of `label_index_column` / `label_name_column` is required.
+  When only names are present, class indices are assigned to the distinct names
+  alphabetically; when both are present the name column supplies the index → name
+  mapping recorded in result metadata.
+- `type` — target type (`multiclass_classification`; `regression`,
+  `ordinal_classification`, etc. are deferred).
 - `missing_policy` — label-missing behavior for this target:
   - `error` (default) — missing labels for this target in active supervised /
     eval splits fail preflight.
@@ -161,7 +212,8 @@ data:
   shuffle_buffer_size: 1000
   targets:
     species:
-      column: species_idx
+      label_index_column: species_idx
+      label_name_column: species_name
       type: multiclass_classification
       missing_policy: error
 ```

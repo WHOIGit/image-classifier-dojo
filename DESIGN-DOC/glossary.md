@@ -187,6 +187,40 @@ and runtime-value generation. The full rules live in
 - **`embedding_kind`** — `image_embedding`, `tabular_embedding`,
   `fused_input_embedding`, `head_input_embedding`.
 
+## Class and label vocabulary
+
+Two axes, kept distinct throughout configs, code, and outputs:
+
+- **class** — the *category* axis: the taxonomy of possible categories, which
+  is sample-independent. Terms on this axis use `class`.
+- **label** — the *per-sample assignment* axis: the category assigned to a
+  given sample. Terms on this axis use `label`.
+
+Within each axis, a bare or `_index` name is the integer form and a `_name`
+name is the human-readable string. In training, `target` and `prediction`
+default to integer indices.
+
+- **`label_index_column`** — Data-config column
+  (`data.targets.<target>`) holding each sample's integer class index.
+- **`label_name_column`** — Data-config column holding each sample's
+  class name (string). At least one of `label_index_column` /
+  `label_name_column` is required per target. When only names are given,
+  indices are assigned by sorting the distinct names (ASCII order).
+- **`num_classes`** — Head output width (`model.heads.<head>.num_classes`):
+  the count of categories the head projects to.
+- **`classes`** — `_metadata.json` per-head ordered list of class names,
+  indexed by class index.
+- **`class_mapping`** — `_metadata.json` per-head mapping of class index
+  (string key, natural numeric order) → class name. Same vocabulary as the
+  `class_mapping_hash` compatibility dimension.
+
+Classification prediction columns on `classification_output` rows:
+
+- **`prediction_index`** — Predicted class index (argmax).
+- **`prediction_label`** — Predicted class name, resolved through
+  `class_mapping`; null when no name source is available.
+- **`prediction_confidence`** — Probability of the predicted class.
+
 ## Missing target policies
 
 - **`error`** — Missing labels for the target fail preflight in active

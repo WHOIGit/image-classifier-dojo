@@ -281,13 +281,13 @@ heads:
         label: <string>
 ```
 
-Include only heads with discrete class labels:
+Include only heads with discrete classes:
 `multiclass_classification`, `binary_classification`,
 `multilabel_classification`, and `ordinal_classification` when ordinal
-bins have configured labels. Labels are the resolved ordered labels from
-`data.targets.<target>.class_names` or inline resolved class metadata. The
-URI of the class-name file is not itself sufficient; the resolved ordered
-label content is the hash input.
+bins have configured class names. `classes` is the resolved ordered class
+names for the target — from its `label_name_column`, or upstream dataset
+class metadata — recorded in `_metadata.json` alongside `class_mapping`. The
+resolved ordered class content is the hash input, not any source URI.
 
 `model_config_hash` source fields:
 
@@ -632,13 +632,17 @@ Default `embedding_kind`:
 
 ```text
 head_name
-target
 prediction_index
 prediction_label
 prediction_confidence
 logits
 probabilities
 ```
+
+The row is scoped by `head_name`; the head → target link lives in
+`_metadata.json` (each head's `target`). Ground-truth columns
+(`target_index` / `target_name`) are reserved for P2 (see workplan P2.5); P1
+writes predictions only.
 
 ### Regression output
 
@@ -765,8 +769,8 @@ and head mappings.
       "heads": {
         "species": {
           "target": "species",
-          "labels": ["A", "B", "C"],
-          "label_mappings": {"0": "A", "1": "B", "2": "C"}
+          "classes": ["A", "B", "C"],
+          "class_mapping": {"0": "A", "1": "B", "2": "C"}
         }
       }
     },

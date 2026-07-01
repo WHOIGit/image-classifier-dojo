@@ -30,7 +30,7 @@ still small.
 | CLI | `dojo train` and `dojo inspect config` only |
 | Data | `parquet_manifest` backend + shared sample contract (`sample_id`, `uri`, `split`, one target); `parquet_images` fixture to avoid path-resolution combinatorics |
 | Model | `torchvision` backbone + single `multiclass_classification` head + one `cross_entropy` objective; no tabular, adapter, or multi-head path |
-| Training | Supervised LightningModule, AdamW, cosine scheduler, best-k checkpointing, `local` logger sink only |
+| Training | Supervised LightningModule, AdamW, best-k checkpointing, `local` logger sink only |
 | Storage | `amplify-storage-utils` resolver behind the Dojo storage interface; `output_root` / `dir_template` resolution |
 | Results | Canonical tall-Parquet writer via `amplify-db-utils`: `sample_metadata` + `classification_output` record types, provenance columns, `config_hash` / `dataset_hash` / `checkpoint_hash`, `_metadata.json` sidecar |
 
@@ -83,6 +83,14 @@ sweeps are layered on top.
   producing the frozen normalization / tabular / target / class-count /
   bit-depth / dimension / bin-length values consumed at config resolution,
   plus the separate `dataset_content_hash` on full passes.
+- Class-name derivation from dataset-level feature metadata, as a third source
+  behind the P1 `label_index_column` / `label_name_column` (`04-data-and-storage.md`).
+  When neither target column carries readable names, read the index → label
+  mapping from the dataset's own schema metadata — e.g. a Hugging Face
+  `ClassLabel` feature (`features["label"].int2str(...)`), or equivalent
+  sidecar / Arrow field metadata — and fold the resolved mapping into the
+  frozen class mapping in the stats cache. Not all inputs expose this (plain
+  Parquet, CSV manifests), so it stays an optional enrichment, never required.
 
 ### P2.3 Model composition
 
@@ -113,8 +121,26 @@ sweeps are layered on top.
 ### P2.5 Results hardening
 
 - Full record-type taxonomy.
+- Ground-truth columns on `classification_output` rows (the sample's true
+  `target_index` / `target_name` alongside the `prediction_*` columns), so a
+  row is self-scoring without joining back to `sample_metadata` / the source
+  manifest. This is the ground-truth (`y_true`) half of the `target` vs
+  `prediction` pairing; P1 writes predictions only and drops the old target
+  identifier column (rows are scoped by `head_name`, and the head → target link
+  lives in `_metadata.json`). Settle the readable-suffix asymmetry then
+  (`prediction_label` vs `target_name`).
+- Per-head `head_hash` for join-free cross-run querying: a content hash over a
+  head's resolved config (target, `num_classes`, `class_mapping`, network),
+  finer-grained than the whole-schema `target_schema_hash`. Lets rows from the
+  same head configuration be grouped across runs without a denormalized name
+  column.
 - Partitioning.
 - External / internal column convention.
+- Clean per-epoch metrics CSV: one merged row per epoch instead of separate
+  train and validation rows at the same step (a Lightning `CSVLogger` quirk —
+  the `on_train_epoch_end` / `on_validation_epoch_end` hooks flush as separate
+  `log_metrics` calls). P1 logs epoch-only (no per-batch step rows) but leaves
+  the train/val row split as-is.
 - Compatibility-hash extractors implementing the pinned
   `target_schema_hash`, `class_mapping_hash`, `model_config_hash`, and
   `preprocessing_hash` source field lists from

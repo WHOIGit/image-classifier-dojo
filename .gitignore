@@ -16,7 +16,10 @@ aim-artifacts/
 
 # other
 SCRATCH/
-datasets/
+# Datasets are local by default; the small committed `plankton-miniset` example is the
+# exception (tracked via LFS) so example experiments run on a fresh clone.
+datasets/*
+!datasets/plankton-miniset/
 experiments/
 slogs/
 sbatchs/
@@ -25,3 +28,6 @@ logs/
 
 DESIGN-DOC-as-pdf.sh
 *.pdf
+pyrightconfig.json
+runs/
+MY-NOTES/
