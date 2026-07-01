@@ -20,8 +20,9 @@ dependencies = [
   "hydra-core",
   "omegaconf",
   "pyarrow",
+  "datasets",
   "duckdb",
-  "amplify-storage-utils @ git+https://github.com/WHOIGit/amplify-storage-utils.git",
+  "amplify-storage-utils @ git+https://github.com/WHOIGit/amplify-storage-utils.git@2255ae7e8c8545244ead3f34f4282331cdfeb41f",
   "amplify-db-utils @ git+https://github.com/WHOIGit/amplify-db-utils.git",
   "typer",
   "rich",
@@ -50,17 +51,13 @@ repr_eval = [
   "hdbscan",
   "scikit-learn",
 ]
-# aim: disabled on Python 3.14. aim pins aimrocks==0.5.*, which only ships
-# wheels for cp36-cp312 (no 3.13/3.14, no buildable sdist). Use the local
-# logger sink on 3.14; re-enable once aimrocks publishes a 3.14 wheel, or run
-# under Python <=3.12 if the Aim sink is required.
-#aim = ["aim"]
+s3 = ["boto3"]
 onnx = [
   "onnx",
   "onnxruntime-gpu",
 ]
 all = [
-  "image_classifier_dojo[train,timm,ssl,ifcb,repr_eval,onnx]",
+  "image_classifier_dojo[train,timm,ssl,ifcb,repr_eval,onnx,s3]",
 ]
 dev = [
   "pytest",
@@ -83,11 +80,25 @@ Homepage = "https://github.com/WHOIGit/image_classifier_dojo"
 [tool.hatch.build.targets.wheel]
 packages = ["src/dojo"]
 
-# Keep sdist lean but include configs and scripts if you want them in source tarballs
+# Keep sdist lean. Packaged config groups ship inside the package (src/dojo);
+# the project-root ./configs is a dev/consumer override layer, not library data.
 [tool.hatch.build.targets.sdist]
 include = [
   "pyproject.toml",
   "README.md",
   "src/dojo",
-  "configs/",
+]
+
+[tool.pytest.ini_options]
+# Put the repo root on sys.path so tests can import the test-support package
+# `tests.fixtures.*` (defect injectors etc.) regardless of invocation cwd.
+pythonpath = ["."]
+testpaths = ["tests"]
+markers = [
+  "expensive: real training fits / multiprocess dataloaders. Skipped by default; run with `--run-expensive`.",
+]
+filterwarnings = [
+  # Third-party: Lightning's _pytree.py calls torch's deprecated LeafSpec. Not
+  # our code; drop the noise until Lightning updates.
+  "ignore:.*isinstance\\(treespec, LeafSpec\\).*:FutureWarning",
 ]
