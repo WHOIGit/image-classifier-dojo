@@ -1,0 +1,15 @@
+# Example dojo data config.
+backend: parquet_images
+manifest_uri: ./datasets/plankton-miniset/data.parquet
+split_column: split
+sample_id_column: ifcb_roi_pid
+images:
+  column: image
+  bytes_field: bytes
+  path_field: path
+targets:
+  species:
+    label_index_column: label
+    label_name_column: classname
+    type: multiclass_classification
+    missing_policy: error

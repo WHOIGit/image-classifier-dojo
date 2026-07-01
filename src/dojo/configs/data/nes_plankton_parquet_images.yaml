@@ -1,0 +1,23 @@
+# Canonical full NES-plankton-classifier-2022 dataset (not committed — download
+# it, e.g. from HuggingFace, into ./datasets/). Splits are encoded in filenames.
+# This is a bring-your-own-data template; the committed runnable example is the
+# `plankton-miniset` data group under ./configs.
+backend: parquet_images
+manifest_uri: ./datasets/NES-plankton-classifier-2022-dataset/data
+file_pattern: "*.parquet"
+split_from_filename:
+  train: "train-*.parquet"
+  val: "validation-*.parquet"
+sample_id_column: ifcb_roi_pid
+images:
+  column: image
+  bytes_field: bytes
+  path_field: path
+source_extra_columns:
+  - classname
+targets:
+  species:
+    label_index_column: label
+    label_name_column: classname
+    type: multiclass_classification
+    missing_policy: error

@@ -1,0 +1,19 @@
+dir_template: "{experiment.name}/{timestamp}_{runtime.run_id}"
+logging:
+  sinks:
+    - type: local
+results:
+  enabled: true
+  dir: results
+  format: parquet
+  partition_by:
+    - record_type
+metrics:
+  enabled: true
+  dir: metrics
+figures:
+  enabled: false
+  dir: figures
+export:
+  enabled: false
+  dir: exports

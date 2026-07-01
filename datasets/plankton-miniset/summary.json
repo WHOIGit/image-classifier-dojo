@@ -1,0 +1,231 @@
+{
+  "name": "plankton-miniset",
+  "source": "datasets/NES-plankton-classifier-2022-dataset/data",
+  "seed": 0,
+  "train_fraction": 0.8,
+  "num_classes": 30,
+  "num_samples": 842,
+  "num_train": 674,
+  "num_val": 168,
+  "imbalance_ratio": 23.75,
+  "class_names": [
+    "bubble",
+    "fiber",
+    "bead",
+    "camera_spot",
+    "detritus",
+    "detritus_transparent",
+    "fecal_pellet",
+    "pollen",
+    "Copepod_nauplii",
+    "zooplankton",
+    "shellfish_larvae",
+    "Amoeba",
+    "Favella",
+    "Eutintinnus",
+    "Tintinnopsis",
+    "Stenosemella_pacifica",
+    "Laboea_strobila",
+    "Euplotes",
+    "Trichodesmium",
+    "Skeletonema",
+    "Thalassionema",
+    "Pseudo-nitzschia",
+    "Rhizosolenia",
+    "Ditylum_brightwellii",
+    "Corethron_hystrix",
+    "Coscinodiscus",
+    "Acanthoica_quattrospina",
+    "Dictyocha",
+    "Tripos_fusus",
+    "Dinophysis_acuminata"
+  ],
+  "per_class": {
+    "bubble": {
+      "label_idx": 0,
+      "total": 34,
+      "train": 27,
+      "val": 7
+    },
+    "fiber": {
+      "label_idx": 1,
+      "total": 95,
+      "train": 76,
+      "val": 19
+    },
+    "bead": {
+      "label_idx": 2,
+      "total": 80,
+      "train": 64,
+      "val": 16
+    },
+    "camera_spot": {
+      "label_idx": 3,
+      "total": 70,
+      "train": 56,
+      "val": 14
+    },
+    "detritus": {
+      "label_idx": 4,
+      "total": 60,
+      "train": 48,
+      "val": 12
+    },
+    "detritus_transparent": {
+      "label_idx": 5,
+      "total": 52,
+      "train": 42,
+      "val": 10
+    },
+    "fecal_pellet": {
+      "label_idx": 6,
+      "total": 45,
+      "train": 36,
+      "val": 9
+    },
+    "pollen": {
+      "label_idx": 7,
+      "total": 40,
+      "train": 32,
+      "val": 8
+    },
+    "Copepod_nauplii": {
+      "label_idx": 8,
+      "total": 36,
+      "train": 29,
+      "val": 7
+    },
+    "zooplankton": {
+      "label_idx": 9,
+      "total": 32,
+      "train": 26,
+      "val": 6
+    },
+    "shellfish_larvae": {
+      "label_idx": 10,
+      "total": 30,
+      "train": 24,
+      "val": 6
+    },
+    "Amoeba": {
+      "label_idx": 11,
+      "total": 28,
+      "train": 22,
+      "val": 6
+    },
+    "Favella": {
+      "label_idx": 12,
+      "total": 26,
+      "train": 21,
+      "val": 5
+    },
+    "Eutintinnus": {
+      "label_idx": 13,
+      "total": 24,
+      "train": 19,
+      "val": 5
+    },
+    "Tintinnopsis": {
+      "label_idx": 14,
+      "total": 22,
+      "train": 18,
+      "val": 4
+    },
+    "Stenosemella_pacifica": {
+      "label_idx": 15,
+      "total": 20,
+      "train": 16,
+      "val": 4
+    },
+    "Laboea_strobila": {
+      "label_idx": 16,
+      "total": 18,
+      "train": 14,
+      "val": 4
+    },
+    "Euplotes": {
+      "label_idx": 17,
+      "total": 16,
+      "train": 13,
+      "val": 3
+    },
+    "Trichodesmium": {
+      "label_idx": 18,
+      "total": 15,
+      "train": 12,
+      "val": 3
+    },
+    "Skeletonema": {
+      "label_idx": 19,
+      "total": 14,
+      "train": 11,
+      "val": 3
+    },
+    "Thalassionema": {
+      "label_idx": 20,
+      "total": 13,
+      "train": 10,
+      "val": 3
+    },
+    "Pseudo-nitzschia": {
+      "label_idx": 21,
+      "total": 12,
+      "train": 10,
+      "val": 2
+    },
+    "Rhizosolenia": {
+      "label_idx": 22,
+      "total": 11,
+      "train": 9,
+      "val": 2
+    },
+    "Ditylum_brightwellii": {
+      "label_idx": 23,
+      "total": 10,
+      "train": 8,
+      "val": 2
+    },
+    "Corethron_hystrix": {
+      "label_idx": 24,
+      "total": 9,
+      "train": 7,
+      "val": 2
+    },
+    "Coscinodiscus": {
+      "label_idx": 25,
+      "total": 8,
+      "train": 6,
+      "val": 2
+    },
+    "Acanthoica_quattrospina": {
+      "label_idx": 26,
+      "total": 7,
+      "train": 6,
+      "val": 1
+    },
+    "Dictyocha": {
+      "label_idx": 27,
+      "total": 6,
+      "train": 5,
+      "val": 1
+    },
+    "Tripos_fusus": {
+      "label_idx": 28,
+      "total": 5,
+      "train": 4,
+      "val": 1
+    },
+    "Dinophysis_acuminata": {
+      "label_idx": 29,
+      "total": 4,
+      "train": 3,
+      "val": 1
+    }
+  },
+  "underfilled": {
+    "bubble": {
+      "requested": 120,
+      "available": 34
+    }
+  }
+}

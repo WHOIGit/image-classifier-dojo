@@ -1,0 +1,54 @@
+"""parquet_images backend against the committed plankton-toyset fixture."""
+
+from __future__ import annotations
+
+import torch
+
+from dojo.data import build_dataloader, build_datasets
+from tests.fixtures.configs import TOY_NUM_CLASSES, toy_root_config
+
+
+def test_splits_decode_and_shape():
+    cfg = toy_root_config(canvas=(32, 32))
+    bundle = build_datasets(cfg)
+
+    assert set(bundle.datasets) == {"train", "val"}
+    assert len(bundle.datasets["train"]) == 49
+    assert len(bundle.datasets["val"]) == 13
+
+    sample = bundle.datasets["val"][0]
+    assert sample["image"].shape == (3, 32, 32)
+    assert sample["image"].dtype == torch.float32
+    assert 0 <= sample["target"] < TOY_NUM_CLASSES
+    assert isinstance(sample["sample_id"], str)
+    assert sample["split"] == "val"
+    assert sample["native_width_px"] > 0 and sample["native_height_px"] > 0
+    assert sample["resize_width_px"] == 32 and sample["resize_height_px"] == 32
+    assert set(sample["source_extra"]) == {"classname", "original_label"}
+
+
+def test_class_counts_match_fixture_summary():
+    bundle = build_datasets(toy_root_config())
+    # Contiguous labels 0..5; per-class train counts from summary.json.
+    assert bundle.class_counts["train"] == {0: 19, 1: 13, 2: 8, 3: 5, 4: 3, 5: 1}
+    assert bundle.class_counts["val"] == {0: 5, 1: 3, 2: 2, 3: 1, 4: 1, 5: 1}
+
+
+def test_dataloader_batches_via_shared_collation():
+    cfg = toy_root_config(canvas=(32, 32), batch_size=8)
+    bundle = build_datasets(cfg)
+    loader = build_dataloader(bundle.datasets["val"], batch_size=8)
+
+    batch = next(iter(loader))
+    assert batch["image"].shape == (8, 3, 32, 32)
+    assert batch["target"].shape == (8,)
+    assert batch["target"].dtype == torch.int64
+    assert len(batch["sample_id"]) == 8
+
+
+def test_dataset_hash_is_deterministic_and_uri_size():
+    a = build_datasets(toy_root_config())
+    b = build_datasets(toy_root_config())
+    assert a.dataset_hash == b.dataset_hash
+    assert a.dataset_hash.startswith("sha256:")
+    assert a.dataset_hash_provenance == "uri_size"

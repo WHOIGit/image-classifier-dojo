@@ -1,0 +1,22 @@
+seed: 123
+run_id: "{coolname:noseed}"
+precision: bf16-mixed
+# fp32 matmul throughput on Tensor-Core GPUs: highest (true fp32) | high (TF32) | medium (bf16).
+float32_matmul_precision: medium
+num_workers: 4
+# Show a Rich per-epoch training/validation progress bar.
+progress_bar: true
+fast_dev_run: false
+autobatch:
+  enabled: false
+preflight:
+  enabled: true
+  checks:
+    empty_train_classes: error
+    empty_eval_classes: warn
+    missing_required_targets: error
+    no_remaining_valid_target_labels: error
+    non_contiguous_class_indices: error
+    imbalance_ratio_gt:
+      severity: warn
+      threshold: 20.0

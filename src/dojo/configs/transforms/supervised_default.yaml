@@ -1,0 +1,16 @@
+image_mode: rgb
+input_bit_depth: 8
+pipeline:
+  - name: letterbox
+    canvas_size: [224, 224]
+  - name: rotate
+    mode: multiples_of_90
+    p: 0.5
+    train_only: true
+  - name: horizontal_flip
+    p: 0.5
+    train_only: true
+  - name: normalize
+    mode: fixed
+    mean: [0.485, 0.456, 0.406]
+    std: [0.229, 0.224, 0.225]

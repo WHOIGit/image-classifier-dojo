@@ -1,0 +1,68 @@
+# @package _global_
+
+# Runnable P1 smoke experiment over the committed plankton-toyset fixture. Network-free
+# (backbone weights `none`) so it trains from scratch without a download, and small
+# enough for a quick end-to-end run:
+#   dojo train experiment=p1/plankton-toy
+# Inline overrides work as usual, e.g. runtime.num_workers=0 training.max_epochs=1.
+
+defaults:
+  - /runtime: default
+  - /storage: local_only
+  - /data: plankton-toyset
+  - /transforms: supervised_default
+  - /backbone/torchvision@model.image_input.backbone: efficientnet_b0
+  - /optimizer: adamw
+  - /training_outputs: p1_local
+  - _self_
+
+experiment:
+  name: plankton-toy_p1_efficientnet_b0
+
+task:
+  type: supervised
+
+runtime:
+  num_workers: 0
+
+model:
+  image_input:
+    name: image
+    backbone:
+      weights:
+        source: none
+  tabular_input:
+    enabled: false
+    name: tabular
+  embedding_adapter:
+    enabled: false
+  heads:
+    species:
+      type: multiclass_classification
+      target: species
+      num_classes: 6
+      network:
+        type: linear
+
+objectives:
+  species:
+    head: species
+    loss: cross_entropy
+    metrics:
+      - f1_macro
+    weight: 1.0
+
+training:
+  max_epochs: 3
+  batch_size: 16
+  freeze:
+    backbone:
+      policy: none
+
+checkpointing:
+  monitor: val/species/f1_macro
+  mode: max
+  save_top_k: 1
+  save_last: true
+
+output_root: ./runs

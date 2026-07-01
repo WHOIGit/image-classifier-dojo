@@ -1,0 +1,20 @@
+# Local data group for the committed `plankton-miniset` dev set (30 classes, ~842
+# samples). Under ./configs so it is selectable as `data=plankton-miniset` without
+# touching the packaged config tree. Run from the repo root.
+backend: parquet_images
+manifest_uri: ./datasets/plankton-miniset/data.parquet
+split_column: split
+sample_id_column: ifcb_roi_pid
+images:
+  column: image
+  bytes_field: bytes
+  path_field: path
+source_extra_columns:
+  - classname
+  - original_label
+targets:
+  species:
+    label_index_column: label
+    label_name_column: classname
+    type: multiclass_classification
+    missing_policy: error

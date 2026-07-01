@@ -1,13 +1,20 @@
-"""dojo CLI entrypoint.
+"""dojo CLI entrypoint."""
 
-Placeholder for the refactor. The new Hydra-based CLI (``dojo train``,
-``dojo inspect``, ``dojo ensemble``, ...) lands in later migration steps;
-see ``DESIGN-DOC/13-migration-plan.md``.
-"""
+from __future__ import annotations
+
+import typer
+
+from dojo.cli.inspect import app as inspect_app
+from dojo.cli.train import TRAIN_CONTEXT_SETTINGS, train_command
+
+
+app = typer.Typer(no_args_is_help=True)
+app.add_typer(inspect_app, name="inspect")
+app.command("train", context_settings=TRAIN_CONTEXT_SETTINGS)(train_command)
 
 
 def main() -> None:
-    print("dojo: refactor in progress — the new CLI is not wired up yet.")
+    app()
 
 
 if __name__ == "__main__":

@@ -1,0 +1,58 @@
+{
+  "name": "plankton-toyset",
+  "source": "datasets/NES-plankton-classifier-2022-dataset/data",
+  "seed": 0,
+  "train_fraction": 0.8,
+  "num_classes": 6,
+  "num_samples": 62,
+  "num_train": 49,
+  "num_val": 13,
+  "imbalance_ratio": 12.0,
+  "class_names": [
+    "bubble",
+    "fiber",
+    "Copepod_nauplii",
+    "Skeletonema",
+    "Trichodesmium",
+    "Dinophysis_acuminata"
+  ],
+  "per_class": {
+    "bubble": {
+      "new_id": 0,
+      "total": 24,
+      "train": 19,
+      "val": 5
+    },
+    "fiber": {
+      "new_id": 1,
+      "total": 16,
+      "train": 13,
+      "val": 3
+    },
+    "Copepod_nauplii": {
+      "new_id": 2,
+      "total": 10,
+      "train": 8,
+      "val": 2
+    },
+    "Skeletonema": {
+      "new_id": 3,
+      "total": 6,
+      "train": 5,
+      "val": 1
+    },
+    "Trichodesmium": {
+      "new_id": 4,
+      "total": 4,
+      "train": 3,
+      "val": 1
+    },
+    "Dinophysis_acuminata": {
+      "new_id": 5,
+      "total": 2,
+      "train": 1,
+      "val": 1
+    }
+  },
+  "underfilled": {}
+}

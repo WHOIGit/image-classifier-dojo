@@ -1,0 +1,21 @@
+# Committed Tier-1 toy fixture (6 classes, ~62 inlined-image rows) used by the
+# runnable smoke experiment. The fixture carries a canonical `split` column, so
+# it is consumed via split_column. manifest_uri is repo-root relative: run the
+# toy experiment from the repository root.
+backend: parquet_images
+manifest_uri: ./tests/fixtures/plankton-toyset/data.parquet
+split_column: split
+sample_id_column: ifcb_roi_pid
+images:
+  column: image
+  bytes_field: bytes
+  path_field: path
+source_extra_columns:
+  - classname
+  - original_label
+targets:
+  species:
+    label_index_column: label
+    label_name_column: classname
+    type: multiclass_classification
+    missing_policy: error
