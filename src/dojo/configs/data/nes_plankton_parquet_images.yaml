@@ -13,6 +13,11 @@ images:
   column: image
   bytes_field: bytes
   path_field: path
+image_cache:
+  enabled: true
+  dir: null
+  progress: true
+  force_rebuild: false
 source_extra_columns:
   - classname
 targets:

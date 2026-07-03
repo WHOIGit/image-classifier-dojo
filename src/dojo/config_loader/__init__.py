@@ -18,6 +18,7 @@ from dojo.config_loader.compositor import (
     compose_config,
     default_config_dirs,
 )
+from dojo.config_loader.compare import compare_config_files
 from dojo.config_loader.conductor import (
     compose_and_resolve,
     validate_authored_only_fields,
@@ -33,6 +34,7 @@ __all__ = [
     "ComposedConfig",
     "ConfigCompositionError",
     "default_config_dirs",
+    "compare_config_files",
     "resolve_runtime_and_paths",
     "ResolutionResult",
     "render_template",

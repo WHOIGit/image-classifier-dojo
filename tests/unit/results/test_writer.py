@@ -56,6 +56,9 @@ def _seed_rows(prov: Provenance) -> list[dict]:
                 prediction_confidence=0.9,
                 logits=[0.1, 0.2],
                 probabilities=[0.4, 0.6],
+                head_hash="sha256:head",
+                target_index=i % 2,
+                target_name=["A", "B"][i % 2],
                 epoch=2,
                 global_step=100 + i,
                 checkpoint_hash="sha256:ckpt",
@@ -80,6 +83,9 @@ def test_roundtrip_and_filter_by_record_type(tmp_path):
     assert sample["probabilities"] == pytest.approx([0.4, 0.6])
     assert sample["logits"] == pytest.approx([0.1, 0.2])
     assert sample["head_name"] == "species"
+    assert sample["head_hash"] == "sha256:head"
+    assert sample["target_index"] in {0, 1}
+    assert sample["target_name"] in {"A", "B"}
     assert sample["stage"] == STAGE_TRAIN_VALIDATION
     # Provenance carried through.
     assert sample["run_id"] == "ifcb-green-river"

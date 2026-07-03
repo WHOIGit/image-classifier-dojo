@@ -107,6 +107,21 @@ def _derive_inference_pipeline(cfg_dict: dict[str, Any]) -> None:
     ]
 
 
+def _resolve_model_shapes(cfg_dict: dict[str, Any]) -> None:
+    architecture = (
+        cfg_dict.get("model", {})
+        .get("image_input", {})
+        .get("backbone", {})
+        .get("architecture", {})
+    )
+    if (
+        architecture.get("source") == "torchvision"
+        and architecture.get("name") == "efficientnet_b0"
+        and architecture.get("output_dim", "auto") == "auto"
+    ):
+        architecture["output_dim"] = 1280
+
+
 def resolve_runtime_and_paths(cfg: RootConfig, *, cwd: Path | None = None) -> ResolutionResult:
     cwd = (cwd or Path.cwd()).resolve()
     warnings: list[str] = []
@@ -117,6 +132,7 @@ def resolve_runtime_and_paths(cfg: RootConfig, *, cwd: Path | None = None) -> Re
         cfg_dict["runtime"]["run_id"] = render_template(run_id_template, cfg_dict)
 
     _derive_inference_pipeline(cfg_dict)
+    _resolve_model_shapes(cfg_dict)
 
     output_root = _resolve_output_root(cfg_dict["output_root"], cwd)
     cfg_dict["output_root"] = str(output_root)
@@ -138,6 +154,24 @@ def resolve_runtime_and_paths(cfg: RootConfig, *, cwd: Path | None = None) -> Re
         block_dir = block.get("dir")
         if block_dir:
             block["dir"] = _resolve_path(str(block_dir), training_dir, cwd)
+
+    eval_outputs = cfg_dict.get("eval_outputs")
+    if isinstance(eval_outputs, dict):
+        if eval_outputs.get("dir_template"):
+            rendered = render_template(eval_outputs["dir_template"], cfg_dict)
+            eval_dir = Path(_resolve_path(rendered, output_root, cwd))
+        elif eval_outputs.get("dir"):
+            eval_dir = Path(_resolve_path(eval_outputs["dir"], output_root, cwd))
+        else:
+            raise ValueError("eval_outputs.dir or dir_template is required")
+        eval_outputs["dir"] = str(eval_dir)
+        for block_name in ("results", "metrics", "figures"):
+            block = eval_outputs.get(block_name)
+            if not isinstance(block, dict):
+                continue
+            block_dir = block.get("dir")
+            if block_dir:
+                block["dir"] = _resolve_path(str(block_dir), eval_dir, cwd)
 
     if training_dir.exists():
         non_config_contents = [

@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import torch
 
+from dojo.config_loader import resolve_runtime_and_paths
+from dojo.config_schemas import RootConfig
 from dojo.data import build_dataloader, build_datasets
-from tests.fixtures.configs import TOY_NUM_CLASSES, toy_root_config
+from tests.fixtures.configs import TOY_NUM_CLASSES, toy_config_dict, toy_root_config
 
 
 def test_splits_decode_and_shape():
@@ -25,6 +27,36 @@ def test_splits_decode_and_shape():
     assert sample["native_width_px"] > 0 and sample["native_height_px"] > 0
     assert sample["resize_width_px"] == 32 and sample["resize_height_px"] == 32
     assert set(sample["source_extra"]) == {"classname", "original_label"}
+
+
+def test_parquet_images_dataset_does_not_materialize_image_bytes_column():
+    bundle = build_datasets(toy_root_config(canvas=(32, 32)))
+    dataset = bundle.datasets["train"]
+
+    assert hasattr(dataset, "_file_paths")
+    assert not hasattr(dataset, "_image_bytes")
+
+
+def test_parquet_images_can_materialize_image_cache(tmp_path):
+    raw = toy_config_dict(canvas=(32, 32), output_root=str(tmp_path / "runs"))
+    raw["data"]["image_cache"] = {
+        "enabled": True,
+        "dir": str(tmp_path / "image-cache"),
+        "progress": False,
+    }
+    cfg = resolve_runtime_and_paths(RootConfig.model_validate(raw)).config
+
+    bundle = build_datasets(cfg)
+    dataset = bundle.datasets["train"]
+    sample = dataset[0]
+
+    assert bundle.dataset_content_hash is not None
+    assert bundle.dataset_content_hash.startswith("sha256:")
+    assert bundle.materialized_image_cache_dir is not None
+    assert (bundle.materialized_image_cache_dir / "manifest.json").exists()
+    assert dataset._materialized_paths is not None
+    assert all(dataset._materialized_paths)
+    assert sample["image"].shape == (3, 32, 32)
 
 
 def test_class_counts_match_fixture_summary():

@@ -9,8 +9,8 @@ overridden or added without copying the whole packaged tree.
 ## Ownership
 
 Owns local, uncommitted-friendly config overrides (currently the
-`plankton-miniset` data group and the `p1/plankton-mini_efficientnet`
-experiment). Packaged defaults are owned by `src/dojo/configs/`.
+`plankton-miniset` / NES data selectors and the local `p1/` and `p2/`
+experiment roots). Packaged defaults are owned by `src/dojo/configs/`.
 
 ## Local Contracts
 

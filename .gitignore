@@ -30,4 +30,5 @@ DESIGN-DOC-as-pdf.sh
 *.pdf
 pyrightconfig.json
 runs/
+.cache/
 MY-NOTES/

@@ -21,6 +21,33 @@ def test_build_loss_cross_entropy_string_and_block():
     assert loss.label_smoothing == 0.1
 
 
+def test_build_loss_weighted_cross_entropy_from_class_counts():
+    objective = ObjectiveConfig(
+        head="species",
+        loss={"type": "weighted_cross_entropy", "params": {"scheme": "inverse_frequency"}},
+    )
+
+    loss = build_loss(
+        objective,
+        class_counts={0: 10, 1: 5, 2: 1},
+        num_classes=3,
+    )
+
+    assert isinstance(loss, nn.CrossEntropyLoss)
+    assert loss.weight is not None
+    assert loss.weight[2] > loss.weight[1] > loss.weight[0]
+    assert torch.isclose(loss.weight.mean(), torch.tensor(1.0))
+
+
+def test_weighted_cross_entropy_requires_counts():
+    objective = ObjectiveConfig(head="species", loss="weighted_cross_entropy")
+
+    import pytest
+
+    with pytest.raises(ValueError, match="requires train-split class_counts"):
+        build_loss(objective)
+
+
 def test_build_metric_modules_and_scalar_logs():
     metrics = build_metric_modules(["accuracy", "f1_macro"], num_classes=3)
     assert set(metrics) == {"accuracy", "f1_macro"}

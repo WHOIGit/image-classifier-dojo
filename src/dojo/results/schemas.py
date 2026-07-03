@@ -1,4 +1,4 @@
-"""Explicit pyarrow schema for the P1 canonical result table.
+"""Explicit pyarrow schema for the canonical supervised result table.
 
 P1 writes a single tall-Parquet table whose rows are discriminated by
 ``record_type`` and partitioned per ``training_outputs.results.partition_by``.
@@ -16,15 +16,22 @@ import pyarrow as pa
 
 # Bumped together with the sidecar schema_version; both share this value so a
 # reader can correlate result rows with their `_metadata.json`.
-RESULTS_SCHEMA_VERSION = "1.0.0"
+RESULTS_SCHEMA_VERSION = "1.1.0"
 
 # P1 record types (the supervised subset of the record_type taxonomy).
 RECORD_TYPE_SAMPLE_METADATA = "sample_metadata"
+RECORD_TYPE_EMBEDDING = "embedding"
 RECORD_TYPE_CLASSIFICATION_OUTPUT = "classification_output"
-RECORD_TYPES = (RECORD_TYPE_SAMPLE_METADATA, RECORD_TYPE_CLASSIFICATION_OUTPUT)
+RECORD_TYPES = (
+    RECORD_TYPE_SAMPLE_METADATA,
+    RECORD_TYPE_EMBEDDING,
+    RECORD_TYPE_CLASSIFICATION_OUTPUT,
+)
 
 # P1 produces only train-time validation rows.
 STAGE_TRAIN_VALIDATION = "train_validation"
+STAGE_INFER = "infer"
+STAGE_HOLDOUT_EVAL = "holdout_eval"
 
 _VECTOR = pa.list_(pa.float32())
 
@@ -68,11 +75,21 @@ _SAMPLE_METADATA_FIELDS = [
     pa.field("tabular_features_json", pa.string(), nullable=True),
 ]
 
+_EMBEDDING_FIELDS = [
+    pa.field("embedding_kind", pa.string(), nullable=True),
+    pa.field("embedding", _VECTOR, nullable=True),
+    pa.field("embedding_dim", pa.int64(), nullable=True),
+    pa.field("embedding_model_name", pa.string(), nullable=True),
+]
+
 # `record_type=classification_output` columns. The row is scoped by `head_name`
-# (the head->target link lives in `_metadata.json`); `target_index` / `target_name`
-# ground-truth columns are reserved for P2.
+# (the head->target link lives in `_metadata.json`). P2.5a makes rows
+# self-scoring by carrying the sample's true target alongside predictions.
 _CLASSIFICATION_OUTPUT_FIELDS = [
     pa.field("head_name", pa.string(), nullable=True),
+    pa.field("head_hash", pa.string(), nullable=True),
+    pa.field("target_index", pa.int64(), nullable=True),
+    pa.field("target_name", pa.string(), nullable=True),
     pa.field("prediction_index", pa.int64(), nullable=True),
     pa.field("prediction_label", pa.string(), nullable=True),
     pa.field("prediction_confidence", pa.float64(), nullable=True),
@@ -85,5 +102,8 @@ def result_table_schema() -> pa.Schema:
     """Return the union pyarrow schema for the P1 result table."""
 
     return pa.schema(
-        _PROVENANCE_FIELDS + _SAMPLE_METADATA_FIELDS + _CLASSIFICATION_OUTPUT_FIELDS
+        _PROVENANCE_FIELDS
+        + _SAMPLE_METADATA_FIELDS
+        + _EMBEDDING_FIELDS
+        + _CLASSIFICATION_OUTPUT_FIELDS
     )

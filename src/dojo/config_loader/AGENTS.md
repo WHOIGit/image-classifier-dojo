@@ -8,6 +8,8 @@ Turns CLI selectors/overrides into a validated, path-resolved `RootConfig`.
 - `resolver.py` — renders `run_id`, resolves output paths, derives the
   inference pipeline.
 - `conductor.py` — sequences compose → validate → resolve into one call.
+- `compare.py` — composes authored/resolved YAMLs for side-by-side
+  hash-source comparison without rendering authored output paths.
 
 ## Ownership
 

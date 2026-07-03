@@ -1,0 +1,44 @@
+# @package _global_
+
+defaults:
+  - nes_effb0_224_baseline
+  - _self_
+
+experiment:
+  name: nes_p2_effb0_buckets
+
+transforms:
+  image_mode: rgb
+  input_bit_depth: 8
+  pipeline:
+    - name: aspect_bucket
+      buckets:
+        - name: tall
+          max_aspect: 0.8
+          canvas_size: [320, 224]
+        - name: square
+          min_aspect: 0.8
+          max_aspect: 1.25
+          canvas_size: [224, 224]
+        - name: wide
+          min_aspect: 1.25
+          max_aspect: 2.5
+          canvas_size: [224, 320]
+        - name: ultrawide
+          min_aspect: 2.5
+          canvas_size: [224, 448]
+    - name: horizontal_flip
+      p: 0.5
+      train_only: true
+    - name: vertical_flip
+      p: 0.5
+      train_only: true
+    - name: normalize
+      mode: fixed
+      mean: [0.6425475478172302, 0.6425475478172302, 0.6425475478172302]
+      std: [0.19147475063800812, 0.19147475063800812, 0.19147475063800812]
+
+training:
+  batch_size: 48
+  sampler:
+    type: batch_aspect_buckets

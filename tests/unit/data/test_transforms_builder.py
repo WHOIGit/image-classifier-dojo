@@ -89,3 +89,67 @@ def test_disabled_step_is_skipped():
     img.putpixel((0, 0), (255, 0, 0))
     out = transform(img)
     assert out[0, 0, 0].item() > 0.9  # red corner remained top-left
+
+
+def test_aspect_bucket_selects_canvas_from_native_shape():
+    pipeline = [
+        {
+            "name": "aspect_bucket",
+            "buckets": [
+                {"name": "wide", "min_aspect": 1.2, "canvas_size": [16, 32]},
+                {"name": "tall", "max_aspect": 0.8, "canvas_size": [32, 16]},
+                {"name": "square", "canvas_size": [24, 24]},
+            ],
+        },
+        {
+            "name": "normalize",
+            "mode": "fixed",
+            "mean": [0.0, 0.0, 0.0],
+            "std": [1.0, 1.0, 1.0],
+        },
+    ]
+    cfg = _transforms(pipeline)
+    transform = build_image_transform(
+        cfg.pipeline, image_mode=cfg.image_mode, input_bit_depth=cfg.input_bit_depth
+    )
+
+    assert transform(Image.new("RGB", (40, 10))).shape == (3, 16, 32)
+    assert transform(Image.new("RGB", (10, 40))).shape == (3, 32, 16)
+    assert transform(Image.new("RGB", (20, 20))).shape == (3, 24, 24)
+
+
+def test_foreground_crop_removes_empty_border_before_letterbox():
+    pipeline = [
+        {"name": "foreground_crop", "threshold": 0.1, "padding_px": 0},
+        {"name": "letterbox", "canvas_size": [8, 8]},
+    ]
+    cfg = _transforms(pipeline)
+    transform = build_image_transform(
+        cfg.pipeline, image_mode=cfg.image_mode, input_bit_depth=cfg.input_bit_depth
+    )
+    img = Image.new("RGB", (8, 8), color=(0, 0, 0))
+    for x in range(3, 5):
+        for y in range(3, 5):
+            img.putpixel((x, y), (255, 255, 255))
+
+    out = transform(img)
+
+    assert out.shape == (3, 8, 8)
+    assert torch.all(out > 0.9)
+
+
+def test_grayscale_step_preserves_channel_count():
+    pipeline = [
+        {"name": "grayscale", "p": 1.0},
+        {"name": "letterbox", "canvas_size": [8, 8]},
+    ]
+    cfg = _transforms(pipeline)
+    transform = build_image_transform(
+        cfg.pipeline, image_mode=cfg.image_mode, input_bit_depth=cfg.input_bit_depth
+    )
+
+    out = transform(Image.new("RGB", (8, 8), color=(255, 0, 0)))
+
+    assert out.shape == (3, 8, 8)
+    assert torch.allclose(out[0], out[1])
+    assert torch.allclose(out[1], out[2])

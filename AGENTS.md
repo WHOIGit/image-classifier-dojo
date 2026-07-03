@@ -3,9 +3,9 @@
 ## Project Purpose
 
 Train computer-vision classifier models configured through Hydra + Pydantic,
-reading Parquet datasets and writing canonical, queryable Parquet results. The
-current code is the **Priority-1 end-to-end thin slice** (config → data → model
-→ training → storage → results) for one supervised, single-head run. The full
+reading manifest-backed image datasets and writing canonical, queryable Parquet
+results. The current code is the completed **Priority-1 end-to-end thin slice**
+plus the implemented **Priority-2 core supervised platform** surface. The full
 roadmap lives in `DESIGN-DOC/`.
 
 ## Ownership
@@ -14,6 +14,9 @@ roadmap lives in `DESIGN-DOC/`.
   legacy reference code, outside the DOX contract; do not extend it.
 - `DESIGN-DOC/` — authoritative spec and roadmap.
 - `tests/`, `configs/`, `datasets/` — see their child docs.
+- `REPORTS/` — durable implementation and experiment reports.
+- `QUESTIONS-FOR-SIDNEY.md` — review queue for decision junctions made while
+  continuing through blockers or underspecified P2 scope.
 - `amplify-db-utils/` — a **nested sibling git repo** (its own `.git`), vendored
   here for local development; governed by its own repo, not this DOX tree.
 - `.agents/`, `.codex/`, `MY-NOTES/` — currently empty scratch dirs; no contract.
@@ -22,14 +25,45 @@ roadmap lives in `DESIGN-DOC/`.
 
 - Pydantic schemas (`src/dojo/config_schemas/`) are the runtime contract; strict
   schema (`extra="forbid"`), deferred features absent not stubbed.
+- Functional supervised dataset backends are `csv_manifest`, `parquet_manifest`,
+  and `parquet_images`.
 - `*_hash` columns and `run_id` are deterministic/reproducible per config.
 - Dash-prefixed CLI tokens are options; dash-free `key=value` are Hydra overrides.
-- The installed console script is `dojo`; base install is Torch-free.
+- The installed console script is `dojo`; base install is Torch-free for
+  config/init/storage/result operations and lightweight inspect paths. Dataset
+  inspection, model inspection, training, inference, and eval use the vision
+  stack.
 
 ## Verification
 
 - `pytest` (fast loop, skips expensive); `pytest --run-expensive` (full,
   including real Lightning fits). Run from repo root.
+
+## Communications from the SATI Agent
+
+SATI (`~/Projects/sibert-2026/sati`) is a sibling project: slice-aware object-detection
+training/inference over very large images (100+ MP), built on the same input methodology
+as dojo — Hydra Compose + strict Pydantic schemas + a compose→validate→resolve
+`config_loader` (SATI's compositor/resolver/conductor split is copied from dojo's), with
+deterministic `*_hash` provenance columns and Parquet result ledgers. Sidney (the end
+user) explicitly requests that design notes transfer between SATI and dojo in both
+directions; entries below are notes from the SATI agent that may be worth adopting here.
+
+- **Deterministic `config_hash` for file-backed weights (2026-07-02).** If a weights/
+  checkpoint config field points at a real local file, hash the file *bytes* (SATI's
+  `checkpoint_hash`) and substitute that digest for the path string in the config-hash
+  source; hub asset names (not local files) hash verbatim. This keeps `config_hash`
+  machine- and location-independent without erasing model identity. Dojo's
+  `config_schemas/hashing.py` may want the same rule for backbone/checkpoint paths.
+- **Hydra primary-root constraint (2026-07-02).** SATI hit the same constraint dojo's
+  compositor documents (primary config can't live on the runtime searchpath) and adopted
+  a hybrid: packaged `config.yaml` root for selector-less runs, dojo-style
+  `experiment=name` promotion otherwise. No action needed in dojo; recorded for parity.
+- **Timestamps in reports and questions (2026-07-02 23:15 EDT, from Sidney).** Sidney asks
+  the dojo agent to carry full timestamps — `YYYY-MM-DD HH:MM TZ` — on every new
+  `REPORTS/` entry heading and every new `QUESTIONS-FOR-SIDNEY.md` entry, not just dates.
+  SATI adopted the same rule in its `REPORTS/AGENTS.md`; record it in dojo's
+  `REPORTS/AGENTS.md` Local Contracts on the next DOX pass there.
 
 ---
 
@@ -117,12 +151,13 @@ When the user requests a durable behavior change, record it here or in the relev
 
 - [src/dojo/](src/dojo/AGENTS.md) — the `dojo` package; its own index covers
   `cli`, `config_loader`, `config_schemas`, `configs`, `data`, `model`,
-  `training`, `storage`, and `results`.
+  `training`, `storage`, `results`, and `inference`.
 - [tests/](tests/AGENTS.md) — unit + integration suite and committed fixtures.
 - [DESIGN-DOC/](DESIGN-DOC/AGENTS.md) — authoritative design spec and roadmap.
 - [configs/](configs/AGENTS.md) — project-root config groups shadowing the
   packaged ones.
 - [datasets/](datasets/AGENTS.md) — committed (LFS) and bring-your-own datasets.
+- [REPORTS/](REPORTS/AGENTS.md) — durable implementation and experiment reports.
 
 Not indexed (no local DOX contract): `src/dojo_deprecated/` (legacy reference),
 `runs/` (generated run artifacts), `amplify-db-utils/` (nested sibling repo,

@@ -1,0 +1,87 @@
+# @package _global_
+
+defaults:
+  - /runtime: default
+  - /storage: local_only
+  - /data: nes_plankton_parquet_images
+  - /backbone/torchvision@model.image_input.backbone: efficientnet_b0
+  - /optimizer: adamw
+  - /training_outputs: p1_local
+  - _self_
+
+experiment:
+  name: nes_p2_effb0_224_baseline
+
+task:
+  type: supervised
+
+runtime:
+  num_workers: 8
+  progress_bar: true
+
+model:
+  image_input:
+    name: image
+  tabular_input:
+    enabled: false
+    name: tabular
+  embedding_adapter:
+    enabled: true
+    type: linear
+    output_dim: 512
+  heads:
+    species:
+      type: multiclass_classification
+      target: species
+      num_classes: 155
+      network:
+        type: linear
+
+objectives:
+  species:
+    head: species
+    loss: cross_entropy
+    metrics:
+      - f1_macro
+      - f1_micro
+      - accuracy
+    weight: 1.0
+
+transforms:
+  image_mode: rgb
+  input_bit_depth: 8
+  pipeline:
+    - name: letterbox
+      canvas_size: [224, 224]
+    - name: horizontal_flip
+      p: 0.5
+      train_only: true
+    - name: vertical_flip
+      p: 0.5
+      train_only: true
+    - name: normalize
+      mode: fixed
+      mean: [0.6425475478172302, 0.6425475478172302, 0.6425475478172302]
+      std: [0.19147475063800812, 0.19147475063800812, 0.19147475063800812]
+
+training:
+  max_epochs: 10
+  batch_size: 64
+  sampler:
+    type: default
+  freeze:
+    backbone:
+      policy: none
+
+checkpointing:
+  monitor: val/species/f1_macro
+  mode: max
+  save_top_k: 1
+  save_last: true
+
+output_root: ./runs
+
+training_outputs:
+  dir_template: "{experiment.name}/{timestamp}_{runtime.run_id}"
+  figures:
+    enabled: true

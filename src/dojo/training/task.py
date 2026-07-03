@@ -45,6 +45,8 @@ class SupervisedTaskModule(L.LightningModule):
         training_config: TrainingConfig,
         objectives_config: dict[str, ObjectiveConfig],
         optimizer_config: OptimizerConfig,
+        class_counts_by_head: dict[str, dict[int, int]] | None = None,
+        inference_contract: dict | None = None,
     ) -> None:
         super().__init__()
         # Pydantic configs are picklable; keep them out of the metrics logger.
@@ -54,6 +56,7 @@ class SupervisedTaskModule(L.LightningModule):
             model_config, freeze_cfg=training_config.freeze
         )
         self._optimizer_config = optimizer_config
+        self._inference_contract = inference_contract
 
         objectives: list[_Objective] = []
         losses: dict[str, nn.Module] = {}
@@ -64,8 +67,12 @@ class SupervisedTaskModule(L.LightningModule):
                 continue
             head_name = objective.head or name
             objectives.append(_Objective(name, head_name, float(objective.weight)))
-            losses[name] = build_loss(objective)
             num_classes = self.model.heads[head_name].num_classes
+            losses[name] = build_loss(
+                objective,
+                class_counts=(class_counts_by_head or {}).get(head_name),
+                num_classes=num_classes,
+            )
             train_metrics[name] = build_metric_modules(objective.metrics, num_classes)
             val_metrics[name] = build_metric_modules(objective.metrics, num_classes)
 
@@ -138,3 +145,7 @@ class SupervisedTaskModule(L.LightningModule):
 
     def on_validation_epoch_end(self) -> None:
         self._log_epoch_metrics("val")
+
+    def on_save_checkpoint(self, checkpoint: dict) -> None:
+        if self._inference_contract is not None:
+            checkpoint["dojo_inference_contract"] = self._inference_contract

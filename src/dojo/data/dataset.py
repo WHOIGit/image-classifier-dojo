@@ -1,4 +1,4 @@
-"""Torch dataset over an in-memory ``parquet_images`` split table."""
+"""Torch datasets over lightweight manifest split tables."""
 
 from __future__ import annotations
 
@@ -6,22 +6,29 @@ import io
 from typing import Any
 
 import pyarrow as pa
-import pyarrow.compute as pc
-import torch
 from PIL import Image
 from torch.utils.data import Dataset
 
-from dojo.config_schemas.root import DataConfig
+from dojo.config_schemas.root import AspectBucketStep, DataConfig
 from dojo.data.contract import DecodedSample
-from dojo.data.transforms import ImageTransform
+from dojo.data.parquet_rows import (
+    ROW_FILE_PATH,
+    ROW_GROUP_INDEX,
+    ROW_IMAGE_PATH,
+    ROW_IN_GROUP_INDEX,
+    ROW_MATERIALIZED_IMAGE_PATH,
+    LazyParquetImageReader,
+)
+from dojo.data.transforms import ImageTransform, choose_aspect_bucket
+from dojo.storage import Storage
 
 
 class ParquetImagesDataset(Dataset[DecodedSample]):
     """One split's rows, decoding inlined image bytes on access.
 
-    Columns are pre-extracted to Python lists at construction so ``__getitem__``
-    only decodes + transforms the image. ``split`` is constant for the dataset
-    (the backend groups rows by split before constructing it).
+    Only lightweight metadata and row references are pre-extracted to Python
+    lists. Embedded image bytes stay in the source Parquet file and are read in
+    ``__getitem__`` from the referenced row group.
     """
 
     def __init__(
@@ -32,18 +39,36 @@ class ParquetImagesDataset(Dataset[DecodedSample]):
         target_name: str,
         split: str,
         transform: ImageTransform,
+        aspect_bucket_step: AspectBucketStep | None = None,
         class_index_by_name: dict[str, int] | None = None,
     ) -> None:
         self._split = split
         self._transform = transform
+        self._aspect_bucket_step = aspect_bucket_step
         self._sample_ids = table.column(cfg.sample_id_column).to_pylist()
 
         image = cfg.images
         assert image is not None  # guaranteed by parquet_images backend
-        # table.column(...) is a ChunkedArray of struct type; pull the bytes
-        # sub-field with struct_field (ChunkedArray has no .field()).
-        struct = table.column(image.column)
-        self._image_bytes = pc.struct_field(struct, image.bytes_field).to_pylist()
+        self._image_column = image.column
+        self._bytes_field = image.bytes_field
+        self._file_paths = [str(v) for v in table.column(ROW_FILE_PATH).to_pylist()]
+        self._row_groups = [int(v) for v in table.column(ROW_GROUP_INDEX).to_pylist()]
+        self._row_in_groups = [
+            int(v) for v in table.column(ROW_IN_GROUP_INDEX).to_pylist()
+        ]
+        self._materialized_paths: list[str] | None = None
+        if ROW_MATERIALIZED_IMAGE_PATH in table.column_names:
+            self._materialized_paths = [
+                str(value) for value in table.column(ROW_MATERIALIZED_IMAGE_PATH).to_pylist()
+            ]
+        self._image_reader: LazyParquetImageReader | None = None
+        if image.path_field is None:
+            self._uris: list[str | None] = [None] * len(self._sample_ids)
+        else:
+            self._uris = [
+                None if value is None else str(value)
+                for value in table.column(ROW_IMAGE_PATH).to_pylist()
+            ]
 
         # Per-sample integer label index: read the index column directly, or map
         # the name column through the backend-assigned class_index_by_name.
@@ -60,13 +85,40 @@ class ParquetImagesDataset(Dataset[DecodedSample]):
             col: table.column(col).to_pylist() for col in self._source_extra_cols
         }
 
+    def __getstate__(self) -> dict[str, Any]:
+        state = self.__dict__.copy()
+        state["_image_reader"] = None
+        return state
+
     def __len__(self) -> int:
         return len(self._sample_ids)
 
+    def target_for_index(self, index: int) -> int:
+        return int(self._targets[index])
+
+    def has_aspect_buckets(self) -> bool:
+        return self._aspect_bucket_step is not None
+
+    def _read_image_bytes(self, index: int) -> bytes:
+        if self._image_reader is None:
+            self._image_reader = LazyParquetImageReader(
+                image_column=self._image_column,
+                bytes_field=self._bytes_field,
+            )
+        return self._image_reader.read_bytes(
+            file_path=self._file_paths[index],
+            row_group=self._row_groups[index],
+            row_in_group=self._row_in_groups[index],
+        )
+
     def __getitem__(self, index: int) -> DecodedSample:
-        img = Image.open(io.BytesIO(self._image_bytes[index]))
+        if self._materialized_paths is None:
+            img = Image.open(io.BytesIO(self._read_image_bytes(index)))
+        else:
+            img = Image.open(self._materialized_paths[index])
         img.load()
         native_w, native_h = img.size
+        aspect_bucket = self.aspect_bucket_for_index(index, native_size=(native_w, native_h))
 
         tensor = self._transform(img)
         _, resize_h, resize_w = tensor.shape
@@ -81,10 +133,143 @@ class ParquetImagesDataset(Dataset[DecodedSample]):
             image=tensor,
             target=int(self._targets[index]),
             sample_id=str(self._sample_ids[index]),
+            uri=self._uris[index],
             split=self._split,
             native_width_px=int(native_w),
             native_height_px=int(native_h),
             resize_width_px=int(resize_w),
             resize_height_px=int(resize_h),
+            aspect_bucket=aspect_bucket,
             source_extra=source_extra,
         )
+
+    def aspect_bucket_for_index(
+        self,
+        index: int,
+        *,
+        native_size: tuple[int, int] | None = None,
+    ) -> str | None:
+        if self._aspect_bucket_step is None:
+            return None
+        if native_size is None:
+            if self._materialized_paths is None:
+                img = Image.open(io.BytesIO(self._read_image_bytes(index)))
+            else:
+                img = Image.open(self._materialized_paths[index])
+            native_size = img.size
+        bucket = choose_aspect_bucket(
+            width=int(native_size[0]),
+            height=int(native_size[1]),
+            buckets=self._aspect_bucket_step.buckets,
+        )
+        return bucket.name
+
+
+class ManifestImagesDataset(Dataset[DecodedSample]):
+    """One split's rows, reading image bytes from ``image_uri_column`` on demand."""
+
+    def __init__(
+        self,
+        table: pa.Table,
+        *,
+        cfg: DataConfig,
+        target_name: str,
+        split: str,
+        transform: ImageTransform,
+        storage: Storage,
+        manifest_root: str,
+        aspect_bucket_step: AspectBucketStep | None = None,
+        class_index_by_name: dict[str, int] | None = None,
+    ) -> None:
+        self._split = split
+        self._transform = transform
+        self._storage = storage
+        self._manifest_root = manifest_root
+        self._aspect_bucket_step = aspect_bucket_step
+        self._sample_ids = table.column(cfg.sample_id_column).to_pylist()
+
+        assert cfg.image_uri_column is not None
+        self._uris = [
+            None if value is None else str(value)
+            for value in table.column(cfg.image_uri_column).to_pylist()
+        ]
+
+        target = cfg.targets[target_name]
+        if target.label_index_column is not None:
+            self._targets = [int(v) for v in table.column(target.label_index_column).to_pylist()]
+        else:
+            assert class_index_by_name is not None
+            names = table.column(target.label_name_column).to_pylist()
+            self._targets = [class_index_by_name[str(n)] for n in names]
+
+        self._source_extra_cols = list(cfg.source_extra_columns)
+        self._source_extra = {
+            col: table.column(col).to_pylist() for col in self._source_extra_cols
+        }
+
+    def __len__(self) -> int:
+        return len(self._sample_ids)
+
+    def target_for_index(self, index: int) -> int:
+        return int(self._targets[index])
+
+    def has_aspect_buckets(self) -> bool:
+        return self._aspect_bucket_step is not None
+
+    def _resolve_uri(self, uri: str) -> str:
+        if "://" in uri or uri.startswith("/"):
+            return uri
+        return str((self._storage.localize(self._manifest_root) / uri).resolve())
+
+    def __getitem__(self, index: int) -> DecodedSample:
+        uri = self._uris[index]
+        if uri is None:
+            raise ValueError(f"missing image URI for sample {self._sample_ids[index]!r}")
+        img = Image.open(io.BytesIO(self._storage.read_bytes(self._resolve_uri(uri))))
+        img.load()
+        native_w, native_h = img.size
+        aspect_bucket = self.aspect_bucket_for_index(index, native_size=(native_w, native_h))
+
+        tensor = self._transform(img)
+        _, resize_h, resize_w = tensor.shape
+
+        source_extra: dict[str, Any] | None = None
+        if self._source_extra_cols:
+            source_extra = {
+                col: self._source_extra[col][index] for col in self._source_extra_cols
+            }
+
+        return DecodedSample(
+            image=tensor,
+            target=int(self._targets[index]),
+            sample_id=str(self._sample_ids[index]),
+            uri=uri,
+            split=self._split,
+            native_width_px=int(native_w),
+            native_height_px=int(native_h),
+            resize_width_px=int(resize_w),
+            resize_height_px=int(resize_h),
+            aspect_bucket=aspect_bucket,
+            source_extra=source_extra,
+        )
+
+    def aspect_bucket_for_index(
+        self,
+        index: int,
+        *,
+        native_size: tuple[int, int] | None = None,
+    ) -> str | None:
+        if self._aspect_bucket_step is None:
+            return None
+        uri = self._uris[index]
+        if uri is None:
+            return None
+        if native_size is None:
+            img = Image.open(io.BytesIO(self._storage.read_bytes(self._resolve_uri(uri))))
+            native_size = img.size
+        bucket = choose_aspect_bucket(
+            width=int(native_size[0]),
+            height=int(native_size[1]),
+            buckets=self._aspect_bucket_step.buckets,
+        )
+        return bucket.name

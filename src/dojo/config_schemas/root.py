@@ -1,8 +1,4 @@
-"""P1 root configuration schema.
-
-The schema here intentionally covers only the P1 supervised thin slice.
-Deferred and later-priority values are absent rather than stubbed.
-"""
+"""Strict root configuration schema for the implemented Dojo runtime surface."""
 
 from __future__ import annotations
 
@@ -78,6 +74,13 @@ class ParquetImageColumnConfig(StrictModel):
     path_field: str | None = "path"
 
 
+class ImageCacheConfig(StrictModel):
+    enabled: bool = False
+    dir: str | None = None
+    progress: bool = True
+    force_rebuild: bool = False
+
+
 class TargetConfig(StrictModel):
     type: Literal["multiclass_classification"]
     # A target's per-sample label comes from an integer index column
@@ -98,7 +101,7 @@ class TargetConfig(StrictModel):
 
 
 class DataConfig(StrictModel):
-    backend: Literal["parquet_images", "parquet_manifest"]
+    backend: Literal["csv_manifest", "parquet_images", "parquet_manifest"]
     manifest_uri: str
     file_pattern: str | None = None
     stats_cache_uri: str | None = None
@@ -107,6 +110,7 @@ class DataConfig(StrictModel):
     split_from_filename: dict[SplitName, str] | None = None
     image_uri_column: str | None = None
     images: ParquetImageColumnConfig | None = None
+    image_cache: ImageCacheConfig = Field(default_factory=ImageCacheConfig)
     source_extra_columns: list[str] = Field(default_factory=list)
     tabular_feature_columns: list[str] | dict[str, Any] | None = None
     targets: dict[str, TargetConfig]
@@ -115,9 +119,9 @@ class DataConfig(StrictModel):
     def validate_backend_fields(self) -> "DataConfig":
         if self.backend == "parquet_images" and self.images is None:
             raise ValueError("data.images is required when data.backend is parquet_images")
-        if self.backend == "parquet_manifest" and self.image_uri_column is None:
+        if self.backend in {"csv_manifest", "parquet_manifest"} and self.image_uri_column is None:
             raise ValueError(
-                "data.image_uri_column is required when data.backend is parquet_manifest"
+                "data.image_uri_column is required when data.backend is csv_manifest or parquet_manifest"
             )
         split_sources = [
             self.split_column is not None,
@@ -141,6 +145,37 @@ class LetterboxStep(StrictModel):
     enabled: bool = True
     train_only: bool = False
     canvas_size: tuple[int, int]
+
+
+class AspectBucketConfig(StrictModel):
+    name: str
+    min_aspect: float | None = None
+    max_aspect: float | None = None
+    min_native_long_side: int | None = None
+    max_native_long_side: int | None = None
+    canvas_size: tuple[int, int]
+
+
+class AspectBucketStep(StrictModel):
+    name: Literal["aspect_bucket"]
+    enabled: bool = True
+    train_only: bool = False
+    buckets: list[AspectBucketConfig] = Field(min_length=1)
+
+
+class ForegroundCropStep(StrictModel):
+    name: Literal["foreground_crop"]
+    enabled: bool = True
+    train_only: bool = False
+    threshold: float = Field(default=0.0, ge=0.0, le=1.0)
+    padding_px: int = Field(default=0, ge=0)
+
+
+class GrayscaleStep(StrictModel):
+    name: Literal["grayscale"]
+    enabled: bool = True
+    train_only: bool = False
+    p: float = Field(default=1.0, ge=0.0, le=1.0)
 
 
 class NormalizeStep(StrictModel):
@@ -175,7 +210,14 @@ class VerticalFlipStep(StrictModel):
 
 
 TransformStep = Annotated[
-    LetterboxStep | NormalizeStep | RotateStep | HorizontalFlipStep | VerticalFlipStep,
+    LetterboxStep
+    | AspectBucketStep
+    | ForegroundCropStep
+    | GrayscaleStep
+    | NormalizeStep
+    | RotateStep
+    | HorizontalFlipStep
+    | VerticalFlipStep,
     Field(discriminator="name"),
 ]
 
@@ -188,15 +230,24 @@ class TransformsConfig(StrictModel):
 
 
 class BackboneArchitectureConfig(StrictModel):
-    source: Literal["torchvision"]
-    name: Literal["efficientnet_b0"]
+    source: Literal["torchvision", "timm"]
+    name: str
     output_dim: int | Literal["auto"] = "auto"
     input_channels: int = 3
 
 
 class BackboneWeightsConfig(StrictModel):
-    source: Literal["library", "none"]
+    source: Literal["library", "none", "checkpoint"]
     name: str | None = None
+    uri: str | None = None
+    key: str | None = None
+    strict: bool = True
+
+    @model_validator(mode="after")
+    def validate_checkpoint_source(self) -> "BackboneWeightsConfig":
+        if self.source == "checkpoint" and self.uri is None:
+            raise ValueError("backbone.weights.uri is required when source='checkpoint'")
+        return self
 
 
 class BackboneConfig(StrictModel):
@@ -216,6 +267,29 @@ class DisabledTabularInputConfig(StrictModel):
 
 class DisabledEmbeddingAdapterConfig(StrictModel):
     enabled: Literal[False] = False
+
+
+class EnabledEmbeddingAdapterConfig(StrictModel):
+    enabled: Literal[True]
+    type: Literal["linear", "mlp"]
+    output_dim: int = Field(gt=0)
+    hidden_dims: tuple[int, ...] = Field(default_factory=tuple)
+    activation: Literal["gelu", "relu"] = "gelu"
+    dropout: float = Field(default=0.0, ge=0.0)
+
+    @model_validator(mode="after")
+    def validate_hidden_dims(self) -> "EnabledEmbeddingAdapterConfig":
+        if self.type == "mlp" and not self.hidden_dims:
+            raise ValueError("embedding_adapter.hidden_dims is required for type='mlp'")
+        if self.type == "linear" and self.hidden_dims:
+            raise ValueError("embedding_adapter.hidden_dims is invalid for type='linear'")
+        return self
+
+
+EmbeddingAdapterConfig = Annotated[
+    DisabledEmbeddingAdapterConfig | EnabledEmbeddingAdapterConfig,
+    Field(discriminator="enabled"),
+]
 
 
 class LinearNetworkConfig(StrictModel):
@@ -244,7 +318,7 @@ class ModelConfig(StrictModel):
     tabular_input: DisabledTabularInputConfig = Field(
         default_factory=DisabledTabularInputConfig
     )
-    embedding_adapter: DisabledEmbeddingAdapterConfig = Field(
+    embedding_adapter: EmbeddingAdapterConfig = Field(
         default_factory=DisabledEmbeddingAdapterConfig
     )
     heads: dict[str, HeadConfig]
@@ -273,9 +347,17 @@ class CrossEntropyLossConfig(StrictModel):
     params: dict[str, Any] = Field(default_factory=dict)
 
 
+class WeightedCrossEntropyLossConfig(StrictModel):
+    type: Literal["weighted_cross_entropy"]
+    params: dict[str, Any] = Field(default_factory=dict)
+
+
+LossConfig = CrossEntropyLossConfig | WeightedCrossEntropyLossConfig
+
+
 class ObjectiveConfig(StrictModel):
     head: str | None = None
-    loss: Literal["cross_entropy"] | CrossEntropyLossConfig = "cross_entropy"
+    loss: Literal["cross_entropy", "weighted_cross_entropy"] | LossConfig = "cross_entropy"
     metrics: list[MetricName] = Field(default_factory=lambda: ["accuracy"])
     weight: float = Field(default=1.0, ge=0.0)
     enabled: bool = True
@@ -298,9 +380,20 @@ class EarlyStoppingConfig(StrictModel):
     patience: int = Field(default=10, ge=1)
 
 
+class SamplerConfig(StrictModel):
+    type: Literal["default", "batch_aspect_buckets", "class_balanced", "weighted"] = (
+        "default"
+    )
+    class_weight_scheme: Literal["inverse_frequency", "effective_number"] = (
+        "inverse_frequency"
+    )
+    beta: float = Field(default=0.9999, gt=0.0, lt=1.0)
+
+
 class TrainingConfig(StrictModel):
     max_epochs: int = Field(gt=0)
     batch_size: int = Field(gt=0)
+    sampler: SamplerConfig = Field(default_factory=SamplerConfig)
     freeze: FreezeConfig = Field(default_factory=FreezeConfig)
     early_stopping: EarlyStoppingConfig | None = None
 
@@ -371,6 +464,20 @@ class TrainingOutputsConfig(StrictModel):
         return self
 
 
+class EvalOutputsConfig(StrictModel):
+    dir: str | None = None
+    dir_template: str | None = "{experiment.name}/{timestamp}_{runtime.run_id}_eval"
+    results: ResultsOutputConfig = Field(default_factory=ResultsOutputConfig)
+    metrics: MetricsOutputConfig = Field(default_factory=MetricsOutputConfig)
+    figures: FiguresOutputConfig = Field(default_factory=FiguresOutputConfig)
+
+    @model_validator(mode="after")
+    def validate_dir_source(self) -> "EvalOutputsConfig":
+        if self.dir is None and self.dir_template is None:
+            raise ValueError("eval_outputs.dir or dir_template is required")
+        return self
+
+
 class RootConfig(StrictModel):
     experiment: ExperimentConfig
     task: TaskConfig
@@ -385,6 +492,7 @@ class RootConfig(StrictModel):
     checkpointing: CheckpointingConfig
     output_root: str = "./runs"
     training_outputs: TrainingOutputsConfig
+    eval_outputs: EvalOutputsConfig = Field(default_factory=EvalOutputsConfig)
 
     @model_validator(mode="after")
     def validate_references(self) -> "RootConfig":
@@ -420,10 +528,10 @@ class RootConfig(StrictModel):
                 if isinstance(objective.loss, str)
                 else objective.loss.type
             )
-            if loss_type != "cross_entropy":
+            if loss_type not in {"cross_entropy", "weighted_cross_entropy"}:
                 raise ValueError(
                     f"objectives.{objective_name}.loss {loss_type!r} is not "
-                    "implemented for P1"
+                    "implemented"
                 )
 
         if not any(obj.enabled and obj.weight > 0 for obj in self.objectives.values()):

@@ -2,9 +2,12 @@
 
 ## Purpose
 
-The importable `dojo` package: the Priority-1 end-to-end thin slice (config →
-data → model → training → storage → results) for supervised, single-head image
-classification. Base install is Torch-free; training needs the `train` extra.
+The importable `dojo` package: the completed Priority-1 end-to-end thin slice
+(config → data → model → training → storage → results) plus the implemented
+Priority-2 core supervised-platform surface. Base install is Torch-free for
+config/init/storage/result operations and lightweight inspect paths; dataset
+inspection, model inspection, training, inference, and eval need the vision
+stack.
 
 ## Ownership
 
@@ -27,8 +30,9 @@ external dependencies, not owned here.
 
 ## Work Guidance
 
-- New capability beyond P1 (SSL, ensembles, sweeps, export, tabular input) is
-  roadmap — see `DESIGN-DOC/13-workplan.md` before starting.
+- Keep implemented features functional end to end: schema, runtime behavior,
+  result provenance, and tests should land together. Leave P3+ values absent
+  from the strict schema until wired through.
 
 ## Verification
 
@@ -41,6 +45,7 @@ external dependencies, not owned here.
 - [config_schemas/](config_schemas/AGENTS.md) — strict Pydantic contract + hashing.
 - [configs/](configs/AGENTS.md) — packaged Hydra config groups.
 - [data/](data/AGENTS.md) — dataset backends, sample contract, transforms.
+- [inference/](inference/AGENTS.md) — checkpoint-backed inference and holdout eval.
 - [model/](model/AGENTS.md) — backbone + heads + supervised composition.
 - [training/](training/AGENTS.md) — Lightning task, trainer, run orchestration.
 - [storage/](storage/AGENTS.md) — URI-based storage seam.

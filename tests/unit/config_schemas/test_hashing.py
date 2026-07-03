@@ -14,6 +14,8 @@ from dojo.config_schemas.hashing import (
     canonical_json_bytes,
     config_hash,
     config_hash_source,
+    compatibility_hashes,
+    head_hash,
     sha256_json,
 )
 
@@ -119,3 +121,37 @@ def test_config_hash_source_does_not_mutate_config():
     # model_dump produces a copy; the live config is untouched.
     assert cfg.runtime.run_id == run_id_before
     assert cfg.transforms.inference_pipeline is not None
+
+
+def test_head_hash_uses_resolved_class_mapping():
+    cfg = _resolved_toy()
+    labels = {0: "A", 1: "B", 2: "C", 3: "D", 4: "E", 5: "F"}
+
+    first = head_hash(cfg, head_name="species", class_mapping=labels)
+    renamed = head_hash(
+        cfg,
+        head_name="species",
+        class_mapping={**labels, 1: "renamed"},
+    )
+
+    assert first.startswith("sha256:")
+    assert first != renamed
+
+
+def test_compatibility_hashes_include_sources():
+    cfg = _resolved_toy()
+    hashes = compatibility_hashes(
+        cfg,
+        class_mapping={index: str(index) for index in range(6)},
+    )
+
+    for name in (
+        "target_schema_hash",
+        "class_mapping_hash",
+        "model_config_hash",
+        "preprocessing_hash",
+    ):
+        assert hashes[name].startswith("sha256:")
+    assert hashes["model_config_source"]["model"]["image_input"]["backbone"][
+        "architecture"
+    ]["output_dim"] == 1280

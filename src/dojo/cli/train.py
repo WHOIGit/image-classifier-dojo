@@ -57,7 +57,10 @@ def train_command(
     for warning in resolved.warnings:
         console.print(f"[yellow]Warning:[/yellow] {warning}")
 
-    result = execute_train(cfg)
+    def _status(message: str) -> None:
+        console.print(f"[dim]status:[/dim] {message}")
+
+    result = execute_train(cfg, status_callback=_status)
 
     console.print(f"[green]Run complete:[/green] {result.run_dir}")
     console.print(f"  config_hash:     {result.config_hash}")

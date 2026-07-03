@@ -18,11 +18,13 @@ class DecodedSample(TypedDict):
     image: torch.Tensor
     target: int
     sample_id: str
+    uri: str | None
     split: str
     native_width_px: int
     native_height_px: int
     resize_width_px: int
     resize_height_px: int
+    aspect_bucket: str | None
     source_extra: dict[str, Any] | None
 
 
@@ -30,11 +32,13 @@ class SampleBatch(TypedDict):
     image: torch.Tensor          # (B, C, H, W)
     target: torch.Tensor         # (B,) int64
     sample_id: list[str]
+    uri: list[str | None]
     split: list[str]
     native_width_px: list[int]
     native_height_px: list[int]
     resize_width_px: list[int]
     resize_height_px: list[int]
+    aspect_bucket: list[str | None]
     source_extra: list[dict[str, Any] | None]
 
 
@@ -45,10 +49,12 @@ def collate_samples(batch: list[DecodedSample]) -> SampleBatch:
         image=torch.stack([s["image"] for s in batch]),
         target=torch.tensor([s["target"] for s in batch], dtype=torch.int64),
         sample_id=[s["sample_id"] for s in batch],
+        uri=[s["uri"] for s in batch],
         split=[s["split"] for s in batch],
         native_width_px=[s["native_width_px"] for s in batch],
         native_height_px=[s["native_height_px"] for s in batch],
         resize_width_px=[s["resize_width_px"] for s in batch],
         resize_height_px=[s["resize_height_px"] for s in batch],
+        aspect_bucket=[s["aspect_bucket"] for s in batch],
         source_extra=[s["source_extra"] for s in batch],
     )

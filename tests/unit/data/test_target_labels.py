@@ -7,6 +7,9 @@ readable ``classname`` (e.g. label 0 -> "bubble").
 
 from __future__ import annotations
 
+import json
+
+import pyarrow.parquet as pq
 import pytest
 from pydantic import ValidationError
 
@@ -14,6 +17,7 @@ from dojo.config_schemas import RootConfig
 from dojo.config_loader import resolve_runtime_and_paths
 from dojo.data import build_datasets
 from tests.fixtures.configs import toy_config_dict
+from tests.fixtures.synthetic import write_manifest_images_dataset
 
 # Distinct classnames in the toy fixture, in ASCII-sorted order (upper before lower).
 TOY_NAMES_ALPHABETICAL = [
@@ -45,9 +49,38 @@ def test_index_and_name_columns_pair_into_class_mapping():
     assert sorted(bundle.class_mapping) == list(range(6))
 
 
-def test_index_only_leaves_names_unresolved():
+def test_index_only_uses_fixture_schema_metadata_when_available():
     bundle = _bundle({"label_index_column": "label"})
-    # No name source -> class_mapping empty; run.py falls back to index strings.
+    assert bundle.class_mapping
+    assert bundle.class_mapping[0] == "Acanthoica_quattrospina"
+
+
+def test_index_only_without_schema_metadata_leaves_names_unresolved(tmp_path):
+    manifest = write_manifest_images_dataset(
+        tmp_path / "csv-labels",
+        labels=[0, 1, 0],
+        backend="csv_manifest",
+    )
+    raw = toy_config_dict(canvas=(16, 16))
+    raw["data"] = {
+        "backend": "csv_manifest",
+        "manifest_uri": str(manifest),
+        "split_column": "split",
+        "sample_id_column": "sample_id",
+        "image_uri_column": "image_uri",
+        "targets": {
+            "species": {
+                "label_index_column": "label",
+                "type": "multiclass_classification",
+                "missing_policy": "error",
+            }
+        },
+    }
+    raw["model"]["heads"]["species"]["num_classes"] = 2
+    cfg = resolve_runtime_and_paths(RootConfig.model_validate(raw)).config
+
+    bundle = build_datasets(cfg)
+
     assert bundle.class_mapping == {}
 
 
@@ -60,6 +93,52 @@ def test_name_only_assigns_indices_alphabetically():
     sample = train[0]
     assert 0 <= sample["target"] < 6
     assert sample["target"] in class_index_by_name.values()
+
+
+def test_index_only_can_read_class_mapping_from_schema_metadata(tmp_path):
+    manifest = write_manifest_images_dataset(
+        tmp_path / "metadata-labels",
+        labels=[0, 1, 0],
+        backend="parquet_manifest",
+    )
+    table = pq.read_table(manifest)
+    metadata = {
+        b"huggingface": json.dumps(
+            {
+                "info": {
+                    "features": {
+                        "label": {
+                            "_type": "ClassLabel",
+                            "names": ["bubble", "fiber"],
+                        }
+                    }
+                }
+            }
+        ).encode("utf-8")
+    }
+    pq.write_table(table.replace_schema_metadata(metadata), manifest)
+
+    raw = toy_config_dict(canvas=(16, 16))
+    raw["data"] = {
+        "backend": "parquet_manifest",
+        "manifest_uri": str(manifest),
+        "split_column": "split",
+        "sample_id_column": "sample_id",
+        "image_uri_column": "image_uri",
+        "targets": {
+            "species": {
+                "label_index_column": "label",
+                "type": "multiclass_classification",
+                "missing_policy": "error",
+            }
+        },
+    }
+    raw["model"]["heads"]["species"]["num_classes"] = 2
+    cfg = resolve_runtime_and_paths(RootConfig.model_validate(raw)).config
+
+    bundle = build_datasets(cfg)
+
+    assert bundle.class_mapping == {0: "bubble", 1: "fiber"}
 
 
 def test_target_requires_a_class_source():

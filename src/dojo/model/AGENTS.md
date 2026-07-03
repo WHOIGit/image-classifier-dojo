@@ -4,9 +4,11 @@
 
 Modular model composition for supervised classification.
 
-- `backbone.py` — image backbone (torchvision in P1; timm/checkpoint deferred).
+- `backbone.py` — image backbone (`torchvision`, optional `timm`, and
+  checkpoint initialization).
 - `heads.py` — classification head(s).
-- `supervised.py` — assembles backbone + head(s) into the supervised model.
+- `supervised.py` — assembles backbone + optional embedding adapter + head(s)
+  into the supervised model.
 
 ## Ownership
 
@@ -19,6 +21,8 @@ weighting, or metrics — those live in `training/`.
   representation).
 - Head `num_classes` must match the selected data group's class count — this is
   the override users pass (`model.heads.<name>.num_classes=...`).
+- Optional embedding adapters transform the shared feature embedding before
+  all heads; heads are built against the adapter output dimension.
 - Keep task logic out of model composition.
 
 ## Verification

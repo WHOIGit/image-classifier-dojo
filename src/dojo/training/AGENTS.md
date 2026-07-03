@@ -2,17 +2,18 @@
 
 ## Purpose
 
-The P1 supervised training layer built on Lightning.
+The supervised training layer built on Lightning.
 
-- `run.py` — `execute_train`: takes a resolved `RootConfig`, wires data → model
-  → fit → hash best checkpoint → write canonical results. The one place every
-  boundary meets.
+- `run.py` — `execute_train`: takes a resolved `RootConfig`, runs preflight,
+  wires data → model → fit → hash best checkpoint → write canonical results /
+  metrics / figures. The one place every training boundary meets.
 - `task.py` — the supervised `LightningModule` (forward, per-objective loss,
-  weighted total, metric updates).
+  weighted total, metric updates, checkpoint inference contract).
 - `trainer.py` — Trainer/callback/logger construction (best-k + last checkpoint,
   optional early stopping, `local` CSV metrics sink).
-- `losses.py`, `metrics.py`, `checkpoint.py` — objective losses, metrics,
-  checkpoint hashing helpers.
+- `losses.py`, `metrics.py`, `checkpoint.py`, `figures.py`,
+  `inference_contract.py` — objective losses, metrics, checkpoint hashing,
+  standalone HTML figures, and checkpoint contract helpers.
 
 ## Ownership
 
@@ -24,8 +25,16 @@ results own those).
 
 - `execute_train` consumes an already-resolved config; it does not compose or
   validate.
+- `execute_train` may emit phase messages through an optional
+  `status_callback`; it must not write terminal output directly.
 - Checkpoint callback keys on `checkpointing.monitor`.
 - The best-checkpoint hash feeds result provenance — keep it deterministic.
+- Weighted/class-balanced objective behavior must use train-split class counts
+  from `data/`, not ad hoc retallies inside the task.
+- Result scoring must stream writes batch by batch; do not accumulate a full
+  validation split's logits/probabilities in memory.
+- Metrics CSV cleanup keeps one merged row per epoch when Lightning emits
+  train and validation metrics separately.
 
 ## Verification
 

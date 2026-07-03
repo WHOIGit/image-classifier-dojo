@@ -1,13 +1,10 @@
-"""Backbone builder for the P1 model layer.
+"""Backbone builder for supervised image models.
 
 A :class:`Backbone` exposes ``output_dim`` and ``forward_features(x) -> Tensor``,
 returning a ``batch_size x embedding_dim`` tensor. P1 supports the ``torchvision``
-``efficientnet_b0`` architecture with ``library`` / ``none`` weights; ``timm``
-and ``checkpoint`` initialization are P2.3.
-
-The torchvision classification head (the final ``classifier`` projection) is
-replaced with ``nn.Identity`` so the wrapped model emits the pooled feature
-embedding; Dojo heads (`heads.py`) own the task-specific projection.
+The torchvision/timm classification head is replaced with ``nn.Identity`` so
+the wrapped model emits the pooled feature embedding; Dojo heads (`heads.py`)
+own the task-specific projection.
 """
 
 from __future__ import annotations
@@ -82,19 +79,88 @@ def _strip_classifier(model: nn.Module) -> int:
     )
 
 
+def _strip_timm_classifier(model: nn.Module) -> int:
+    if not hasattr(model, "num_features"):
+        raise ValueError("timm model does not expose num_features")
+    output_dim = int(model.num_features)
+    if hasattr(model, "reset_classifier"):
+        model.reset_classifier(0)
+        return output_dim
+    raise ValueError("timm model does not support reset_classifier")
+
+
+def _load_checkpoint_initialization(
+    backbone: Backbone,
+    cfg: BackboneWeightsConfig,
+) -> None:
+    if cfg.uri is None:
+        raise ValueError("checkpoint weights require weights.uri")
+    checkpoint = torch.load(cfg.uri, map_location="cpu", weights_only=False)
+    state = checkpoint
+    if cfg.key is not None:
+        for part in cfg.key.split("."):
+            state = state[part]
+    elif isinstance(checkpoint, dict) and "state_dict" in checkpoint:
+        state = checkpoint["state_dict"]
+    if not isinstance(state, dict):
+        raise ValueError("checkpoint weights did not resolve to a state_dict mapping")
+
+    candidates = []
+    for key, value in state.items():
+        if key.startswith("model.backbone."):
+            candidates.append((key.removeprefix("model.backbone."), value))
+        elif key.startswith("backbone."):
+            candidates.append((key.removeprefix("backbone."), value))
+        elif key.startswith("model."):
+            candidates.append((key.removeprefix("model."), value))
+        else:
+            candidates.append((key, value))
+    backbone.load_state_dict(dict(candidates), strict=cfg.strict)
+
+
+def _build_timm_backbone(cfg: BackboneConfig) -> Backbone:
+    try:
+        import timm
+    except ImportError as exc:  # pragma: no cover - depends on optional extra
+        raise RuntimeError(
+            "model.image_input.backbone.architecture.source='timm' requires "
+            "the image_classifier_dojo[timm] extra"
+        ) from exc
+
+    arch = cfg.architecture
+    pretrained = cfg.weights.source == "library"
+    model = timm.create_model(
+        arch.name,
+        pretrained=pretrained,
+        in_chans=arch.input_channels,
+    )
+    embedding_dim = _strip_timm_classifier(model)
+    if arch.output_dim != "auto" and arch.output_dim != embedding_dim:
+        raise ValueError(
+            f"backbone.architecture.output_dim {arch.output_dim} does not match the "
+            f"{arch.name!r} embedding width {embedding_dim}; use 'auto'"
+        )
+    backbone = TorchvisionBackbone(model, embedding_dim)
+    if cfg.weights.source == "checkpoint":
+        _load_checkpoint_initialization(backbone, cfg.weights)
+    return backbone
+
+
 def build_backbone(cfg: BackboneConfig) -> Backbone:
     """Build a :class:`Backbone` from a resolved backbone config."""
 
     arch: BackboneArchitectureConfig = cfg.architecture
+    if arch.source == "timm":
+        return _build_timm_backbone(cfg)
     if arch.source != "torchvision":
-        raise ValueError(f"P1 supports only torchvision backbones; got {arch.source!r}")
+        raise ValueError(f"unsupported backbone source: {arch.source!r}")
     if arch.input_channels != 3:
         raise ValueError(
-            "P1 torchvision backbones require input_channels=3 "
+            "torchvision backbones require input_channels=3 "
             "(use image_mode grayscale_repeat3 for single-channel sources)"
         )
 
-    weights = _resolve_torchvision_weights(arch.name, cfg.weights)
+    weights = None if cfg.weights.source == "checkpoint" else _resolve_torchvision_weights(arch.name, cfg.weights)
     model = tv.models.get_model(arch.name, weights=weights)
     embedding_dim = _strip_classifier(model)
 
@@ -104,7 +170,10 @@ def build_backbone(cfg: BackboneConfig) -> Backbone:
             f"{arch.name!r} embedding width {embedding_dim}; use 'auto'"
         )
 
-    return TorchvisionBackbone(model, embedding_dim)
+    backbone = TorchvisionBackbone(model, embedding_dim)
+    if cfg.weights.source == "checkpoint":
+        _load_checkpoint_initialization(backbone, cfg.weights)
+    return backbone
 
 
 def apply_freeze_policy(backbone: Backbone, cfg: BackboneFreezeConfig) -> None:

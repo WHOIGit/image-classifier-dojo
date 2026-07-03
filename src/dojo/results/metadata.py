@@ -26,6 +26,7 @@ class _StrictMeta(BaseModel):
 
 class ClassificationHeadMeta(_StrictMeta):
     target: str
+    head_hash: str | None = None
     classes: list[str]
     class_mapping: dict[str, str]
 

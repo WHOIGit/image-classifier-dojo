@@ -82,6 +82,9 @@ def test_results_round_trip_and_filter(trained):
     row = classifications[0]
     assert row["stage"] == STAGE_TRAIN_VALIDATION
     assert row["head_name"] == "species"
+    assert row["head_hash"].startswith("sha256:")
+    assert row["target_index"] in range(6)
+    assert isinstance(row["target_name"], str)
     assert row["checkpoint_hash"] == trained.checkpoint_hash
     assert len(row["probabilities"]) == 6
     assert row["dataset_hash"] == trained.dataset_hash
@@ -93,9 +96,14 @@ def test_metadata_sidecar_validates(trained):
     meta = ResultsMetadata.model_validate(payload)
 
     assert meta.run_id
-    assert meta.compatibility is None  # extractors are P2.5
+    assert meta.compatibility is not None
+    assert meta.compatibility.target_schema_hash.startswith("sha256:")
+    assert meta.compatibility.class_mapping_hash.startswith("sha256:")
+    assert meta.compatibility.model_config_hash.startswith("sha256:")
+    assert meta.compatibility.preprocessing_hash.startswith("sha256:")
     head = meta.record_types.classification_output.heads["species"]
     assert head.target == "species"
+    assert head.head_hash.startswith("sha256:")
     assert len(head.classes) == 6
     assert head.class_mapping["0"] == head.classes[0]
 

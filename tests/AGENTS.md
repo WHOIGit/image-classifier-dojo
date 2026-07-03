@@ -5,8 +5,9 @@
 Unit and integration tests for the `dojo` package, plus committed fixtures.
 
 - `unit/` — mirrors the package (`config_schemas`, `data`, `storage`, `training`,
-  `model`, `results`).
-- `integration/` — config fall-through, inspect, supervised train, real fit.
+  `model`, `results`, `inference`).
+- `integration/` — config fall-through, init, inspect, supervised train, real
+  fit.
 - `fixtures/` — the `plankton-toyset` dataset (LFS), synthetic builders,
   defect injectors (`defects.py`), and config fixtures.
 

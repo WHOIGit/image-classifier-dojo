@@ -1,0 +1,2859 @@
+===== pwd =====
+/home/sbatchelder/Projects/image-classifier-dojo
+
+===== git status =====
+ M AGENTS.md
+ M configs/AGENTS.md
+ M src/dojo/AGENTS.md
+ M src/dojo/cli/AGENTS.md
+ M src/dojo/cli/inspect.py
+ M src/dojo/cli/main.py
+ M src/dojo/config_loader/resolver.py
+ M src/dojo/config_schemas/AGENTS.md
+ M src/dojo/config_schemas/__init__.py
+ M src/dojo/config_schemas/hashing.py
+ M src/dojo/config_schemas/root.py
+ M src/dojo/data/AGENTS.md
+ M src/dojo/data/__init__.py
+ M src/dojo/data/contract.py
+ M src/dojo/data/dataset.py
+ M src/dojo/data/parquet_images.py
+ M src/dojo/data/transforms.py
+ M src/dojo/model/AGENTS.md
+ M src/dojo/model/backbone.py
+ M src/dojo/model/supervised.py
+ M src/dojo/results/AGENTS.md
+ M src/dojo/results/__init__.py
+ M src/dojo/results/metadata.py
+ M src/dojo/results/records.py
+ M src/dojo/results/schemas.py
+ M src/dojo/training/AGENTS.md
+ M src/dojo/training/losses.py
+ M src/dojo/training/run.py
+ M src/dojo/training/task.py
+ M tests/AGENTS.md
+ M tests/fixtures/synthetic.py
+ M tests/integration/test_inspect_config.py
+ M tests/integration/test_train_supervised.py
+ M tests/unit/config_schemas/test_hashing.py
+ M tests/unit/data/test_transforms_builder.py
+ M tests/unit/model/test_supervised.py
+ M tests/unit/results/test_metadata.py
+ M tests/unit/results/test_writer.py
+ M tests/unit/training/test_checkpoint.py
+ M tests/unit/training/test_metrics_and_losses.py
+?? DESIGN-DOC/NEW-IDEAS.md
+?? QUESTIONS-FOR-SIDNEY.md
+?? REPORTS/
+?? amplify-db-utils/
+?? configs/experiment/p2/
+?? dojo_ram_debug_code_dump.txt
+?? src/dojo/cli/eval.py
+?? src/dojo/cli/infer.py
+?? src/dojo/cli/init.py
+?? src/dojo/data/inspect.py
+?? src/dojo/data/preflight.py
+?? src/dojo/data/samplers.py
+?? src/dojo/inference/
+?? src/dojo/training/figures.py
+?? src/dojo/training/inference_contract.py
+?? tests/integration/test_init.py
+?? tests/integration/test_inspect_dataset.py
+?? tests/unit/data/test_aspect_bucket_sampler.py
+?? tests/unit/data/test_manifest_backends.py
+?? tests/unit/data/test_preflight.py
+?? tests/unit/inference/
+?? tests/unit/training/test_figures.py
+
+===== relevant file tree =====
+./src/dojo/config_loader/AGENTS.md
+./src/dojo/config_loader/compositor.py
+./src/dojo/config_loader/conductor.py
+./src/dojo/config_loader/__init__.py
+./src/dojo/config_loader/__pycache__/compositor.cpython-314.pyc
+./src/dojo/config_loader/__pycache__/conductor.cpython-314.pyc
+./src/dojo/config_loader/__pycache__/__init__.cpython-314.pyc
+./src/dojo/config_loader/__pycache__/resolver.cpython-314.pyc
+./src/dojo/config_loader/resolver.py
+./src/dojo/configs/data/nes_plankton_parquet_images.yaml
+./src/dojo/configs/data/plankton-toyset.yaml
+./src/dojo/configs/training_outputs/p1_local.yaml
+./src/dojo/configs/transforms/supervised_default.yaml
+./src/dojo/data/AGENTS.md
+./src/dojo/data/contract.py
+./src/dojo/data/dataset.py
+./src/dojo/data/identity.py
+./src/dojo/data/__init__.py
+./src/dojo/data/inspect.py
+./src/dojo/data/parquet_images.py
+./src/dojo/data/preflight.py
+./src/dojo/data/__pycache__/contract.cpython-314.pyc
+./src/dojo/data/__pycache__/dataset.cpython-314.pyc
+./src/dojo/data/__pycache__/identity.cpython-314.pyc
+./src/dojo/data/__pycache__/__init__.cpython-314.pyc
+./src/dojo/data/__pycache__/inspect.cpython-314.pyc
+./src/dojo/data/__pycache__/parquet_images.cpython-314.pyc
+./src/dojo/data/__pycache__/preflight.cpython-314.pyc
+./src/dojo/data/__pycache__/samplers.cpython-314.pyc
+./src/dojo/data/__pycache__/transforms.cpython-314.pyc
+./src/dojo/data/samplers.py
+./src/dojo/data/transforms.py
+./src/dojo/results/AGENTS.md
+./src/dojo/results/__init__.py
+./src/dojo/results/metadata.py
+./src/dojo/results/__pycache__/__init__.cpython-314.pyc
+./src/dojo/results/__pycache__/metadata.cpython-314.pyc
+./src/dojo/results/__pycache__/reader.cpython-314.pyc
+./src/dojo/results/__pycache__/records.cpython-314.pyc
+./src/dojo/results/__pycache__/schemas.cpython-314.pyc
+./src/dojo/results/__pycache__/writer.cpython-314.pyc
+./src/dojo/results/reader.py
+./src/dojo/results/records.py
+./src/dojo/results/schemas.py
+./src/dojo/results/writer.py
+./src/dojo/training/AGENTS.md
+./src/dojo/training/checkpoint.py
+./src/dojo/training/figures.py
+./src/dojo/training/inference_contract.py
+./src/dojo/training/__init__.py
+./src/dojo/training/losses.py
+./src/dojo/training/metrics.py
+./src/dojo/training/__pycache__/checkpoint.cpython-314.pyc
+./src/dojo/training/__pycache__/figures.cpython-314.pyc
+./src/dojo/training/__pycache__/inference_contract.cpython-314.pyc
+./src/dojo/training/__pycache__/__init__.cpython-314.pyc
+./src/dojo/training/__pycache__/losses.cpython-314.pyc
+./src/dojo/training/__pycache__/metrics.cpython-314.pyc
+./src/dojo/training/__pycache__/run.cpython-314.pyc
+./src/dojo/training/__pycache__/task.cpython-314.pyc
+./src/dojo/training/__pycache__/trainer.cpython-314.pyc
+./src/dojo/training/run.py
+./src/dojo/training/task.py
+./src/dojo/training/trainer.py
+
+===== grep: parquet_images =====
+./src/dojo/configs/data/plankton-toyset.yaml:5:backend: parquet_images
+./src/dojo/configs/data/nes_plankton_parquet_images.yaml:5:backend: parquet_images
+grep: ./src/dojo/config_schemas/__pycache__/root.cpython-314.pyc: binary file matches
+./src/dojo/config_schemas/root.py:97:    backend: Literal["csv_manifest", "parquet_images", "parquet_manifest"]
+./src/dojo/config_schemas/root.py:112:        if self.backend == "parquet_images" and self.images is None:
+./src/dojo/config_schemas/root.py:113:            raise ValueError("data.images is required when data.backend is parquet_images")
+grep: ./src/dojo/data/__pycache__/preflight.cpython-314.pyc: binary file matches
+grep: ./src/dojo/data/__pycache__/inspect.cpython-314.pyc: binary file matches
+grep: ./src/dojo/data/__pycache__/__init__.cpython-314.pyc: binary file matches
+grep: ./src/dojo/data/__pycache__/identity.cpython-314.pyc: binary file matches
+grep: ./src/dojo/data/__pycache__/parquet_images.cpython-314.pyc: binary file matches
+./src/dojo/data/inspect.py:16:from dojo.data.parquet_images import (
+./src/dojo/data/inspect.py:83:    if cfg.data.backend == "parquet_images":
+./src/dojo/data/AGENTS.md:11:- `parquet_images.py` — manifest discovery/split routing for `csv_manifest`,
+./src/dojo/data/AGENTS.md:12:  `parquet_manifest`, and `parquet_images`.
+./src/dojo/data/parquet_images.py:63:    if cfg.backend == "parquet_images":
+./src/dojo/data/parquet_images.py:226:        if data_cfg.backend == "parquet_images":
+./src/dojo/data/preflight.py:9:from dojo.data.parquet_images import DataBundle
+./src/dojo/data/__init__.py:10:from dojo.data.parquet_images import (
+./src/dojo/data/identity.py:1:"""``dataset_hash`` for the P1 ``parquet_images`` backend.
+./src/dojo/data/dataset.py:44:        assert image is not None  # guaranteed by parquet_images backend
+./configs/data/plankton-miniset.yaml:4:backend: parquet_images
+./configs/experiment/p2/nes_effb0_224_baseline.yaml:6:  - /data: nes_plankton_parquet_images
+
+===== grep: read_table / ParquetFile / to_pandas / pyarrow =====
+grep: ./src/dojo/data/__pycache__/dataset.cpython-314.pyc: binary file matches
+grep: ./src/dojo/data/__pycache__/inspect.cpython-314.pyc: binary file matches
+grep: ./src/dojo/data/__pycache__/parquet_images.cpython-314.pyc: binary file matches
+./src/dojo/data/inspect.py:12:import pyarrow as pa
+./src/dojo/data/parquet_images.py:17:import pyarrow as pa
+./src/dojo/data/parquet_images.py:18:import pyarrow.csv as pacsv
+./src/dojo/data/parquet_images.py:19:import pyarrow.parquet as pq
+./src/dojo/data/parquet_images.py:96:    def read_table(path: Path) -> pa.Table:
+./src/dojo/data/parquet_images.py:99:        return pq.read_table(path, columns=columns)
+./src/dojo/data/parquet_images.py:107:            grouped[split].append(read_table(path))
+./src/dojo/data/parquet_images.py:111:    combined = pa.concat_tables([read_table(p) for p in files])
+./src/dojo/data/dataset.py:8:import pyarrow as pa
+./src/dojo/data/dataset.py:9:import pyarrow.compute as pc
+grep: ./src/dojo/results/__pycache__/schemas.cpython-314.pyc: binary file matches
+grep: ./src/dojo/results/__pycache__/writer.cpython-314.pyc: binary file matches
+./src/dojo/results/schemas.py:1:"""Explicit pyarrow schema for the canonical supervised result table.
+./src/dojo/results/schemas.py:15:import pyarrow as pa
+./src/dojo/results/schemas.py:102:    """Return the union pyarrow schema for the P1 result table."""
+./src/dojo/results/writer.py:16:import pyarrow as pa
+
+===== grep: DataLoader construction =====
+./src/dojo/configs/runtime/default.yaml:6:num_workers: 4
+./src/dojo/configs/experiment/p1/plankton-toy.yaml:7:# Inline overrides work as usual, e.g. runtime.num_workers=0 training.max_epochs=1.
+./src/dojo/configs/experiment/p1/plankton-toy.yaml:26:  num_workers: 0
+./src/dojo/cli/train.py:23:# Lets dash-free Hydra overrides (e.g. ``runtime.num_workers=0``) reach the
+grep: ./src/dojo/config_schemas/__pycache__/root.cpython-314.pyc: binary file matches
+./src/dojo/config_schemas/root.py:57:    num_workers: int = 0
+grep: ./src/dojo/inference/__pycache__/run.cpython-314.pyc: binary file matches
+./src/dojo/inference/run.py:170:            num_workers=cfg.runtime.num_workers,
+grep: ./src/dojo/data/__pycache__/transforms.cpython-314.pyc: binary file matches
+grep: ./src/dojo/data/__pycache__/__init__.cpython-314.pyc: binary file matches
+./src/dojo/data/transforms.py:165:    ``DataLoader`` worker processes, which Python 3.14 spawns via ``forkserver``
+./src/dojo/data/__init__.py:5:from torch.utils.data import DataLoader
+./src/dojo/data/__init__.py:48:    num_workers: int = 0,
+./src/dojo/data/__init__.py:56:) -> DataLoader:
+./src/dojo/data/__init__.py:57:    """A DataLoader over a supervised dataset using the shared sample collation.
+./src/dojo/data/__init__.py:85:        return DataLoader(
+./src/dojo/data/__init__.py:95:            num_workers=num_workers,
+./src/dojo/data/__init__.py:100:        return DataLoader(
+./src/dojo/data/__init__.py:109:            num_workers=num_workers,
+./src/dojo/data/__init__.py:113:    return DataLoader(
+./src/dojo/data/__init__.py:117:        num_workers=num_workers,
+grep: ./src/dojo/training/__pycache__/run.cpython-314.pyc: binary file matches
+./src/dojo/training/run.py:124:            num_workers=cfg.runtime.num_workers,
+./src/dojo/training/run.py:265:        num_workers=cfg.runtime.num_workers,
+./src/dojo/training/run.py:277:            num_workers=cfg.runtime.num_workers,
+
+===== grep: batch_aspect_buckets / aspect_bucket =====
+grep: ./src/dojo/config_schemas/__pycache__/root.cpython-314.pyc: binary file matches
+./src/dojo/config_schemas/root.py:142:class AspectBucketConfig(StrictModel):
+./src/dojo/config_schemas/root.py:151:class AspectBucketStep(StrictModel):
+./src/dojo/config_schemas/root.py:152:    name: Literal["aspect_bucket"]
+./src/dojo/config_schemas/root.py:155:    buckets: list[AspectBucketConfig] = Field(min_length=1)
+./src/dojo/config_schemas/root.py:206:    | AspectBucketStep
+./src/dojo/config_schemas/root.py:376:    type: Literal["default", "batch_aspect_buckets", "class_balanced", "weighted"] = (
+grep: ./src/dojo/inference/__pycache__/run.cpython-314.pyc: binary file matches
+./src/dojo/inference/run.py:171:            batch_aspect_buckets=dataset.has_aspect_buckets(),
+./src/dojo/inference/run.py:193:                        aspect_bucket=batch["aspect_bucket"][index],
+grep: ./src/dojo/data/__pycache__/samplers.cpython-314.pyc: binary file matches
+grep: ./src/dojo/data/__pycache__/contract.cpython-314.pyc: binary file matches
+grep: ./src/dojo/data/__pycache__/dataset.cpython-314.pyc: binary file matches
+grep: ./src/dojo/data/__pycache__/transforms.cpython-314.pyc: binary file matches
+grep: ./src/dojo/data/__pycache__/__init__.cpython-314.pyc: binary file matches
+grep: ./src/dojo/data/__pycache__/parquet_images.cpython-314.pyc: binary file matches
+./src/dojo/data/transforms.py:5:``aspect_bucket``, ``grayscale``, ``normalize``, and the stochastic
+./src/dojo/data/transforms.py:25:    AspectBucketConfig,
+./src/dojo/data/transforms.py:26:    AspectBucketStep,
+./src/dojo/data/transforms.py:108:def choose_aspect_bucket(
+./src/dojo/data/transforms.py:112:    buckets: Sequence[AspectBucketConfig],
+./src/dojo/data/transforms.py:113:) -> AspectBucketConfig:
+./src/dojo/data/transforms.py:133:        f"no aspect_bucket bucket matches width={width}, height={height}, aspect={aspect:.3g}"
+./src/dojo/data/transforms.py:137:def find_aspect_bucket_step(steps: Sequence[TransformStep]) -> AspectBucketStep | None:
+./src/dojo/data/transforms.py:139:        if isinstance(step, AspectBucketStep) and step.enabled:
+./src/dojo/data/transforms.py:191:            elif isinstance(step, AspectBucketStep):
+./src/dojo/data/transforms.py:192:                bucket = choose_aspect_bucket(
+./src/dojo/data/samplers.py:72:class AspectBucketBatchSampler(Sampler[list[int]]):
+./src/dojo/data/samplers.py:89:        if not hasattr(dataset, "aspect_bucket_for_index"):
+./src/dojo/data/samplers.py:90:            raise TypeError("dataset does not expose aspect_bucket_for_index")
+./src/dojo/data/samplers.py:102:            bucket = self._dataset.aspect_bucket_for_index(index) or "__default__"
+./src/dojo/data/samplers.py:125:            bucket = self._dataset.aspect_bucket_for_index(index) or "__default__"
+./src/dojo/data/AGENTS.md:35:- `aspect_bucket` transforms can produce variable tensor shapes across
+./src/dojo/data/parquet_images.py:24:from dojo.data.transforms import build_image_transform, find_aspect_bucket_step
+./src/dojo/data/parquet_images.py:213:    train_aspect_bucket_step = find_aspect_bucket_step(cfg.transforms.pipeline)
+./src/dojo/data/parquet_images.py:214:    eval_aspect_bucket_step = find_aspect_bucket_step(cfg.transforms.inference_pipeline)
+./src/dojo/data/parquet_images.py:223:        aspect_bucket_step = (
+./src/dojo/data/parquet_images.py:224:            train_aspect_bucket_step if split == "train" else eval_aspect_bucket_step
+./src/dojo/data/parquet_images.py:233:                aspect_bucket_step=aspect_bucket_step,
+./src/dojo/data/parquet_images.py:245:                aspect_bucket_step=aspect_bucket_step,
+./src/dojo/data/contract.py:27:    aspect_bucket: str | None
+./src/dojo/data/contract.py:41:    aspect_bucket: list[str | None]
+./src/dojo/data/contract.py:58:        aspect_bucket=[s["aspect_bucket"] for s in batch],
+./src/dojo/data/__init__.py:17:    AspectBucketBatchSampler,
+./src/dojo/data/__init__.py:35:    "AspectBucketBatchSampler",
+./src/dojo/data/__init__.py:50:    batch_aspect_buckets: bool = False,
+./src/dojo/data/__init__.py:63:    if batch_aspect_buckets and sampler_type == "default":
+./src/dojo/data/__init__.py:64:        sampler_type = "batch_aspect_buckets"
+./src/dojo/data/__init__.py:77:    has_aspect_buckets = (
+./src/dojo/data/__init__.py:78:        bool(dataset.has_aspect_buckets())
+./src/dojo/data/__init__.py:79:        if hasattr(dataset, "has_aspect_buckets")
+./src/dojo/data/__init__.py:82:    if sampler_type == "batch_aspect_buckets" or (
+./src/dojo/data/__init__.py:83:        has_aspect_buckets and weights_by_index is not None
+./src/dojo/data/__init__.py:87:            batch_sampler=AspectBucketBatchSampler(
+./src/dojo/data/dataset.py:13:from dojo.config_schemas.root import AspectBucketStep, DataConfig
+./src/dojo/data/dataset.py:15:from dojo.data.transforms import ImageTransform, choose_aspect_bucket
+./src/dojo/data/dataset.py:35:        aspect_bucket_step: AspectBucketStep | None = None,
+./src/dojo/data/dataset.py:40:        self._aspect_bucket_step = aspect_bucket_step
+./src/dojo/data/dataset.py:78:    def has_aspect_buckets(self) -> bool:
+./src/dojo/data/dataset.py:79:        return self._aspect_bucket_step is not None
+./src/dojo/data/dataset.py:85:        aspect_bucket = self.aspect_bucket_for_index(index, native_size=(native_w, native_h))
+./src/dojo/data/dataset.py:106:            aspect_bucket=aspect_bucket,
+./src/dojo/data/dataset.py:110:    def aspect_bucket_for_index(
+./src/dojo/data/dataset.py:116:        if self._aspect_bucket_step is None:
+./src/dojo/data/dataset.py:121:        bucket = choose_aspect_bucket(
+./src/dojo/data/dataset.py:124:            buckets=self._aspect_bucket_step.buckets,
+./src/dojo/data/dataset.py:142:        aspect_bucket_step: AspectBucketStep | None = None,
+./src/dojo/data/dataset.py:149:        self._aspect_bucket_step = aspect_bucket_step
+./src/dojo/data/dataset.py:177:    def has_aspect_buckets(self) -> bool:
+./src/dojo/data/dataset.py:178:        return self._aspect_bucket_step is not None
+./src/dojo/data/dataset.py:192:        aspect_bucket = self.aspect_bucket_for_index(index, native_size=(native_w, native_h))
+./src/dojo/data/dataset.py:213:            aspect_bucket=aspect_bucket,
+./src/dojo/data/dataset.py:217:    def aspect_bucket_for_index(
+./src/dojo/data/dataset.py:223:        if self._aspect_bucket_step is None:
+./src/dojo/data/dataset.py:231:        bucket = choose_aspect_bucket(
+./src/dojo/data/dataset.py:234:            buckets=self._aspect_bucket_step.buckets,
+grep: ./src/dojo/training/__pycache__/run.cpython-314.pyc: binary file matches
+./src/dojo/training/run.py:125:            batch_aspect_buckets=bundle.datasets[split].has_aspect_buckets(),
+./src/dojo/training/run.py:144:                        aspect_bucket=batch["aspect_bucket"][index],
+./src/dojo/training/run.py:278:            batch_aspect_buckets=bundle.datasets["val"].has_aspect_buckets(),
+grep: ./src/dojo/results/__pycache__/schemas.cpython-314.pyc: binary file matches
+grep: ./src/dojo/results/__pycache__/records.cpython-314.pyc: binary file matches
+./src/dojo/results/schemas.py:70:    pa.field("aspect_bucket", pa.string(), nullable=True),
+./src/dojo/results/records.py:70:    aspect_bucket: str | None = None,
+./src/dojo/results/records.py:87:            "aspect_bucket": aspect_bucket,
+./configs/experiment/p2/nes_effb0_buckets.yaml:14:    - name: aspect_bucket
+./configs/experiment/p2/nes_effb0_buckets.yaml:44:    type: batch_aspect_buckets
+
+===== grep: results accumulation / logits / probabilities / embeddings =====
+./src/dojo/configs/experiment/p1/plankton-toy.yaml:37:  embedding_adapter:
+grep: ./src/dojo/cli/__pycache__/infer.cpython-314.pyc: binary file matches
+./src/dojo/cli/AGENTS.md:8:`dojo infer predictions`, `dojo infer embeddings`, and `dojo eval holdout`.
+./src/dojo/cli/infer.py:51:    "embeddings",
+./src/dojo/cli/infer.py:54:def embeddings(
+./src/dojo/cli/infer.py:58:    """Write `stage=infer` embedding rows."""
+./src/dojo/cli/infer.py:60:    _run(ctx, checkpoint=checkpoint, output_kind="embeddings")
+grep: ./src/dojo/config_schemas/__pycache__/root.cpython-314.pyc: binary file matches
+grep: ./src/dojo/config_schemas/__pycache__/hashing.cpython-314.pyc: binary file matches
+./src/dojo/config_schemas/hashing.py:172:            "embedding_adapter": model.embedding_adapter.model_dump(
+./src/dojo/config_schemas/root.py:275:            raise ValueError("embedding_adapter.hidden_dims is required for type='mlp'")
+./src/dojo/config_schemas/root.py:277:            raise ValueError("embedding_adapter.hidden_dims is invalid for type='linear'")
+./src/dojo/config_schemas/root.py:313:    embedding_adapter: EmbeddingAdapterConfig = Field(
+./src/dojo/config_schemas/root.py:536:            record_types.append("classification_output")
+grep: ./src/dojo/inference/__pycache__/run.cpython-314.pyc: binary file matches
+./src/dojo/inference/AGENTS.md:6:writes canonical prediction / embedding / holdout-eval outputs.
+./src/dojo/inference/run.py:23:    ResultWriter,
+./src/dojo/inference/run.py:24:    classification_output_record,
+./src/dojo/inference/run.py:25:    embedding_record,
+./src/dojo/inference/run.py:80:            "embedding_adapter": model.get("embedding_adapter", {"enabled": False}),
+./src/dojo/inference/run.py:152:    output_kind: Literal["predictions", "embeddings"],
+./src/dojo/inference/run.py:160:    writer = ResultWriter(
+./src/dojo/inference/run.py:177:                embeddings = model.forward_features(images)
+./src/dojo/inference/run.py:178:                logits_by_head = {
+./src/dojo/inference/run.py:179:                    name: head(embeddings) for name, head in model.heads.items()
+./src/dojo/inference/run.py:197:                if output_kind == "embeddings":
+./src/dojo/inference/run.py:199:                        embedding_record(
+./src/dojo/inference/run.py:204:                            embedding_kind="head_input_embedding",
+./src/dojo/inference/run.py:205:                            embedding=embeddings[index].tolist(),
+./src/dojo/inference/run.py:211:                for head_name, head_logits in logits_by_head.items():
+./src/dojo/inference/run.py:212:                    probs = torch.softmax(head_logits, dim=1)
+./src/dojo/inference/run.py:225:                            classification_output_record(
+./src/dojo/inference/run.py:239:                                logits=head_logits[index].tolist(),
+./src/dojo/inference/run.py:240:                                probabilities=probs[index].tolist(),
+./src/dojo/inference/run.py:252:    output_kind: Literal["predictions", "embeddings"],
+./src/dojo/inference/run.py:290:    output_kind: Literal["predictions", "embeddings"],
+grep: ./src/dojo/training/__pycache__/run.cpython-314.pyc: binary file matches
+grep: ./src/dojo/training/__pycache__/task.cpython-314.pyc: binary file matches
+./src/dojo/training/run.py:40:    ResultWriter,
+./src/dojo/training/run.py:42:    classification_output_record,
+./src/dojo/training/run.py:114:    writer = ResultWriter(
+./src/dojo/training/run.py:131:                logits_by_head = module.model(images)
+./src/dojo/training/run.py:150:                head_logits = logits_by_head[head_name]
+./src/dojo/training/run.py:151:                probs = torch.softmax(head_logits, dim=1)
+./src/dojo/training/run.py:158:                        classification_output_record(
+./src/dojo/training/run.py:172:                            logits=head_logits[index].tolist(),
+./src/dojo/training/run.py:173:                            probabilities=probs[index].tolist(),
+./src/dojo/training/run.py:205:            classification_output=ClassificationOutputMeta(heads=head_meta),
+./src/dojo/training/task.py:98:        logits = self.model(images)
+./src/dojo/training/task.py:103:            head_logits = logits[objective.head_name]
+./src/dojo/training/task.py:104:            loss = self._losses[objective.name](head_logits, targets)
+./src/dojo/training/task.py:114:                metric.update(head_logits, targets)
+./src/dojo/model/supervised.py:21:    """Backbone + per-target heads. ``forward`` returns logits keyed by head name."""
+./src/dojo/model/supervised.py:27:        embedding_adapter: nn.Module,
+./src/dojo/model/supervised.py:30:        embedding_dim: int,
+./src/dojo/model/supervised.py:34:        self.embedding_adapter = embedding_adapter
+./src/dojo/model/supervised.py:38:        self.embedding_dim = embedding_dim
+./src/dojo/model/supervised.py:41:        """Head-input embedding for a batch of images."""
+./src/dojo/model/supervised.py:43:        return self.embedding_adapter(self.backbone.forward_features(image))
+./src/dojo/model/supervised.py:46:        embedding = self.forward_features(image)
+./src/dojo/model/supervised.py:47:        return {name: head(embedding) for name, head in self.heads.items()}
+./src/dojo/model/supervised.py:53:def _build_embedding_adapter(
+./src/dojo/model/supervised.py:91:    embedding_adapter, embedding_dim = _build_embedding_adapter(
+./src/dojo/model/supervised.py:92:        model_cfg.embedding_adapter,
+./src/dojo/model/supervised.py:95:    heads = build_heads(model_cfg.heads, input_dim=embedding_dim)
+./src/dojo/model/supervised.py:99:        embedding_adapter=embedding_adapter,
+./src/dojo/model/supervised.py:102:        embedding_dim=embedding_dim,
+grep: ./src/dojo/model/__pycache__/heads.cpython-314.pyc: binary file matches
+grep: ./src/dojo/model/__pycache__/backbone.cpython-314.pyc: binary file matches
+grep: ./src/dojo/model/__pycache__/supervised.cpython-314.pyc: binary file matches
+./src/dojo/model/AGENTS.md:10:- `supervised.py` — assembles backbone + optional embedding adapter + head(s)
+./src/dojo/model/AGENTS.md:24:- Optional embedding adapters transform the shared feature embedding before
+./src/dojo/model/heads.py:30:    """Build the projection from head-input embedding to ``output_dim`` logits."""
+./src/dojo/model/heads.py:52:    """Emits ``(batch, num_classes)`` logits for one target."""
+./src/dojo/model/heads.py:63:    def forward(self, embedding: torch.Tensor) -> torch.Tensor:
+./src/dojo/model/heads.py:64:        return self.network(embedding)
+./src/dojo/model/backbone.py:4:returning a ``batch_size x embedding_dim`` tensor. P1 supports the ``torchvision``
+./src/dojo/model/backbone.py:6:the wrapped model emits the pooled feature embedding; Dojo heads (`heads.py`)
+./src/dojo/model/backbone.py:25:    """Feature extractor exposing a fixed-width embedding."""
+./src/dojo/model/backbone.py:137:    embedding_dim = _strip_timm_classifier(model)
+./src/dojo/model/backbone.py:138:    if arch.output_dim != "auto" and arch.output_dim != embedding_dim:
+./src/dojo/model/backbone.py:141:            f"{arch.name!r} embedding width {embedding_dim}; use 'auto'"
+./src/dojo/model/backbone.py:143:    backbone = TorchvisionBackbone(model, embedding_dim)
+./src/dojo/model/backbone.py:165:    embedding_dim = _strip_classifier(model)
+./src/dojo/model/backbone.py:167:    if arch.output_dim != "auto" and arch.output_dim != embedding_dim:
+./src/dojo/model/backbone.py:170:            f"{arch.name!r} embedding width {embedding_dim}; use 'auto'"
+./src/dojo/model/backbone.py:173:    backbone = TorchvisionBackbone(model, embedding_dim)
+grep: ./src/dojo/results/__pycache__/metadata.cpython-314.pyc: binary file matches
+grep: ./src/dojo/results/__pycache__/schemas.cpython-314.pyc: binary file matches
+grep: ./src/dojo/results/__pycache__/records.cpython-314.pyc: binary file matches
+grep: ./src/dojo/results/__pycache__/__init__.cpython-314.pyc: binary file matches
+grep: ./src/dojo/results/__pycache__/reader.cpython-314.pyc: binary file matches
+grep: ./src/dojo/results/__pycache__/writer.cpython-314.pyc: binary file matches
+./src/dojo/results/AGENTS.md:24:  `classification_output`, and `embedding`.
+./src/dojo/results/AGENTS.md:25:- Vectors (`logits`, `probabilities`) are Arrow `list<float32>`, lossless.
+./src/dojo/results/AGENTS.md:29:- `classification_output` rows carry `head_hash`, `target_index`, and
+./src/dojo/results/AGENTS.md:32:- `embedding` rows carry `embedding_kind`, `embedding`, `embedding_dim`, and
+./src/dojo/results/AGENTS.md:33:  optional `embedding_model_name`; inference/eval rows use `stage=infer` or
+./src/dojo/results/schemas.py:7:``classification_output``. Columns not applicable to a given row are null.
+./src/dojo/results/schemas.py:9:Vector columns (``logits`` / ``probabilities``) use explicit Arrow list types
+./src/dojo/results/schemas.py:23:RECORD_TYPE_EMBEDDING = "embedding"
+./src/dojo/results/schemas.py:24:RECORD_TYPE_CLASSIFICATION_OUTPUT = "classification_output"
+./src/dojo/results/schemas.py:79:    pa.field("embedding_kind", pa.string(), nullable=True),
+./src/dojo/results/schemas.py:80:    pa.field("embedding", _VECTOR, nullable=True),
+./src/dojo/results/schemas.py:81:    pa.field("embedding_dim", pa.int64(), nullable=True),
+./src/dojo/results/schemas.py:82:    pa.field("embedding_model_name", pa.string(), nullable=True),
+./src/dojo/results/schemas.py:85:# `record_type=classification_output` columns. The row is scoped by `head_name`
+./src/dojo/results/schemas.py:96:    pa.field("logits", _VECTOR, nullable=True),
+./src/dojo/results/schemas.py:97:    pa.field("probabilities", _VECTOR, nullable=True),
+./src/dojo/results/records.py:5:returns a plain ``dict`` ready for :meth:`ResultWriter.write_records`; the
+./src/dojo/results/records.py:96:def classification_output_record(
+./src/dojo/results/records.py:105:    logits: Sequence[float],
+./src/dojo/results/records.py:106:    probabilities: Sequence[float],
+./src/dojo/results/records.py:115:    """One ``classification_output`` row per sample per head."""
+./src/dojo/results/records.py:135:            "logits": list(logits),
+./src/dojo/results/records.py:136:            "probabilities": list(probabilities),
+./src/dojo/results/records.py:142:def embedding_record(
+./src/dojo/results/records.py:147:    embedding_kind: str,
+./src/dojo/results/records.py:148:    embedding: Sequence[float],
+./src/dojo/results/records.py:154:    """One embedding row per sample and embedding kind."""
+./src/dojo/results/records.py:167:            "embedding_kind": embedding_kind,
+./src/dojo/results/records.py:168:            "embedding": list(embedding),
+./src/dojo/results/records.py:169:            "embedding_dim": len(embedding),
+./src/dojo/results/metadata.py:50:    classification_output: ClassificationOutputMeta | None = None
+./src/dojo/results/__init__.py:16:    classification_output_record,
+./src/dojo/results/__init__.py:17:    embedding_record,
+./src/dojo/results/__init__.py:29:from dojo.results.writer import ResultWriter
+./src/dojo/results/__init__.py:32:    "ResultWriter",
+./src/dojo/results/__init__.py:36:    "classification_output_record",
+./src/dojo/results/__init__.py:37:    "embedding_record",
+./src/dojo/results/reader.py:4:hive-partitioned Parquet written by :class:`ResultWriter`. A separate "reader"
+./src/dojo/results/writer.py:35:class ResultWriter:
+
+===== likely data files =====
+
+===== FILE: ./src/dojo/data/contract.py =====
+"""Shared sample contract and batch collation for P1 datasets.
+
+One decoded sample carries the image tensor, its supervised target index, and
+the provenance the result writer needs (``sample_id``, ``split``, native /
+resize dimensions, source-extra passthrough). See ``04-data-and-storage.md``
+("Shared sample contract") and ``06-results-artifacts-and-metadata.md``
+(``sample_metadata`` columns).
+"""
+
+from __future__ import annotations
+
+from typing import Any, TypedDict
+
+import torch
+
+
+class DecodedSample(TypedDict):
+    image: torch.Tensor
+    target: int
+    sample_id: str
+    uri: str | None
+    split: str
+    native_width_px: int
+    native_height_px: int
+    resize_width_px: int
+    resize_height_px: int
+    aspect_bucket: str | None
+    source_extra: dict[str, Any] | None
+
+
+class SampleBatch(TypedDict):
+    image: torch.Tensor          # (B, C, H, W)
+    target: torch.Tensor         # (B,) int64
+    sample_id: list[str]
+    uri: list[str | None]
+    split: list[str]
+    native_width_px: list[int]
+    native_height_px: list[int]
+    resize_width_px: list[int]
+    resize_height_px: list[int]
+    aspect_bucket: list[str | None]
+    source_extra: list[dict[str, Any] | None]
+
+
+def collate_samples(batch: list[DecodedSample]) -> SampleBatch:
+    """Stack image tensors and targets; keep provenance as per-sample lists."""
+
+    return SampleBatch(
+        image=torch.stack([s["image"] for s in batch]),
+        target=torch.tensor([s["target"] for s in batch], dtype=torch.int64),
+        sample_id=[s["sample_id"] for s in batch],
+        uri=[s["uri"] for s in batch],
+        split=[s["split"] for s in batch],
+        native_width_px=[s["native_width_px"] for s in batch],
+        native_height_px=[s["native_height_px"] for s in batch],
+        resize_width_px=[s["resize_width_px"] for s in batch],
+        resize_height_px=[s["resize_height_px"] for s in batch],
+        aspect_bucket=[s["aspect_bucket"] for s in batch],
+        source_extra=[s["source_extra"] for s in batch],
+    )
+
+===== FILE: ./src/dojo/data/dataset.py =====
+"""Torch datasets over in-memory manifest split tables."""
+
+from __future__ import annotations
+
+import io
+from typing import Any
+
+import pyarrow as pa
+import pyarrow.compute as pc
+from PIL import Image
+from torch.utils.data import Dataset
+
+from dojo.config_schemas.root import AspectBucketStep, DataConfig
+from dojo.data.contract import DecodedSample
+from dojo.data.transforms import ImageTransform, choose_aspect_bucket
+from dojo.storage import Storage
+
+
+class ParquetImagesDataset(Dataset[DecodedSample]):
+    """One split's rows, decoding inlined image bytes on access.
+
+    Columns are pre-extracted to Python lists at construction so ``__getitem__``
+    only decodes + transforms the image. ``split`` is constant for the dataset
+    (the backend groups rows by split before constructing it).
+    """
+
+    def __init__(
+        self,
+        table: pa.Table,
+        *,
+        cfg: DataConfig,
+        target_name: str,
+        split: str,
+        transform: ImageTransform,
+        aspect_bucket_step: AspectBucketStep | None = None,
+        class_index_by_name: dict[str, int] | None = None,
+    ) -> None:
+        self._split = split
+        self._transform = transform
+        self._aspect_bucket_step = aspect_bucket_step
+        self._sample_ids = table.column(cfg.sample_id_column).to_pylist()
+
+        image = cfg.images
+        assert image is not None  # guaranteed by parquet_images backend
+        # table.column(...) is a ChunkedArray of struct type; pull the bytes
+        # sub-field with struct_field (ChunkedArray has no .field()).
+        struct = table.column(image.column)
+        self._image_bytes = pc.struct_field(struct, image.bytes_field).to_pylist()
+        if image.path_field is None:
+            self._uris: list[str | None] = [None] * len(self._sample_ids)
+        else:
+            self._uris = [
+                None if value is None else str(value)
+                for value in pc.struct_field(struct, image.path_field).to_pylist()
+            ]
+
+        # Per-sample integer label index: read the index column directly, or map
+        # the name column through the backend-assigned class_index_by_name.
+        target = cfg.targets[target_name]
+        if target.label_index_column is not None:
+            self._targets = [int(v) for v in table.column(target.label_index_column).to_pylist()]
+        else:
+            assert class_index_by_name is not None
+            names = table.column(target.label_name_column).to_pylist()
+            self._targets = [class_index_by_name[str(n)] for n in names]
+
+        self._source_extra_cols = list(cfg.source_extra_columns)
+        self._source_extra = {
+            col: table.column(col).to_pylist() for col in self._source_extra_cols
+        }
+
+    def __len__(self) -> int:
+        return len(self._sample_ids)
+
+    def target_for_index(self, index: int) -> int:
+        return int(self._targets[index])
+
+    def has_aspect_buckets(self) -> bool:
+        return self._aspect_bucket_step is not None
+
+    def __getitem__(self, index: int) -> DecodedSample:
+        img = Image.open(io.BytesIO(self._image_bytes[index]))
+        img.load()
+        native_w, native_h = img.size
+        aspect_bucket = self.aspect_bucket_for_index(index, native_size=(native_w, native_h))
+
+        tensor = self._transform(img)
+        _, resize_h, resize_w = tensor.shape
+
+        source_extra: dict[str, Any] | None = None
+        if self._source_extra_cols:
+            source_extra = {
+                col: self._source_extra[col][index] for col in self._source_extra_cols
+            }
+
+        return DecodedSample(
+            image=tensor,
+            target=int(self._targets[index]),
+            sample_id=str(self._sample_ids[index]),
+            uri=self._uris[index],
+            split=self._split,
+            native_width_px=int(native_w),
+            native_height_px=int(native_h),
+            resize_width_px=int(resize_w),
+            resize_height_px=int(resize_h),
+            aspect_bucket=aspect_bucket,
+            source_extra=source_extra,
+        )
+
+    def aspect_bucket_for_index(
+        self,
+        index: int,
+        *,
+        native_size: tuple[int, int] | None = None,
+    ) -> str | None:
+        if self._aspect_bucket_step is None:
+            return None
+        if native_size is None:
+            img = Image.open(io.BytesIO(self._image_bytes[index]))
+            native_size = img.size
+        bucket = choose_aspect_bucket(
+            width=int(native_size[0]),
+            height=int(native_size[1]),
+            buckets=self._aspect_bucket_step.buckets,
+        )
+        return bucket.name
+
+
+class ManifestImagesDataset(Dataset[DecodedSample]):
+    """One split's rows, reading image bytes from ``image_uri_column`` on demand."""
+
+    def __init__(
+        self,
+        table: pa.Table,
+        *,
+        cfg: DataConfig,
+        target_name: str,
+        split: str,
+        transform: ImageTransform,
+        storage: Storage,
+        manifest_root: str,
+        aspect_bucket_step: AspectBucketStep | None = None,
+        class_index_by_name: dict[str, int] | None = None,
+    ) -> None:
+        self._split = split
+        self._transform = transform
+        self._storage = storage
+        self._manifest_root = manifest_root
+        self._aspect_bucket_step = aspect_bucket_step
+        self._sample_ids = table.column(cfg.sample_id_column).to_pylist()
+
+        assert cfg.image_uri_column is not None
+        self._uris = [
+            None if value is None else str(value)
+            for value in table.column(cfg.image_uri_column).to_pylist()
+        ]
+
+        target = cfg.targets[target_name]
+        if target.label_index_column is not None:
+            self._targets = [int(v) for v in table.column(target.label_index_column).to_pylist()]
+        else:
+            assert class_index_by_name is not None
+            names = table.column(target.label_name_column).to_pylist()
+            self._targets = [class_index_by_name[str(n)] for n in names]
+
+        self._source_extra_cols = list(cfg.source_extra_columns)
+        self._source_extra = {
+            col: table.column(col).to_pylist() for col in self._source_extra_cols
+        }
+
+    def __len__(self) -> int:
+        return len(self._sample_ids)
+
+    def target_for_index(self, index: int) -> int:
+        return int(self._targets[index])
+
+    def has_aspect_buckets(self) -> bool:
+        return self._aspect_bucket_step is not None
+
+    def _resolve_uri(self, uri: str) -> str:
+        if "://" in uri or uri.startswith("/"):
+            return uri
+        return str((self._storage.localize(self._manifest_root) / uri).resolve())
+
+    def __getitem__(self, index: int) -> DecodedSample:
+        uri = self._uris[index]
+        if uri is None:
+            raise ValueError(f"missing image URI for sample {self._sample_ids[index]!r}")
+        img = Image.open(io.BytesIO(self._storage.read_bytes(self._resolve_uri(uri))))
+        img.load()
+        native_w, native_h = img.size
+        aspect_bucket = self.aspect_bucket_for_index(index, native_size=(native_w, native_h))
+
+        tensor = self._transform(img)
+        _, resize_h, resize_w = tensor.shape
+
+        source_extra: dict[str, Any] | None = None
+        if self._source_extra_cols:
+            source_extra = {
+                col: self._source_extra[col][index] for col in self._source_extra_cols
+            }
+
+        return DecodedSample(
+            image=tensor,
+            target=int(self._targets[index]),
+            sample_id=str(self._sample_ids[index]),
+            uri=uri,
+            split=self._split,
+            native_width_px=int(native_w),
+            native_height_px=int(native_h),
+            resize_width_px=int(resize_w),
+            resize_height_px=int(resize_h),
+            aspect_bucket=aspect_bucket,
+            source_extra=source_extra,
+        )
+
+    def aspect_bucket_for_index(
+        self,
+        index: int,
+        *,
+        native_size: tuple[int, int] | None = None,
+    ) -> str | None:
+        if self._aspect_bucket_step is None:
+            return None
+        uri = self._uris[index]
+        if uri is None:
+            return None
+        if native_size is None:
+            img = Image.open(io.BytesIO(self._storage.read_bytes(self._resolve_uri(uri))))
+            native_size = img.size
+        bucket = choose_aspect_bucket(
+            width=int(native_size[0]),
+            height=int(native_size[1]),
+            buckets=self._aspect_bucket_step.buckets,
+        )
+        return bucket.name
+
+===== FILE: ./src/dojo/data/identity.py =====
+"""``dataset_hash`` for the P1 ``parquet_images`` backend.
+
+Cheap, deterministic dataset identity: it never reads image pixels. The basis
+is the manifest file identities (**relative path + byte size** — deliberately
+not mtime, which is not reproducible across copies/machines and would break the
+two-run determinism guarantee) plus the backend type and the declared column
+bindings. Embedded image bytes belong to ``dataset_content_hash`` (deferred,
+P2.2), never to this hash. See ``04-data-and-storage.md``.
+"""
+
+from __future__ import annotations
+
+from typing import Any
+
+from dojo.config_schemas.hashing import sha256_json
+from dojo.config_schemas.root import DataConfig
+
+# P1 records this provenance label; doc 04's enum
+# (manifest_content / uri_etag / uri_only) is reconciled in P2.2 dataset-hash
+# hardening. "uri_size" = path + size, stronger than uri_only, mtime excluded.
+DATASET_HASH_PROVENANCE = "uri_size"
+
+
+def _binding_source(cfg: DataConfig) -> dict[str, Any]:
+    return {
+        "backend": cfg.backend,
+        "sample_id_column": cfg.sample_id_column,
+        "split_column": cfg.split_column,
+        "split_from_filename": cfg.split_from_filename,
+        "image": cfg.images.model_dump() if cfg.images is not None else None,
+        "image_uri_column": cfg.image_uri_column,
+        "targets": {
+            name: {
+                "label_index_column": t.label_index_column,
+                "label_name_column": t.label_name_column,
+                "type": t.type,
+            }
+            for name, t in sorted(cfg.targets.items())
+        },
+    }
+
+
+def compute_dataset_hash(
+    cfg: DataConfig,
+    files: list[tuple[str, int]],
+) -> tuple[str, str]:
+    """Return ``(dataset_hash, dataset_hash_provenance)``.
+
+    ``files`` is the list of ``(relative_path, size_bytes)`` for the manifest
+    Parquet files, sorted by path. Identical content in the same layout hashes
+    identically regardless of absolute location or modification time.
+    """
+
+    source = {
+        "version": "1",
+        "bindings": _binding_source(cfg),
+        "files": [{"path": path, "size": size} for path, size in sorted(files)],
+    }
+    return sha256_json(source), DATASET_HASH_PROVENANCE
+
+===== FILE: ./src/dojo/data/__init__.py =====
+"""Dataset backends, the shared sample contract, transforms, and dataset identity."""
+
+from __future__ import annotations
+
+from torch.utils.data import DataLoader
+
+from dojo.data.contract import DecodedSample, SampleBatch, collate_samples
+from dojo.data.dataset import ManifestImagesDataset, ParquetImagesDataset
+from dojo.data.identity import compute_dataset_hash
+from dojo.data.parquet_images import (
+    DataBundle,
+    DatasetConfigError,
+    build_datasets,
+)
+from dojo.data.preflight import PreflightIssue, run_dataset_preflight
+from dojo.data.samplers import (
+    AspectBucketBatchSampler,
+    WeightedBatchSampler,
+    sample_weights_for_dataset,
+)
+from dojo.data.transforms import build_image_transform
+
+__all__ = [
+    "DecodedSample",
+    "SampleBatch",
+    "collate_samples",
+    "ParquetImagesDataset",
+    "ManifestImagesDataset",
+    "compute_dataset_hash",
+    "DataBundle",
+    "DatasetConfigError",
+    "build_datasets",
+    "PreflightIssue",
+    "run_dataset_preflight",
+    "AspectBucketBatchSampler",
+    "WeightedBatchSampler",
+    "sample_weights_for_dataset",
+    "build_image_transform",
+    "build_dataloader",
+]
+
+
+def build_dataloader(
+    dataset: ParquetImagesDataset | ManifestImagesDataset,
+    *,
+    batch_size: int,
+    shuffle: bool = False,
+    num_workers: int = 0,
+    drop_last: bool = False,
+    batch_aspect_buckets: bool = False,
+    seed: int = 0,
+    sampler_type: str = "default",
+    class_counts: dict[int, int] | None = None,
+    class_weight_scheme: str = "inverse_frequency",
+    class_weight_beta: float = 0.9999,
+) -> DataLoader:
+    """A DataLoader over a supervised dataset using the shared sample collation.
+
+    ``drop_last`` drops a trailing partial batch; the training loop sets it so a
+    size-1 final batch can't crash BatchNorm in train mode.
+    """
+
+    if batch_aspect_buckets and sampler_type == "default":
+        sampler_type = "batch_aspect_buckets"
+
+    weights_by_index: list[float] | None = None
+    if sampler_type in {"class_balanced", "weighted"}:
+        if class_counts is None:
+            raise ValueError(f"{sampler_type} sampler requires train-split class_counts")
+        weights_by_index = sample_weights_for_dataset(
+            dataset,
+            class_counts,
+            scheme=class_weight_scheme,
+            beta=class_weight_beta,
+        )
+
+    has_aspect_buckets = (
+        bool(dataset.has_aspect_buckets())
+        if hasattr(dataset, "has_aspect_buckets")
+        else False
+    )
+    if sampler_type == "batch_aspect_buckets" or (
+        has_aspect_buckets and weights_by_index is not None
+    ):
+        return DataLoader(
+            dataset,
+            batch_sampler=AspectBucketBatchSampler(
+                dataset,
+                batch_size=batch_size,
+                shuffle=shuffle,
+                drop_last=drop_last,
+                seed=seed,
+                weights_by_index=weights_by_index,
+            ),
+            num_workers=num_workers,
+            collate_fn=collate_samples,
+        )
+
+    if weights_by_index is not None:
+        return DataLoader(
+            dataset,
+            batch_sampler=WeightedBatchSampler(
+                dataset,
+                batch_size=batch_size,
+                weights_by_index=weights_by_index,
+                drop_last=drop_last,
+                seed=seed,
+            ),
+            num_workers=num_workers,
+            collate_fn=collate_samples,
+        )
+
+    return DataLoader(
+        dataset,
+        batch_size=batch_size,
+        shuffle=shuffle,
+        num_workers=num_workers,
+        drop_last=drop_last,
+        collate_fn=collate_samples,
+    )
+
+===== FILE: ./src/dojo/data/inspect.py =====
+"""Dataset inspection and stats-cache writing for current manifest backends."""
+
+from __future__ import annotations
+
+import io
+import json
+from collections import Counter
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+
+import pyarrow as pa
+from PIL import Image
+
+from dojo.config_schemas.root import RootConfig, TargetConfig
+from dojo.data.parquet_images import (
+    _discover_files,
+    _integer_targets,
+    _needed_columns,
+    _resolve_class_mapping,
+    _sole_target,
+    _tables_by_split,
+    build_datasets,
+)
+from dojo.data.transforms import _decode_to_unit_chw
+from dojo.storage import Storage, get_storage
+
+
+@dataclass(frozen=True)
+class DatasetInspection:
+    report: dict[str, Any]
+    stats_cache_uri: str | None = None
+    wrote_stats_cache: bool = False
+
+
+def _target_report(table: pa.Table, target: TargetConfig) -> dict[str, int | bool]:
+    candidate_columns = [
+        col
+        for col in (target.label_index_column, target.label_name_column)
+        if col is not None
+    ]
+    total = table.num_rows
+    valid = 0
+    for row_index in range(total):
+        if any(table.column(col)[row_index].as_py() is not None for col in candidate_columns):
+            valid += 1
+    missing = total - valid
+    return {
+        "total_count": total,
+        "valid_count": valid,
+        "missing_count": missing,
+        "drop_sample_count": missing if target.missing_policy == "drop_sample" else 0,
+        "mask_objective_count": missing
+        if target.missing_policy == "mask_objective"
+        else 0,
+        "would_fail": missing > 0 and target.missing_policy == "error",
+    }
+
+
+def _class_counts(
+    tables: dict[str, pa.Table],
+    target: TargetConfig,
+    class_index_by_name: dict[str, int] | None,
+) -> dict[str, dict[str, int]]:
+    return {
+        split: {
+            str(index): count
+            for index, count in sorted(
+                Counter(_integer_targets(table, target, class_index_by_name)).items()
+            )
+        }
+        for split, table in tables.items()
+    }
+
+
+def _decode_image_bytes(
+    *,
+    row: dict[str, Any],
+    cfg: RootConfig,
+    storage: Storage,
+    manifest_root: Path,
+) -> bytes:
+    if cfg.data.backend == "parquet_images":
+        image = cfg.data.images
+        assert image is not None
+        return row[image.column][image.bytes_field]
+    assert cfg.data.image_uri_column is not None
+    uri = row[cfg.data.image_uri_column]
+    if "://" in uri or str(uri).startswith("/"):
+        resolved = str(uri)
+    else:
+        resolved = str((manifest_root / str(uri)).resolve())
+    return storage.read_bytes(resolved)
+
+
+def _dimensions_and_normalization(
+    *,
+    cfg: RootConfig,
+    tables: dict[str, pa.Table],
+    storage: Storage,
+    manifest_root: Path,
+    include_dimensions: bool,
+    include_normalization: bool,
+) -> tuple[list[dict[str, Any]] | None, dict[str, Any] | None]:
+    dimensions: list[dict[str, Any]] = []
+    channel_sum = None
+    channel_sum_sq = None
+    pixel_count = 0
+
+    for split, table in tables.items():
+        for row in table.to_pylist():
+            image_bytes = _decode_image_bytes(
+                row=row, cfg=cfg, storage=storage, manifest_root=manifest_root
+            )
+            img = Image.open(io.BytesIO(image_bytes))
+            img.load()
+            native_w, native_h = img.size
+            if include_dimensions:
+                dimensions.append(
+                    {
+                        "sample_id": str(row[cfg.data.sample_id_column]),
+                        "split": split,
+                        "native_width_px": int(native_w),
+                        "native_height_px": int(native_h),
+                    }
+                )
+            if include_normalization and split == "train":
+                tensor = _decode_to_unit_chw(
+                    img,
+                    cfg.transforms.image_mode,
+                    cfg.transforms.input_bit_depth,
+                )
+                flat = tensor.reshape(tensor.shape[0], -1)
+                sums = flat.sum(dim=1, dtype=flat.dtype)
+                sums_sq = (flat * flat).sum(dim=1, dtype=flat.dtype)
+                channel_sum = sums if channel_sum is None else channel_sum + sums
+                channel_sum_sq = (
+                    sums_sq if channel_sum_sq is None else channel_sum_sq + sums_sq
+                )
+                pixel_count += flat.shape[1]
+
+    normalization = None
+    if include_normalization and channel_sum is not None and pixel_count > 0:
+        mean = channel_sum / pixel_count
+        variance = (channel_sum_sq / pixel_count) - (mean * mean)
+        std = variance.clamp_min(0).sqrt()
+        normalization = {
+            "split": "train",
+            "estimated": False,
+            "image_mode": cfg.transforms.image_mode,
+            "mean": [float(v) for v in mean.tolist()],
+            "std": [float(v) for v in std.tolist()],
+        }
+
+    return (dimensions if include_dimensions else None), normalization
+
+
+def inspect_dataset(
+    cfg: RootConfig,
+    *,
+    storage: Storage | None = None,
+    write_stats: bool = False,
+    include_dimensions: bool = False,
+    include_normalization: bool = False,
+) -> DatasetInspection:
+    """Inspect a resolved dataset config and optionally write its stats cache."""
+
+    storage = storage or get_storage(cfg.storage)
+    data_cfg = cfg.data
+    root, files = _discover_files(data_cfg, storage)
+    tables = _tables_by_split(data_cfg, files, _needed_columns(data_cfg))
+    bundle = build_datasets(cfg, storage)
+    target_name = _sole_target(data_cfg)
+    target = data_cfg.targets[target_name]
+    class_mapping, class_index_by_name = _resolve_class_mapping(
+        target, list(tables.values())
+    )
+
+    target_reports = {
+        split: {target_name: _target_report(table, target)}
+        for split, table in tables.items()
+    }
+    class_counts = _class_counts(tables, target, class_index_by_name)
+    head_name = next(
+        (name for name, head in cfg.model.heads.items() if head.target == target_name),
+        target_name,
+    )
+    if head_name in cfg.model.heads:
+        num_classes = cfg.model.heads[head_name].num_classes
+    else:
+        count_indices = [
+            int(index)
+            for counts in class_counts.values()
+            for index in counts
+        ]
+        num_classes = max(count_indices, default=-1) + 1
+    ordered_mapping = {
+        str(index): class_mapping.get(index, str(index))
+        for index in range(num_classes)
+    }
+    bit_depth = 8 if cfg.transforms.input_bit_depth == "auto" else cfg.transforms.input_bit_depth
+
+    dimensions, normalization = _dimensions_and_normalization(
+        cfg=cfg,
+        tables=tables,
+        storage=storage,
+        manifest_root=root,
+        include_dimensions=include_dimensions,
+        include_normalization=include_normalization,
+    )
+
+    aspects: dict[str, Any] = {
+        "class_counts": {
+            "split": "train",
+            "estimated": False,
+            "per_head": {
+                head_name: {
+                    "num_classes": len(ordered_mapping),
+                    "total": sum(class_counts.get("train", {}).values()),
+                    "counts": class_counts.get("train", {}),
+                }
+            },
+        },
+        "class_mapping": {"per_head": {head_name: ordered_mapping}},
+        "bit_depth": {
+            "split": "all",
+            "value": bit_depth,
+            "heterogeneous": False,
+        },
+    }
+    if dimensions is not None:
+        aspects["dimensions"] = {
+            "split": "all",
+            "rows": dimensions,
+            "columns": ["sample_id", "split", "native_width_px", "native_height_px"],
+        }
+    if normalization is not None:
+        aspects["normalization"] = normalization
+
+    report = {
+        "valid": True,
+        "backend": data_cfg.backend,
+        "manifest_uri": data_cfg.manifest_uri,
+        "dataset_hash": bundle.dataset_hash,
+        "dataset_hash_provenance": bundle.dataset_hash_provenance,
+        "files": [{"path": path, "size": size} for path, size in bundle.files],
+        "splits_present": sorted(tables),
+        "targets": target_reports,
+        "aspects": aspects,
+    }
+
+    wrote = False
+    if write_stats and data_cfg.stats_cache_uri is not None:
+        payload = {
+            "schema_version": "1.0.0",
+            "dataset_hash": bundle.dataset_hash,
+            "dataset_hash_provenance": bundle.dataset_hash_provenance,
+            "dataset_content_hash": None,
+            "created_by": "dojo inspect dataset",
+            "dojo_version": "0.3.0.dev0",
+
+===== FILE: ./src/dojo/data/parquet_images.py =====
+"""Manifest backends: discover files, route splits, build datasets.
+
+Supports the two split sources from the schema: ``split_column`` (canonical
+split values in a manifest column) and ``split_from_filename`` (assign each
+file's rows a split by matching its basename against per-split globs). Rows are
+held in memory for the current supervised platform slice; image bytes are
+decoded lazily by the dataset classes.
+"""
+
+from __future__ import annotations
+
+import fnmatch
+from collections import Counter, defaultdict
+from dataclasses import dataclass
+from pathlib import Path
+
+import pyarrow as pa
+import pyarrow.csv as pacsv
+import pyarrow.parquet as pq
+
+from dojo.config_schemas.root import DataConfig, RootConfig, TargetConfig
+from dojo.data.dataset import ManifestImagesDataset, ParquetImagesDataset
+from dojo.data.identity import compute_dataset_hash
+from dojo.data.transforms import build_image_transform, find_aspect_bucket_step
+from dojo.storage import Storage, get_storage
+
+
+class DatasetConfigError(ValueError):
+    """Raised for backend / manifest configuration problems."""
+
+
+@dataclass(frozen=True)
+class DataBundle:
+    datasets: dict[str, ParquetImagesDataset | ManifestImagesDataset]
+    dataset_hash: str
+    dataset_hash_provenance: str
+    files: list[tuple[str, int]]
+    class_counts: dict[str, dict[int, int]]
+    target_name: str
+    # Resolved class index -> readable name for the sole P1 target. Missing
+    # indices (no name available) fall back to their index string downstream.
+    class_mapping: dict[int, str]
+
+
+def _discover_files(cfg: DataConfig, storage: Storage) -> tuple[Path, list[Path]]:
+    root = storage.localize(cfg.manifest_uri)
+    if not root.exists():
+        raise DatasetConfigError(f"data.manifest_uri does not exist: {root}")
+    if root.is_file():
+        return root.parent, [root]
+    default_pattern = "*.csv" if cfg.backend == "csv_manifest" else "*.parquet"
+    pattern = cfg.file_pattern or default_pattern
+    files = sorted(root.glob(pattern))
+    if not files:
+        raise DatasetConfigError(
+            f"no files matching {pattern!r} under data.manifest_uri: {root}"
+        )
+    return root, files
+
+
+def _needed_columns(cfg: DataConfig) -> list[str]:
+    columns = [cfg.sample_id_column]
+    if cfg.backend == "parquet_images":
+        assert cfg.images is not None
+        columns.append(cfg.images.column)
+    else:
+        assert cfg.image_uri_column is not None
+        columns.append(cfg.image_uri_column)
+    for target in cfg.targets.values():
+        if target.label_index_column is not None:
+            columns.append(target.label_index_column)
+        if target.label_name_column is not None:
+            columns.append(target.label_name_column)
+    columns.extend(cfg.source_extra_columns)
+    if cfg.split_column is not None:
+        columns.append(cfg.split_column)
+    # Preserve order, drop duplicates.
+    seen: set[str] = set()
+    return [c for c in columns if not (c in seen or seen.add(c))]
+
+
+def _split_for_filename(name: str, patterns: dict[str, str]) -> str | None:
+    matches = [split for split, glob in patterns.items() if fnmatch.fnmatch(name, glob)]
+    if len(matches) > 1:
+        raise DatasetConfigError(
+            f"file {name!r} matches multiple split_from_filename patterns: {matches}"
+        )
+    return matches[0] if matches else None
+
+
+def _tables_by_split(
+    cfg: DataConfig,
+    files: list[Path],
+    columns: list[str],
+) -> dict[str, pa.Table]:
+    def read_table(path: Path) -> pa.Table:
+        if cfg.backend == "csv_manifest":
+            return pacsv.read_csv(path).select(columns)
+        return pq.read_table(path, columns=columns)
+
+    if cfg.split_from_filename is not None:
+        grouped: dict[str, list[pa.Table]] = defaultdict(list)
+        for path in files:
+            split = _split_for_filename(path.name, cfg.split_from_filename)
+            if split is None:
+                continue
+            grouped[split].append(read_table(path))
+        return {split: pa.concat_tables(parts) for split, parts in grouped.items()}
+
+    # split_column mode: one combined table, partitioned by the column values.
+    combined = pa.concat_tables([read_table(p) for p in files])
+    split_values = combined.column(cfg.split_column).to_pylist()
+    tables: dict[str, pa.Table] = {}
+    for split in sorted(set(split_values)):
+        mask = pa.array([v == split for v in split_values])
+        tables[split] = combined.filter(mask)
+    return tables
+
+
+def _resolve_class_mapping(
+    target: "TargetConfig", tables: list[pa.Table]
+) -> tuple[dict[int, str], dict[str, int] | None]:
+    """Resolve ``(class_mapping, class_index_by_name)`` across all split tables.
+
+    ``class_mapping`` is class index -> readable name. ``class_index_by_name`` is
+    non-None only when the target has no index column, in which case class indices
+    are assigned to distinct names alphabetically and the dataset maps names ->
+    indices.
+    """
+    index_col, name_col = target.label_index_column, target.label_name_column
+
+    if index_col is None:
+        assert name_col is not None  # guaranteed by TargetConfig validation
+        names: set[str] = set()
+        for table in tables:
+            names.update(str(n) for n in table.column(name_col).to_pylist() if n is not None)
+        class_index_by_name = {name: index for index, name in enumerate(sorted(names))}
+        return {index: name for name, index in class_index_by_name.items()}, class_index_by_name
+
+    if name_col is not None:
+        class_mapping: dict[int, str] = {}
+        for table in tables:
+            indices = table.column(index_col).to_pylist()
+            names_col = table.column(name_col).to_pylist()
+            for index, name in zip(indices, names_col):
+                if index is None or name is None:
+                    continue
+                index, name = int(index), str(name)
+                existing = class_mapping.setdefault(index, name)
+                if existing != name:
+                    raise DatasetConfigError(
+                        f"class index {index} maps to multiple names: "
+                        f"{existing!r} and {name!r}"
+                    )
+        return class_mapping, None
+
+    return {}, None  # index-only: names fall back to index strings downstream
+
+
+def _integer_targets(
+    table: pa.Table, target: "TargetConfig", class_index_by_name: dict[str, int] | None
+) -> list[int]:
+    if target.label_index_column is not None:
+        return [int(v) for v in table.column(target.label_index_column).to_pylist()]
+    assert class_index_by_name is not None
+    names = table.column(target.label_name_column).to_pylist()
+    return [class_index_by_name[str(n)] for n in names]
+
+
+def _sole_target(cfg: DataConfig) -> str:
+    if len(cfg.targets) != 1:
+        raise DatasetConfigError(
+            "P1 supports exactly one data target; "
+            f"got {sorted(cfg.targets)}"
+        )
+    return next(iter(cfg.targets))
+
+
+def build_datasets(cfg: RootConfig, storage: Storage | None = None) -> DataBundle:
+    """Build per-split datasets, the ``dataset_hash``, and per-split class counts.
+
+    ``cfg`` must be resolved (``transforms.inference_pipeline`` populated): the
+    ``train`` split uses ``transforms.pipeline`` and every other split uses the
+    derived inference pipeline.
+    """
+
+    storage = storage or get_storage(cfg.storage)
+    data_cfg = cfg.data
+    if cfg.transforms.inference_pipeline is None:
+        raise DatasetConfigError(
+            "transforms.inference_pipeline is unresolved; resolve the config first"
+        )
+
+    target_name = _sole_target(data_cfg)
+    root, files = _discover_files(data_cfg, storage)
+    file_ids = sorted(
+        (str(path.relative_to(root)), path.stat().st_size) for path in files
+    )
+    dataset_hash, provenance = compute_dataset_hash(data_cfg, file_ids)
+
+    tables = _tables_by_split(data_cfg, files, _needed_columns(data_cfg))
+
+    train_transform = build_image_transform(
+        cfg.transforms.pipeline,
+        image_mode=cfg.transforms.image_mode,
+        input_bit_depth=cfg.transforms.input_bit_depth,
+    )
+    eval_transform = build_image_transform(
+        cfg.transforms.inference_pipeline,
+        image_mode=cfg.transforms.image_mode,
+        input_bit_depth=cfg.transforms.input_bit_depth,
+    )
+    train_aspect_bucket_step = find_aspect_bucket_step(cfg.transforms.pipeline)
+    eval_aspect_bucket_step = find_aspect_bucket_step(cfg.transforms.inference_pipeline)
+
+    target = data_cfg.targets[target_name]
+    class_mapping, class_index_by_name = _resolve_class_mapping(target, list(tables.values()))
+
+    datasets: dict[str, ParquetImagesDataset | ManifestImagesDataset] = {}
+    class_counts: dict[str, dict[int, int]] = {}
+    for split, table in tables.items():
+        transform = train_transform if split == "train" else eval_transform
+        aspect_bucket_step = (
+            train_aspect_bucket_step if split == "train" else eval_aspect_bucket_step
+        )
+        if data_cfg.backend == "parquet_images":
+            datasets[split] = ParquetImagesDataset(
+                table,
+                cfg=data_cfg,
+                target_name=target_name,
+                split=split,
+                transform=transform,
+                aspect_bucket_step=aspect_bucket_step,
+                class_index_by_name=class_index_by_name,
+            )
+        else:
+            datasets[split] = ManifestImagesDataset(
+                table,
+                cfg=data_cfg,
+                target_name=target_name,
+                split=split,
+                transform=transform,
+                storage=storage,
+                manifest_root=str(root),
+                aspect_bucket_step=aspect_bucket_step,
+                class_index_by_name=class_index_by_name,
+            )
+        counts = Counter(_integer_targets(table, target, class_index_by_name))
+        class_counts[split] = dict(sorted(counts.items()))
+
+    return DataBundle(
+        datasets=datasets,
+        dataset_hash=dataset_hash,
+        dataset_hash_provenance=provenance,
+        files=file_ids,
+        class_counts=class_counts,
+        target_name=target_name,
+        class_mapping=class_mapping,
+    )
+
+===== FILE: ./src/dojo/data/preflight.py =====
+"""Dataset preflight checks consumed before supervised training."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Literal
+
+from dojo.config_schemas.root import RootConfig, Severity
+from dojo.data.parquet_images import DataBundle
+
+
+PreflightCheckName = Literal[
+    "empty_train_classes",
+    "non_contiguous_class_indices",
+    "imbalance_ratio_gt",
+]
+
+
+@dataclass(frozen=True)
+class PreflightIssue:
+    check: PreflightCheckName
+    severity: Severity
+    message: str
+
+
+def _issue(
+    *,
+    check: PreflightCheckName,
+    severity: Severity,
+    message: str,
+) -> PreflightIssue | None:
+    if severity == "ignore":
+        return None
+    return PreflightIssue(check=check, severity=severity, message=message)
+
+
+def run_dataset_preflight(cfg: RootConfig, bundle: DataBundle) -> list[PreflightIssue]:
+    """Run configured dataset preflight checks against frozen class counts."""
+
+    preflight = cfg.runtime.preflight
+    if not preflight.enabled:
+        return []
+
+    checks = preflight.checks
+    issues: list[PreflightIssue] = []
+    train_counts = bundle.class_counts.get("train", {})
+    observed = sorted(train_counts)
+
+    for head_name, head in cfg.model.heads.items():
+        missing = [
+            index
+            for index in range(head.num_classes)
+            if train_counts.get(index, 0) == 0
+        ]
+        item = _issue(
+            check="empty_train_classes",
+            severity=checks.empty_train_classes,
+            message=(
+                f"head {head_name!r} has {len(missing)} empty train classes: "
+                f"{missing[:20]}{'...' if len(missing) > 20 else ''}"
+            ),
+        ) if missing else None
+        if item is not None:
+            issues.append(item)
+
+    if observed:
+        expected = list(range(min(observed), max(observed) + 1))
+        if observed != expected:
+            item = _issue(
+                check="non_contiguous_class_indices",
+                severity=checks.non_contiguous_class_indices,
+                message=(
+                    "train class indices are non-contiguous: "
+                    f"observed={observed[:20]}{'...' if len(observed) > 20 else ''}"
+                ),
+            )
+            if item is not None:
+                issues.append(item)
+
+    nonzero_counts = [count for count in train_counts.values() if count > 0]
+    if len(nonzero_counts) >= 2:
+        ratio = max(nonzero_counts) / min(nonzero_counts)
+        threshold_cfg = checks.imbalance_ratio_gt
+        if ratio > threshold_cfg.threshold:
+            item = _issue(
+                check="imbalance_ratio_gt",
+                severity=threshold_cfg.severity,
+                message=(
+                    f"train class imbalance ratio {ratio:.3g} exceeds "
+                    f"threshold {threshold_cfg.threshold:.3g}"
+                ),
+            )
+            if item is not None:
+                issues.append(item)
+
+    return issues
+
+===== FILE: ./src/dojo/data/samplers.py =====
+"""Dataset samplers for P2 supervised data loading."""
+
+from __future__ import annotations
+
+import random
+from collections import defaultdict
+from collections.abc import Iterator, Sized
+
+from torch.utils.data import Sampler
+
+
+def class_weight_by_index(
+    class_counts: dict[int, int],
+    *,
+    scheme: str = "inverse_frequency",
+    beta: float = 0.9999,
+) -> dict[int, float]:
+    """Return per-class sampling weights from frozen train-split counts."""
+
+    weights: dict[int, float] = {}
+    for class_index, count in class_counts.items():
+        if count <= 0:
+            continue
+        if scheme == "inverse_frequency":
+            weights[int(class_index)] = 1.0 / float(count)
+        elif scheme == "effective_number":
+            weights[int(class_index)] = (1.0 - beta) / (1.0 - beta**count)
+        else:
+            raise ValueError(
+                "class_weight_scheme must be 'inverse_frequency' or 'effective_number'"
+            )
+    return weights
+
+
+def sample_weights_for_dataset(
+    dataset: Sized,
+    class_counts: dict[int, int],
+    *,
+    scheme: str = "inverse_frequency",
+    beta: float = 0.9999,
+) -> list[float]:
+    """Map a dataset's target labels to per-sample weights."""
+
+    if not hasattr(dataset, "target_for_index"):
+        raise TypeError("dataset does not expose target_for_index")
+    class_weights = class_weight_by_index(class_counts, scheme=scheme, beta=beta)
+    return [
+        class_weights.get(int(dataset.target_for_index(index)), 0.0)
+        for index in range(len(dataset))
+    ]
+
+
+def _weighted_epoch_indices(
+    *,
+    indices: list[int],
+    weights_by_index: list[float] | None,
+    rng: random.Random,
+    shuffle: bool,
+) -> list[int]:
+    if weights_by_index is None:
+        sampled = list(indices)
+        if shuffle:
+            rng.shuffle(sampled)
+        return sampled
+
+    weights = [weights_by_index[index] for index in indices]
+    if not any(weight > 0 for weight in weights):
+        raise ValueError("weighted sampler received no positive sample weights")
+    return rng.choices(indices, weights=weights, k=len(indices))
+
+
+class AspectBucketBatchSampler(Sampler[list[int]]):
+    """Yield batches whose samples share one deterministic aspect bucket.
+
+    Optional ``weights_by_index`` samples with replacement inside each bucket,
+    which composes class balancing with size-homogeneous batches.
+    """
+
+    def __init__(
+        self,
+        dataset: Sized,
+        *,
+        batch_size: int,
+        shuffle: bool = False,
+        drop_last: bool = False,
+        seed: int = 0,
+        weights_by_index: list[float] | None = None,
+    ) -> None:
+        if not hasattr(dataset, "aspect_bucket_for_index"):
+            raise TypeError("dataset does not expose aspect_bucket_for_index")
+        self._dataset = dataset
+        self._batch_size = batch_size
+        self._shuffle = shuffle
+        self._drop_last = drop_last
+        self._seed = seed
+        self._weights_by_index = weights_by_index
+
+    def __iter__(self) -> Iterator[list[int]]:
+        rng = random.Random(self._seed)
+        buckets: dict[str, list[int]] = defaultdict(list)
+        for index in range(len(self._dataset)):
+            bucket = self._dataset.aspect_bucket_for_index(index) or "__default__"
+            buckets[bucket].append(index)
+
+        bucket_names = sorted(buckets)
+        if self._shuffle:
+            rng.shuffle(bucket_names)
+
+        for bucket_name in bucket_names:
+            indices = _weighted_epoch_indices(
+                indices=buckets[bucket_name],
+                weights_by_index=self._weights_by_index,
+                rng=rng,
+                shuffle=self._shuffle,
+            )
+            for start in range(0, len(indices), self._batch_size):
+                batch = indices[start : start + self._batch_size]
+                if len(batch) == self._batch_size or not self._drop_last:
+                    yield batch
+
+    def __len__(self) -> int:
+        total = 0
+        buckets: dict[str, int] = defaultdict(int)
+        for index in range(len(self._dataset)):
+            bucket = self._dataset.aspect_bucket_for_index(index) or "__default__"
+            buckets[bucket] += 1
+        for count in buckets.values():
+            total += count // self._batch_size
+            if count % self._batch_size and not self._drop_last:
+                total += 1
+        return total
+
+
+class WeightedBatchSampler(Sampler[list[int]]):
+    """Yield weighted batches over a single fixed-shape dataset split."""
+
+    def __init__(
+        self,
+        dataset: Sized,
+        *,
+        batch_size: int,
+        weights_by_index: list[float],
+        drop_last: bool = False,
+        seed: int = 0,
+    ) -> None:
+        if len(weights_by_index) != len(dataset):
+            raise ValueError("weights_by_index length must equal dataset length")
+        self._dataset = dataset
+        self._batch_size = batch_size
+        self._weights_by_index = weights_by_index
+        self._drop_last = drop_last
+        self._seed = seed
+
+    def __iter__(self) -> Iterator[list[int]]:
+        rng = random.Random(self._seed)
+        indices = _weighted_epoch_indices(
+            indices=list(range(len(self._dataset))),
+            weights_by_index=self._weights_by_index,
+            rng=rng,
+            shuffle=True,
+        )
+        for start in range(0, len(indices), self._batch_size):
+            batch = indices[start : start + self._batch_size]
+            if len(batch) == self._batch_size or not self._drop_last:
+                yield batch
+
+    def __len__(self) -> int:
+        count = len(self._dataset)
+        total = count // self._batch_size
+        if count % self._batch_size and not self._drop_last:
+            total += 1
+        return total
+
+===== FILE: ./src/dojo/data/transforms.py =====
+"""Image transform builder for supervised Dojo image pipelines.
+
+Builds a ``PIL.Image -> torch.Tensor`` callable from resolved transform steps.
+Implemented steps include ``letterbox``, ``foreground_crop``,
+``aspect_bucket``, ``grayscale``, ``normalize``, and the stochastic
+``train_only`` augmentations ``rotate`` (multiples of 90), ``horizontal_flip``,
+and ``vertical_flip``.
+
+Value-range convention follows ``05-models-training-and-heads.md``:
+**decode → scale to ``[0, 1]`` (by ``input_bit_depth`` divisor) → normalize**.
+``image_mode`` sets the channel contract before the pipeline runs.
+"""
+
+from __future__ import annotations
+
+import random
+from typing import Callable, Sequence
+
+import numpy as np
+import torch
+import torchvision.transforms.v2.functional as F
+from PIL import Image
+
+from dojo.config_schemas.root import (
+    AspectBucketConfig,
+    AspectBucketStep,
+    ForegroundCropStep,
+    GrayscaleStep,
+    HorizontalFlipStep,
+    LetterboxStep,
+    NormalizeStep,
+    RotateStep,
+    TransformStep,
+    VerticalFlipStep,
+)
+
+ImageTransform = Callable[[Image.Image], torch.Tensor]
+
+_BIT_DEPTH_DIVISOR = {8: 255.0, 12: 4095.0, 16: 65535.0}
+
+
+def _decode_to_unit_chw(
+    img: Image.Image,
+    image_mode: str,
+    input_bit_depth: str | int,
+) -> torch.Tensor:
+    """Decode a PIL image to a float CHW tensor scaled to ``[0, 1]``."""
+
+    if image_mode == "rgb":
+        img = img.convert("RGB")
+    else:  # grayscale | grayscale_repeat3 decode a single luminance channel
+        img = img.convert("L")
+
+    arr = np.asarray(img)
+    if arr.ndim == 2:
+        arr = arr[:, :, None]
+
+    if input_bit_depth == "auto":
+        divisor = 65535.0 if arr.dtype == np.uint16 else 255.0
+    else:
+        divisor = _BIT_DEPTH_DIVISOR[int(input_bit_depth)]
+
+    tensor = torch.from_numpy(arr.astype(np.float32)).permute(2, 0, 1) / divisor
+    if image_mode == "grayscale_repeat3":
+        tensor = tensor.repeat(3, 1, 1)
+    return tensor
+
+
+def _letterbox(tensor: torch.Tensor, canvas_size: tuple[int, int]) -> torch.Tensor:
+    """Resize preserving aspect ratio, then pad to a centered ``canvas_size``.
+
+    ``canvas_size`` is ``(height, width)``.
+    """
+
+    target_h, target_w = canvas_size
+    _, h, w = tensor.shape
+    scale = min(target_h / h, target_w / w)
+    new_h = max(1, round(h * scale))
+    new_w = max(1, round(w * scale))
+    resized = F.resize(tensor, [new_h, new_w], antialias=True)
+
+    pad_h = target_h - new_h
+    pad_w = target_w - new_w
+    top = pad_h // 2
+    left = pad_w // 2
+    # torchvision pad order is [left, top, right, bottom].
+    return F.pad(resized, [left, top, pad_w - left, pad_h - top])
+
+
+def _foreground_crop(
+    tensor: torch.Tensor,
+    *,
+    threshold: float,
+    padding_px: int,
+) -> torch.Tensor:
+    mask = tensor.amax(dim=0) > threshold
+    if not bool(mask.any()):
+        return tensor
+    rows = torch.nonzero(mask.any(dim=1), as_tuple=False).flatten()
+    cols = torch.nonzero(mask.any(dim=0), as_tuple=False).flatten()
+    top = max(0, int(rows[0]) - padding_px)
+    bottom = min(tensor.shape[1], int(rows[-1]) + padding_px + 1)
+    left = max(0, int(cols[0]) - padding_px)
+    right = min(tensor.shape[2], int(cols[-1]) + padding_px + 1)
+    return tensor[:, top:bottom, left:right]
+
+
+def choose_aspect_bucket(
+    *,
+    width: int,
+    height: int,
+    buckets: Sequence[AspectBucketConfig],
+) -> AspectBucketConfig:
+    aspect = width / height
+    long_side = max(width, height)
+    for bucket in buckets:
+        if bucket.min_aspect is not None and aspect < bucket.min_aspect:
+            continue
+        if bucket.max_aspect is not None and aspect > bucket.max_aspect:
+            continue
+        if (
+            bucket.min_native_long_side is not None
+            and long_side < bucket.min_native_long_side
+        ):
+            continue
+        if (
+            bucket.max_native_long_side is not None
+            and long_side > bucket.max_native_long_side
+        ):
+            continue
+        return bucket
+    raise ValueError(
+        f"no aspect_bucket bucket matches width={width}, height={height}, aspect={aspect:.3g}"
+    )
+
+
+def find_aspect_bucket_step(steps: Sequence[TransformStep]) -> AspectBucketStep | None:
+    for step in steps:
+        if isinstance(step, AspectBucketStep) and step.enabled:
+            return step
+    return None
+
+
+def _grayscale(tensor: torch.Tensor) -> torch.Tensor:
+    if tensor.shape[0] == 1:
+        return tensor
+    lum = (
+        0.2989 * tensor[0:1]
+        + 0.5870 * tensor[1:2]
+        + 0.1140 * tensor[2:3]
+    )
+    return lum.repeat(tensor.shape[0], 1, 1)
+
+
+def _normalize(tensor: torch.Tensor, mean, std) -> torch.Tensor:
+    mean_t = torch.tensor(mean, dtype=tensor.dtype).view(-1, 1, 1)
+    std_t = torch.tensor(std, dtype=tensor.dtype).view(-1, 1, 1)
+    return (tensor - mean_t) / std_t
+
+
+class _CompiledImageTransform:
+    """A picklable ``PIL.Image -> CHW float tensor`` transform.
+
+    A module-level callable (not a closure) so it survives pickling to
+    ``DataLoader`` worker processes, which Python 3.14 spawns via ``forkserver``
+    on non-mac POSIX and therefore requires picklable arguments.
+    """
+
+    def __init__(
+        self,
+        active: Sequence[TransformStep],
+        image_mode: str,
+        input_bit_depth: str | int,
+    ) -> None:
+        self._active = list(active)
+        self._image_mode = image_mode
+        self._input_bit_depth = input_bit_depth
+
+    def __call__(self, img: Image.Image) -> torch.Tensor:
+        native_w, native_h = img.size
+        tensor = _decode_to_unit_chw(img, self._image_mode, self._input_bit_depth)
+        for step in self._active:
+            if isinstance(step, ForegroundCropStep):
+                tensor = _foreground_crop(
+                    tensor,
+                    threshold=step.threshold,
+                    padding_px=step.padding_px,
+                )
+            elif isinstance(step, LetterboxStep):
+                tensor = _letterbox(tensor, step.canvas_size)
+            elif isinstance(step, AspectBucketStep):
+                bucket = choose_aspect_bucket(
+                    width=native_w,
+                    height=native_h,
+                    buckets=step.buckets,
+                )
+                tensor = _letterbox(tensor, bucket.canvas_size)
+            elif isinstance(step, GrayscaleStep):
+                if random.random() < step.p:
+                    tensor = _grayscale(tensor)
+            elif isinstance(step, RotateStep):
+                if random.random() < step.p:
+                    tensor = torch.rot90(tensor, random.randint(1, 3), dims=(1, 2))
+            elif isinstance(step, HorizontalFlipStep):
+                if random.random() < step.p:
+                    tensor = torch.flip(tensor, dims=[2])
+            elif isinstance(step, VerticalFlipStep):
+                if random.random() < step.p:
+                    tensor = torch.flip(tensor, dims=[1])
+            elif isinstance(step, NormalizeStep):
+                tensor = _normalize(tensor, step.mean, step.std)
+        return tensor.contiguous()
+
+
+def build_image_transform(
+    steps: Sequence[TransformStep],
+    *,
+    image_mode: str,
+    input_bit_depth: str | int,
+) -> ImageTransform:
+    """Compile ``steps`` into a ``PIL.Image -> CHW float tensor`` callable.
+
+    Pass ``transforms.pipeline`` for train stages and the resolved
+    ``transforms.inference_pipeline`` for non-train stages; ``train_only``
+    selection is the caller's choice of list, not re-decided here. Disabled
+    steps are skipped.
+    """
+
+    active = [step for step in steps if step.enabled]
+    return _CompiledImageTransform(active, image_mode, input_bit_depth)
+
+===== FILE: ./src/dojo/training/trainer.py =====
+"""Trainer / callback / logger construction for the P1 training layer.
+
+Builds the best-k + last checkpoint callback keyed on ``checkpointing.monitor``,
+the optional early-stopping callback, the ``local`` metrics sink (a Lightning
+``CSVLogger`` writing under the run's ``metrics/`` directory), and the Lightning
+``Trainer``. The ``dojo train`` orchestration (next step) resolves the run-dir
+paths and wires these together.
+"""
+
+from __future__ import annotations
+
+import os
+from pathlib import Path
+
+import lightning as L
+import torch
+from lightning.pytorch.callbacks import (
+    Callback,
+    EarlyStopping,
+    ModelCheckpoint,
+    RichProgressBar,
+)
+from lightning.pytorch.loggers import CSVLogger
+
+from dojo.config_schemas.root import CheckpointingConfig, RootConfig, TrainingConfig
+
+
+def build_callbacks(
+    checkpointing: CheckpointingConfig,
+    training: TrainingConfig,
+    checkpoint_dir: str | os.PathLike[str],
+) -> list[Callback]:
+    callbacks: list[Callback] = [
+        ModelCheckpoint(
+            dirpath=str(checkpoint_dir),
+            monitor=checkpointing.monitor,
+            mode=checkpointing.mode,
+            save_top_k=checkpointing.save_top_k,
+            save_last=checkpointing.save_last,
+        )
+    ]
+    early = training.early_stopping
+    if early is not None and early.enabled:
+        callbacks.append(
+            EarlyStopping(
+                monitor=early.monitor or checkpointing.monitor,
+                mode=early.mode,
+                patience=early.patience,
+            )
+        )
+    return callbacks
+
+
+def build_logger(run_dir: str | os.PathLike[str]) -> CSVLogger:
+    """The ``local`` metrics sink: ``<run_dir>/metrics/metrics.csv``."""
+
+    return CSVLogger(save_dir=str(Path(run_dir)), name="metrics", version="")
+
+
+def build_trainer(
+    cfg: RootConfig,
+    *,
+    callbacks: list[Callback],
+    logger: CSVLogger | bool,
+    **overrides,
+) -> L.Trainer:
+    # fp32 matmul precision/throughput tradeoff on Tensor-Core GPUs (no-op on CPU
+    # / non-Tensor-Core hardware). "medium"/"high" use TF32/bf16 to silence
+    # Lightning's perf hint; "highest" keeps true fp32.
+    torch.set_float32_matmul_precision(cfg.runtime.float32_matmul_precision)
+
+    # Rich progress bar (rich is a base dependency, consistent with the CLI's
+    # output). Toggled by runtime.progress_bar; an explicit `enable_progress_bar`
+    # override still wins.
+    progress_bar = cfg.runtime.progress_bar
+    trainer_callbacks = list(callbacks)
+    if progress_bar and "enable_progress_bar" not in overrides:
+        trainer_callbacks.append(RichProgressBar())
+
+    params: dict = {
+        "max_epochs": cfg.training.max_epochs,
+        "accelerator": "auto",
+        "devices": "auto",
+        "precision": cfg.runtime.precision,
+        "logger": logger,
+        # The task logs epoch-only, so this step interval never gates our metrics.
+        # It exists only to satisfy Lightning's batches-vs-interval check, which
+        # warns on small datasets when the default (50) exceeds the batch count.
+        "log_every_n_steps": 1,
+        "callbacks": trainer_callbacks,
+        "enable_progress_bar": progress_bar,
+        "fast_dev_run": cfg.runtime.fast_dev_run,
+    }
+    params.update(overrides)
+    return L.Trainer(**params)
+
+===== FILE: ./src/dojo/training/run.py =====
+"""The P1 end-to-end supervised training run (framework-free).
+
+:func:`execute_train` takes an already-resolved :class:`RootConfig` and ties
+every architectural boundary together once: build data -> build
+model/task -> fit -> hash the best checkpoint -> write canonical tall-Parquet
+results + the ``_metadata.json`` sidecar, materializing a run directory with
+``config/``, ``checkpoints/``, ``results/``, and ``metrics/``.
+
+No CLI / Typer dependency lives here on purpose: this is the reusable entry
+point that the ``dojo train`` command, tests, and any external orchestrator
+(e.g. a Prefect flow) call. The CLI is one thin wrapper around it.
+"""
+
+from __future__ import annotations
+
+import warnings
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+
+import lightning as L
+import torch
+from omegaconf import OmegaConf
+
+from dojo.config_schemas import RootConfig, config_hash, head_hash
+from dojo.data import (
+    DataBundle,
+    build_dataloader,
+    build_datasets,
+    run_dataset_preflight,
+)
+from dojo.results import (
+    ClassificationHeadMeta,
+    ClassificationOutputMeta,
+    CompatibilityMeta,
+    JsonColumnMeta,
+    Provenance,
+    RecordTypesMeta,
+    ResultsMetadata,
+    ResultWriter,
+    SampleMetadataMeta,
+    classification_output_record,
+    sample_metadata_record,
+    write_metadata_json,
+)
+from dojo.storage import get_storage
+from dojo.training.checkpoint import checkpoint_hash
+from dojo.training.figures import merge_metrics_csv, write_training_figures
+from dojo.training.inference_contract import build_inference_contract
+from dojo.training.task import SupervisedTaskModule
+from dojo.training.trainer import build_callbacks, build_logger, build_trainer
+
+
+@dataclass(frozen=True)
+class TrainResult:
+    run_dir: Path
+    config_dir: Path
+    checkpoint_dir: Path
+    results_dir: Path | None
+    metrics_dir: Path
+    figures_dir: Path | None
+    figure_paths: tuple[Path, ...]
+    best_checkpoint: Path
+    checkpoint_hash: str
+    config_hash: str
+    dataset_hash: str
+    result_record_count: int
+
+
+def _write_resolved_config(cfg: RootConfig, config_dir: Path) -> Path:
+    config_dir.mkdir(parents=True, exist_ok=True)
+    out = config_dir / "resolved.yaml"
+    container = OmegaConf.create(cfg.model_dump(mode="json", exclude_none=True))
+    out.write_text(OmegaConf.to_yaml(container), encoding="utf-8")
+    return out
+
+
+def _evaluation_splits(bundle: DataBundle) -> list[str]:
+    """Splits to score for results: every non-train split, else all present."""
+
+    non_train = [split for split in bundle.datasets if split != "train"]
+    return non_train or list(bundle.datasets)
+
+
+def _write_results(
+    *,
+    cfg: RootConfig,
+    bundle: DataBundle,
+    module: SupervisedTaskModule,
+    results_dir: Path,
+    provenance: Provenance,
+    ckpt_hash: str,
+    epoch: int,
+    global_step: int,
+    inference_contract: dict[str, Any],
+) -> int:
+    """Score the evaluation splits and write canonical result rows + sidecar."""
+
+    device = next(module.parameters()).device
+    module.eval()
+
+    heads = cfg.model.heads
+    # Names come from the resolved dataset class mapping (data name column, else
+    # index strings); indexed by the head's class positions.
+    labels = {
+        name: [bundle.class_mapping.get(index, str(index)) for index in range(head.num_classes)]
+        for name, head in heads.items()
+    }
+    head_hashes = {
+        name: head_hash(cfg, head_name=name, class_mapping=bundle.class_mapping)
+        for name in heads
+    }
+
+    writer = ResultWriter(
+        results_dir,
+        partition_by=cfg.training_outputs.results.partition_by or ("record_type",),
+    )
+
+    records: list[dict[str, Any]] = []
+    for split in _evaluation_splits(bundle):
+        loader = build_dataloader(
+            bundle.datasets[split],
+            batch_size=cfg.training.batch_size,
+            num_workers=cfg.runtime.num_workers,
+            batch_aspect_buckets=bundle.datasets[split].has_aspect_buckets(),
+            seed=cfg.runtime.seed,
+        )
+        for batch in loader:
+            images = batch["image"].to(device)
+            with torch.no_grad():
+                logits_by_head = module.model(images)
+
+            for index, sample_id in enumerate(batch["sample_id"]):
+                records.append(
+                    sample_metadata_record(
+                        provenance,
+                        sample_id=sample_id,
+                        split=split,
+                        uri=batch["uri"][index],
+                        native_width_px=batch["native_width_px"][index],
+                        native_height_px=batch["native_height_px"][index],
+                        resize_width_px=batch["resize_width_px"][index],
+                        resize_height_px=batch["resize_height_px"][index],
+                        aspect_bucket=batch["aspect_bucket"][index],
+                        source_extra=batch["source_extra"][index],
+                    )
+                )
+
+            for head_name in heads:
+                head_logits = logits_by_head[head_name]
+                probs = torch.softmax(head_logits, dim=1)
+                confidence, prediction = probs.max(dim=1)
+                head_labels = labels[head_name]
+                for index, sample_id in enumerate(batch["sample_id"]):
+                    pred_index = int(prediction[index])
+                    target_index = int(batch["target"][index])
+                    records.append(
+                        classification_output_record(
+                            provenance,
+                            sample_id=sample_id,
+                            split=split,
+                            uri=batch["uri"][index],
+                            head_name=head_name,
+                            head_hash=head_hashes[head_name],
+                            target_index=target_index,
+                            target_name=head_labels[target_index]
+                            if 0 <= target_index < len(head_labels)
+                            else str(target_index),
+                            prediction_index=pred_index,
+                            prediction_label=head_labels[pred_index],
+                            prediction_confidence=float(confidence[index]),
+                            logits=head_logits[index].tolist(),
+                            probabilities=probs[index].tolist(),
+                            epoch=epoch,
+                            global_step=global_step,
+                            checkpoint_hash=ckpt_hash,
+                        )
+                    )
+
+    writer.write_records(records)
+
+    head_meta = {
+        name: ClassificationHeadMeta(
+            target=head.target,
+            head_hash=head_hashes[name],
+            classes=labels[name],
+            class_mapping={
+                str(index): label for index, label in enumerate(labels[name])
+            },
+        )
+        for name, head in heads.items()
+    }
+    source_extra_meta = (
+        JsonColumnMeta(columns=list(cfg.data.source_extra_columns))
+        if cfg.data.source_extra_columns
+        else None
+    )
+    metadata = ResultsMetadata(
+        run_id=provenance.run_id,
+        compatibility=CompatibilityMeta.model_validate(
+            inference_contract["compatibility"]
+        ),
+        record_types=RecordTypesMeta(
+            sample_metadata=SampleMetadataMeta(source_extra_json=source_extra_meta),
+            classification_output=ClassificationOutputMeta(heads=head_meta),
+        ),
+    )
+    write_metadata_json(results_dir / "_metadata.json", metadata)
+    return len(records)
+
+
+def execute_train(cfg: RootConfig, **trainer_overrides: Any) -> TrainResult:
+    """Run one resolved supervised training job and write its run directory."""
+
+    L.seed_everything(cfg.runtime.seed, workers=True)
+    storage = get_storage(cfg.storage)
+
+    bundle = build_datasets(cfg, storage)
+    preflight_issues = run_dataset_preflight(cfg, bundle)
+    errors = [issue for issue in preflight_issues if issue.severity == "error"]
+    if errors:
+        detail = "; ".join(f"{issue.check}: {issue.message}" for issue in errors)
+        raise ValueError(f"dataset preflight failed: {detail}")
+    for issue in preflight_issues:
+        if issue.severity == "warn":
+            warnings.warn(
+                f"dataset preflight warning ({issue.check}): {issue.message}",
+                stacklevel=2,
+            )
+    if "train" not in bundle.datasets:
+        raise ValueError("training requires a 'train' split in the dataset")
+
+    run_dir = Path(cfg.training_outputs.dir)
+    config_dir = run_dir / "config"
+    checkpoint_dir = run_dir / "checkpoints"
+    run_dir.mkdir(parents=True, exist_ok=True)
+    _write_resolved_config(cfg, config_dir)
+
+    inference_contract = build_inference_contract(
+        cfg,
+        class_mapping=bundle.class_mapping,
+    )
+    module = SupervisedTaskModule(
+        model_config=cfg.model,
+        training_config=cfg.training,
+        objectives_config=cfg.objectives,
+        optimizer_config=cfg.optimizer,
+        class_counts_by_head={
+            head_name: bundle.class_counts.get("train", {})
+            for head_name in cfg.model.heads
+        },
+        inference_contract=inference_contract,
+    )
+
+    callbacks = build_callbacks(cfg.checkpointing, cfg.training, checkpoint_dir)
+    logger = build_logger(run_dir)
+    trainer = build_trainer(
+        cfg, callbacks=callbacks, logger=logger, **trainer_overrides
+    )
+
+
+===== FILE: ./src/dojo/results/__init__.py =====
+"""Canonical tall-Parquet result writing and the ``_metadata.json`` sidecar."""
+
+from dojo.results.metadata import (
+    ClassificationHeadMeta,
+    ClassificationOutputMeta,
+    CompatibilityMeta,
+    JsonColumnMeta,
+    RecordTypesMeta,
+    ResultsMetadata,
+    SampleMetadataMeta,
+    write_metadata_json,
+)
+from dojo.results.reader import ResultReader
+from dojo.results.records import (
+    Provenance,
+    classification_output_record,
+    embedding_record,
+    sample_metadata_record,
+)
+from dojo.results.schemas import (
+    RECORD_TYPES,
+    RECORD_TYPE_EMBEDDING,
+    RESULTS_SCHEMA_VERSION,
+    STAGE_HOLDOUT_EVAL,
+    STAGE_INFER,
+    STAGE_TRAIN_VALIDATION,
+    result_table_schema,
+)
+from dojo.results.writer import ResultWriter
+
+__all__ = [
+    "ResultWriter",
+    "ResultReader",
+    "Provenance",
+    "sample_metadata_record",
+    "classification_output_record",
+    "embedding_record",
+    "result_table_schema",
+    "RECORD_TYPES",
+    "RECORD_TYPE_EMBEDDING",
+    "RESULTS_SCHEMA_VERSION",
+    "STAGE_INFER",
+    "STAGE_HOLDOUT_EVAL",
+    "STAGE_TRAIN_VALIDATION",
+    "ResultsMetadata",
+    "SampleMetadataMeta",
+    "ClassificationOutputMeta",
+    "ClassificationHeadMeta",
+    "CompatibilityMeta",
+    "RecordTypesMeta",
+    "JsonColumnMeta",
+    "write_metadata_json",
+]
+
+===== FILE: ./src/dojo/results/metadata.py =====
+"""The ``_metadata.json`` result sidecar schema and writer.
+
+Top-level ``record_types`` (there is no top-level ``heads`` key), an optional
+``compatibility`` block, and per-record-type semantic / provenance metadata.
+The compatibility-hash extractors are P2.5, so in the P1 slice the
+``compatibility`` block is ``null``.
+
+These Pydantic models are the schema the sidecar validates against.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+from pathlib import Path
+from typing import Any
+
+from pydantic import BaseModel, ConfigDict
+
+from dojo.results.schemas import RESULTS_SCHEMA_VERSION
+
+
+class _StrictMeta(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
+class ClassificationHeadMeta(_StrictMeta):
+    target: str
+    head_hash: str | None = None
+    classes: list[str]
+    class_mapping: dict[str, str]
+
+
+class ClassificationOutputMeta(_StrictMeta):
+    heads: dict[str, ClassificationHeadMeta]
+
+
+class JsonColumnMeta(_StrictMeta):
+    columns: list[str]
+
+
+class SampleMetadataMeta(_StrictMeta):
+    description: str | None = None
+    source_extra_json: JsonColumnMeta | None = None
+    tabular_features_json: JsonColumnMeta | None = None
+
+
+class RecordTypesMeta(_StrictMeta):
+    sample_metadata: SampleMetadataMeta | None = None
+    classification_output: ClassificationOutputMeta | None = None
+
+
+class CompatibilityMeta(_StrictMeta):
+    """Compatibility hashes + canonical source sub-blocks.
+
+    All optional for P1: the extractors land in P2.5. When a hash is present
+    its paired ``*_source`` object should be too, but the P1 schema does not
+    enforce that pairing yet.
+    """
+
+    target_schema_hash: str | None = None
+    target_schema_source: dict[str, Any] | None = None
+    class_mapping_hash: str | None = None
+    class_mapping_source: dict[str, Any] | None = None
+    model_config_hash: str | None = None
+    model_config_source: dict[str, Any] | None = None
+    preprocessing_hash: str | None = None
+    preprocessing_source: dict[str, Any] | None = None
+
+
+class ResultsMetadata(_StrictMeta):
+    schema_name: str = "dojo.supervised_results"
+    schema_version: str = RESULTS_SCHEMA_VERSION
+    created_by: str = "dojo"
+    run_id: str
+    compatibility: CompatibilityMeta | None = None
+    record_types: RecordTypesMeta
+
+
+def write_metadata_json(
+    path: str | os.PathLike[str],
+    metadata: ResultsMetadata,
+) -> Path:
+    """Serialize ``metadata`` to ``path`` (``…/results/_metadata.json``)."""
+
+    out = Path(path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(
+        # No sort_keys: insertion order keeps the numeric class_mapping keys
+        # ("0","1","2",…) in ascending order. Do not add sort_keys — it would
+        # order them as strings ("0","1","10","2",…).
+        json.dumps(metadata.model_dump(mode="json"), indent=2),
+        encoding="utf-8",
+    )
+    return out
+
+===== FILE: ./src/dojo/results/reader.py =====
+"""Dojo-owned reader for the canonical result table.
+
+A thin wrapper over an ``amplify_db_utils`` :class:`DuckDBParquetStore` for the
+hive-partitioned Parquet written by :class:`ResultWriter`. A separate "reader"
+process can open an existing results dir and filter by ``stage`` /
+``record_type`` without any writer state.
+
+Filter semantics come straight from the store: equality ``{"field": value}``,
+set ``{"field": {"in": [...]}}``, and range ``{"field": {"gte": x, "lt": y}}``.
+"""
+
+from __future__ import annotations
+
+import os
+from pathlib import Path
+from typing import Any, Iterator
+
+from amplify_db_utils import DuckDBParquetConfig, DuckDBParquetStore
+
+_TABLE = "results"
+
+
+class ResultReader:
+    """Read / filter / count rows from a run's canonical result table."""
+
+    def __init__(
+        self,
+        results_dir: str | os.PathLike[str],
+        *,
+        table: str = _TABLE,
+    ) -> None:
+        self._table = table
+        self._store = DuckDBParquetStore(
+            DuckDBParquetConfig(root=str(Path(results_dir)))
+        )
+
+    def read(self, filters: dict[str, Any] | None = None) -> Iterator[dict[str, Any]]:
+        return self._store.read(self._table, filters)
+
+    def count(self, filters: dict[str, Any] | None = None) -> int:
+        return self._store.count(self._table, filters)
+
+===== FILE: ./src/dojo/results/records.py =====
+"""Builders that stamp canonical provenance onto P1 result rows.
+
+These keep call sites (the training loop, later infer/eval) from hand-rolling
+the common provenance columns and the per-record-type column set. Every builder
+returns a plain ``dict`` ready for :meth:`ResultWriter.write_records`; the
+result schema fills any column the builder omits with null.
+"""
+
+from __future__ import annotations
+
+import json
+from dataclasses import dataclass
+from typing import Any, Sequence
+
+from dojo.results.schemas import (
+    RECORD_TYPE_CLASSIFICATION_OUTPUT,
+    RECORD_TYPE_EMBEDDING,
+    RECORD_TYPE_SAMPLE_METADATA,
+    RESULTS_SCHEMA_VERSION,
+    STAGE_TRAIN_VALIDATION,
+)
+
+
+@dataclass(frozen=True)
+class Provenance:
+    """Run-constant provenance shared by every row of a single run."""
+
+    run_id: str
+    config_hash: str
+    dataset_hash: str
+    config_id: str | None = None
+    dataset_id: str | None = None
+    sweep_id: str | None = None
+    sweep_hash: str | None = None
+    model_id: str | None = None
+    model_hash: str | None = None
+    stage: str = STAGE_TRAIN_VALIDATION
+    schema_version: str = RESULTS_SCHEMA_VERSION
+
+    def base(self, *, sample_id: str, split: str, record_type: str, uri: str | None) -> dict[str, Any]:
+        return {
+            "sample_id": sample_id,
+            "uri": uri,
+            "split": split,
+            "stage": self.stage,
+            "record_type": record_type,
+            "run_id": self.run_id,
+            "config_id": self.config_id,
+            "config_hash": self.config_hash,
+            "dataset_id": self.dataset_id,
+            "dataset_hash": self.dataset_hash,
+            "model_id": self.model_id,
+            "model_hash": self.model_hash,
+            "sweep_id": self.sweep_id,
+            "sweep_hash": self.sweep_hash,
+            "schema_version": self.schema_version,
+        }
+
+
+def sample_metadata_record(
+    prov: Provenance,
+    *,
+    sample_id: str,
+    split: str,
+    uri: str | None = None,
+    native_width_px: int | None = None,
+    native_height_px: int | None = None,
+    resize_width_px: int | None = None,
+    resize_height_px: int | None = None,
+    aspect_bucket: str | None = None,
+    source_extra: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """One static ``sample_metadata`` row per evaluated sample."""
+
+    row = prov.base(
+        sample_id=sample_id,
+        split=split,
+        record_type=RECORD_TYPE_SAMPLE_METADATA,
+        uri=uri,
+    )
+    row.update(
+        {
+            "native_width_px": native_width_px,
+            "native_height_px": native_height_px,
+            "resize_width_px": resize_width_px,
+            "resize_height_px": resize_height_px,
+            "aspect_bucket": aspect_bucket,
+            "source_extra_json": json.dumps(source_extra, sort_keys=True)
+            if source_extra is not None
+            else None,
+        }
+    )
+    return row
+
+
+def classification_output_record(
+    prov: Provenance,
+    *,
+    sample_id: str,
+    split: str,
+    head_name: str,
+    prediction_index: int,
+    prediction_label: str | None,
+    prediction_confidence: float,
+    logits: Sequence[float],
+    probabilities: Sequence[float],
+    head_hash: str | None = None,
+    target_index: int | None = None,
+    target_name: str | None = None,
+    epoch: int | None = None,
+    global_step: int | None = None,
+    checkpoint_hash: str | None = None,
+    uri: str | None = None,
+) -> dict[str, Any]:
+    """One ``classification_output`` row per sample per head."""
+
+    row = prov.base(
+        sample_id=sample_id,
+        split=split,
+        record_type=RECORD_TYPE_CLASSIFICATION_OUTPUT,
+        uri=uri,
+    )
+    row.update(
+        {
+            "epoch": epoch,
+            "global_step": global_step,
+            "checkpoint_hash": checkpoint_hash,
+            "head_name": head_name,
+            "head_hash": head_hash,
+            "target_index": target_index,
+            "target_name": target_name,
+            "prediction_index": prediction_index,
+            "prediction_label": prediction_label,
+            "prediction_confidence": prediction_confidence,
+            "logits": list(logits),
+            "probabilities": list(probabilities),
+        }
+    )
+    return row
+
+
+def embedding_record(
+    prov: Provenance,
+    *,
+    sample_id: str,
+    split: str,
+    embedding_kind: str,
+    embedding: Sequence[float],
+    epoch: int | None = None,
+    global_step: int | None = None,
+    checkpoint_hash: str | None = None,
+    uri: str | None = None,
+) -> dict[str, Any]:
+    """One embedding row per sample and embedding kind."""
+
+    row = prov.base(
+        sample_id=sample_id,
+        split=split,
+        record_type=RECORD_TYPE_EMBEDDING,
+        uri=uri,
+    )
+    row.update(
+        {
+            "epoch": epoch,
+            "global_step": global_step,
+            "checkpoint_hash": checkpoint_hash,
+            "embedding_kind": embedding_kind,
+            "embedding": list(embedding),
+            "embedding_dim": len(embedding),
+        }
+    )
+    return row
+
+===== FILE: ./src/dojo/results/schemas.py =====
+"""Explicit pyarrow schema for the canonical supervised result table.
+
+P1 writes a single tall-Parquet table whose rows are discriminated by
+``record_type`` and partitioned per ``training_outputs.results.partition_by``.
+The schema is the union of the common provenance columns and the columns
+specific to the two P1 record types, ``sample_metadata`` and
+``classification_output``. Columns not applicable to a given row are null.
+
+Vector columns (``logits`` / ``probabilities``) use explicit Arrow list types
+so the round-trip through Parquet is lossless.
+"""
+
+from __future__ import annotations
+
+import pyarrow as pa
+
+# Bumped together with the sidecar schema_version; both share this value so a
+# reader can correlate result rows with their `_metadata.json`.
+RESULTS_SCHEMA_VERSION = "1.1.0"
+
+# P1 record types (the supervised subset of the record_type taxonomy).
+RECORD_TYPE_SAMPLE_METADATA = "sample_metadata"
+RECORD_TYPE_EMBEDDING = "embedding"
+RECORD_TYPE_CLASSIFICATION_OUTPUT = "classification_output"
+RECORD_TYPES = (
+    RECORD_TYPE_SAMPLE_METADATA,
+    RECORD_TYPE_EMBEDDING,
+    RECORD_TYPE_CLASSIFICATION_OUTPUT,
+)
+
+# P1 produces only train-time validation rows.
+STAGE_TRAIN_VALIDATION = "train_validation"
+STAGE_INFER = "infer"
+STAGE_HOLDOUT_EVAL = "holdout_eval"
+
+_VECTOR = pa.list_(pa.float32())
+
+# Common provenance columns shared by every supervised result record. Only the
+# true identity keys are non-nullable; per-row-optional provenance (epoch,
+# checkpoint/model/sweep identity) is nullable because static sample metadata
+# and non-exported / non-swept P1 runs leave them empty.
+_PROVENANCE_FIELDS = [
+    pa.field("sample_id", pa.string(), nullable=False),
+    pa.field("uri", pa.string(), nullable=True),
+    pa.field("split", pa.string(), nullable=False),
+    pa.field("stage", pa.string(), nullable=False),
+    pa.field("record_type", pa.string(), nullable=False),
+    pa.field("run_id", pa.string(), nullable=False),
+    pa.field("config_id", pa.string(), nullable=True),
+    pa.field("config_hash", pa.string(), nullable=False),
+    pa.field("dataset_id", pa.string(), nullable=True),
+    pa.field("dataset_hash", pa.string(), nullable=False),
+    pa.field("epoch", pa.int64(), nullable=True),
+    pa.field("global_step", pa.int64(), nullable=True),
+    pa.field("checkpoint_hash", pa.string(), nullable=True),
+    pa.field("model_id", pa.string(), nullable=True),
+    pa.field("model_hash", pa.string(), nullable=True),
+    pa.field("sweep_id", pa.string(), nullable=True),
+    pa.field("sweep_hash", pa.string(), nullable=True),
+    pa.field("schema_version", pa.string(), nullable=False),
+]
+
+# `record_type=sample_metadata` columns.
+_SAMPLE_METADATA_FIELDS = [
+    pa.field("native_width_px", pa.int32(), nullable=True),
+    pa.field("native_height_px", pa.int32(), nullable=True),
+    pa.field("resize_width_px", pa.int32(), nullable=True),
+    pa.field("resize_height_px", pa.int32(), nullable=True),
+    pa.field("microns_per_pixel", pa.float64(), nullable=True),
+    pa.field("aspect_bucket", pa.string(), nullable=True),
+    pa.field("bin_id", pa.string(), nullable=True),
+    pa.field("bin_uri", pa.string(), nullable=True),
+    pa.field("roi_number", pa.int64(), nullable=True),
+    pa.field("source_extra_json", pa.string(), nullable=True),
+    pa.field("tabular_features_json", pa.string(), nullable=True),
+]
+
+_EMBEDDING_FIELDS = [
+    pa.field("embedding_kind", pa.string(), nullable=True),
+    pa.field("embedding", _VECTOR, nullable=True),
+    pa.field("embedding_dim", pa.int64(), nullable=True),
+    pa.field("embedding_model_name", pa.string(), nullable=True),
+]
+
+# `record_type=classification_output` columns. The row is scoped by `head_name`
+# (the head->target link lives in `_metadata.json`). P2.5a makes rows
+# self-scoring by carrying the sample's true target alongside predictions.
+_CLASSIFICATION_OUTPUT_FIELDS = [
+    pa.field("head_name", pa.string(), nullable=True),
+    pa.field("head_hash", pa.string(), nullable=True),
+    pa.field("target_index", pa.int64(), nullable=True),
+    pa.field("target_name", pa.string(), nullable=True),
+    pa.field("prediction_index", pa.int64(), nullable=True),
+    pa.field("prediction_label", pa.string(), nullable=True),
+    pa.field("prediction_confidence", pa.float64(), nullable=True),
+    pa.field("logits", _VECTOR, nullable=True),
+    pa.field("probabilities", _VECTOR, nullable=True),
+]
+
+
+def result_table_schema() -> pa.Schema:
+    """Return the union pyarrow schema for the P1 result table."""
+
+    return pa.schema(
+        _PROVENANCE_FIELDS
+        + _SAMPLE_METADATA_FIELDS
+        + _EMBEDDING_FIELDS
+        + _CLASSIFICATION_OUTPUT_FIELDS
+    )
+
+===== FILE: ./src/dojo/results/writer.py =====
+"""Canonical tall-Parquet result writer over ``amplify-db-utils``.
+
+Wraps a single :class:`DuckDBParquetStore` table rooted at the run's
+``results/`` directory. Rows for every P1 record type share one union schema
+(:func:`result_table_schema`) and are partitioned per
+``training_outputs.results.partition_by`` (default ``[record_type]``), so a
+reader can prune / filter by ``stage`` and ``record_type``.
+"""
+
+from __future__ import annotations
+
+import os
+from pathlib import Path
+from typing import Any, Iterable, Iterator
+
+import pyarrow as pa
+from amplify_db_utils import DuckDBParquetConfig, DuckDBParquetStore
+
+from dojo.results.schemas import result_table_schema
+
+_TABLE = "results"
+
+
+def _records_to_table(records: list[dict[str, Any]], schema: pa.Schema) -> pa.Table:
+    """Build a ``pa.Table`` from dict rows using the explicit result schema.
+    """
+
+    columns = {
+        field.name: pa.array([row.get(field.name) for row in records], type=field.type)
+        for field in schema
+    }
+    return pa.table(columns, schema=schema)
+
+
+class ResultWriter:
+    """Append-only writer for one run's canonical result table."""
+
+    def __init__(
+        self,
+        results_dir: str | os.PathLike[str],
+        *,
+        partition_by: Iterable[str] = ("record_type",),
+        table: str = _TABLE,
+    ) -> None:
+        self._dir = Path(results_dir)
+        self._dir.mkdir(parents=True, exist_ok=True)
+        self._table = table
+        self._partition_by = list(partition_by)
+        self._schema = result_table_schema()
+        self._store = DuckDBParquetStore(DuckDBParquetConfig(root=str(self._dir)))
+        self._store.create_table(
+            self._table,
+            self._schema,
+            partition_by=self._partition_by or None,
+        )
+
+    @property
+    def results_dir(self) -> Path:
+        return self._dir
+
+    @property
+    def table(self) -> str:
+        return self._table
+
+    def write_records(self, records: list[dict[str, Any]]) -> None:
+        """Append result rows. Unknown keys are dropped; missing cols null."""
+
+        if not records:
+            return
+        self._store.write(self._table, _records_to_table(records, self._schema))
+
+    def read(self, filters: dict[str, Any] | None = None) -> Iterator[dict[str, Any]]:
+        """Iterate rows, optionally filtered (e.g. ``{"record_type": "..."}``)."""
+
+        return self._store.read(self._table, filters)
+
+    def count(self, filters: dict[str, Any] | None = None) -> int:
+        return self._store.count(self._table, filters)

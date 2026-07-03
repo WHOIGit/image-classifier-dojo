@@ -1,0 +1,8 @@
+architecture:
+  source: torchvision
+  name: convnext_tiny
+  output_dim: auto
+  input_channels: 3
+weights:
+  source: library
+  name: DEFAULT

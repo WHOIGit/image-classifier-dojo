@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import torch
 
+from dojo.config_loader import resolve_runtime_and_paths
+from dojo.config_schemas import RootConfig
 from dojo.model import build_supervised_model
-from tests.fixtures.configs import TOY_NUM_CLASSES, toy_root_config
+from tests.fixtures.configs import TOY_NUM_CLASSES, toy_config_dict, toy_root_config
 
 
 def test_forward_returns_logits_per_head():
@@ -25,6 +27,39 @@ def test_forward_features_is_the_backbone_embedding():
     model = build_supervised_model(cfg.model, freeze_cfg=cfg.training.freeze)
     emb = model.forward_features(torch.randn(3, 3, 32, 32))
     assert emb.shape == (3, 1280)
+
+
+def test_linear_embedding_adapter_changes_head_input_dim():
+    raw = toy_config_dict()
+    raw["model"]["embedding_adapter"] = {
+        "enabled": True,
+        "type": "linear",
+        "output_dim": 64,
+    }
+    cfg = resolve_runtime_and_paths(RootConfig.model_validate(raw)).config
+
+    model = build_supervised_model(cfg.model, freeze_cfg=cfg.training.freeze)
+
+    assert model.embedding_dim == 64
+    assert model.forward_features(torch.randn(2, 3, 32, 32)).shape == (2, 64)
+    assert model(torch.randn(2, 3, 32, 32))["species"].shape == (2, TOY_NUM_CLASSES)
+
+
+def test_mlp_embedding_adapter_changes_head_input_dim():
+    raw = toy_config_dict()
+    raw["model"]["embedding_adapter"] = {
+        "enabled": True,
+        "type": "mlp",
+        "hidden_dims": [128],
+        "output_dim": 64,
+        "activation": "relu",
+    }
+    cfg = resolve_runtime_and_paths(RootConfig.model_validate(raw)).config
+
+    model = build_supervised_model(cfg.model, freeze_cfg=cfg.training.freeze)
+
+    assert model.embedding_dim == 64
+    assert model.forward_features(torch.randn(2, 3, 32, 32)).shape == (2, 64)
 
 
 def test_integrates_with_dataset_batch():

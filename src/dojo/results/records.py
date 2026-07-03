@@ -14,6 +14,7 @@ from typing import Any, Sequence
 
 from dojo.results.schemas import (
     RECORD_TYPE_CLASSIFICATION_OUTPUT,
+    RECORD_TYPE_EMBEDDING,
     RECORD_TYPE_SAMPLE_METADATA,
     RESULTS_SCHEMA_VERSION,
     STAGE_TRAIN_VALIDATION,
@@ -66,6 +67,7 @@ def sample_metadata_record(
     native_height_px: int | None = None,
     resize_width_px: int | None = None,
     resize_height_px: int | None = None,
+    aspect_bucket: str | None = None,
     source_extra: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """One static ``sample_metadata`` row per evaluated sample."""
@@ -82,6 +84,7 @@ def sample_metadata_record(
             "native_height_px": native_height_px,
             "resize_width_px": resize_width_px,
             "resize_height_px": resize_height_px,
+            "aspect_bucket": aspect_bucket,
             "source_extra_json": json.dumps(source_extra, sort_keys=True)
             if source_extra is not None
             else None,
@@ -101,6 +104,9 @@ def classification_output_record(
     prediction_confidence: float,
     logits: Sequence[float],
     probabilities: Sequence[float],
+    head_hash: str | None = None,
+    target_index: int | None = None,
+    target_name: str | None = None,
     epoch: int | None = None,
     global_step: int | None = None,
     checkpoint_hash: str | None = None,
@@ -120,11 +126,47 @@ def classification_output_record(
             "global_step": global_step,
             "checkpoint_hash": checkpoint_hash,
             "head_name": head_name,
+            "head_hash": head_hash,
+            "target_index": target_index,
+            "target_name": target_name,
             "prediction_index": prediction_index,
             "prediction_label": prediction_label,
             "prediction_confidence": prediction_confidence,
             "logits": list(logits),
             "probabilities": list(probabilities),
+        }
+    )
+    return row
+
+
+def embedding_record(
+    prov: Provenance,
+    *,
+    sample_id: str,
+    split: str,
+    embedding_kind: str,
+    embedding: Sequence[float],
+    epoch: int | None = None,
+    global_step: int | None = None,
+    checkpoint_hash: str | None = None,
+    uri: str | None = None,
+) -> dict[str, Any]:
+    """One embedding row per sample and embedding kind."""
+
+    row = prov.base(
+        sample_id=sample_id,
+        split=split,
+        record_type=RECORD_TYPE_EMBEDDING,
+        uri=uri,
+    )
+    row.update(
+        {
+            "epoch": epoch,
+            "global_step": global_step,
+            "checkpoint_hash": checkpoint_hash,
+            "embedding_kind": embedding_kind,
+            "embedding": list(embedding),
+            "embedding_dim": len(embedding),
         }
     )
     return row

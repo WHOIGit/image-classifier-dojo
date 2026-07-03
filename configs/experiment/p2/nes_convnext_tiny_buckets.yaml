@@ -1,0 +1,9 @@
+# @package _global_
+
+defaults:
+  - nes_effb0_buckets
+  - override /backbone/torchvision@model.image_input.backbone: convnext_tiny
+  - _self_
+
+experiment:
+  name: nes_p2_convnext_tiny_buckets
