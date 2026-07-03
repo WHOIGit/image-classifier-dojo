@@ -485,3 +485,18 @@ training experiments requested after P2 is ready.
 - Verification passed:
   - Focused Ruff checks on touched schema/loss/test files.
   - Focused tests: `22 passed, 1 warning`.
+
+## 2026-07-03 15:28 EDT — Packaged Config Defaults Rename
+
+- Renamed the packaged Hydra config resource tree:
+  - from `src/dojo/configs/`
+  - to `src/dojo/config_defaults/`
+- Updated config composition and `dojo init` to load packaged defaults from
+  `files("dojo").joinpath("config_defaults")`.
+- Kept the project-root shadow directory as `./configs` so local editable
+  overrides and existing user-facing selectors keep their current shape.
+- Updated DOX, README, and design-doc references to distinguish packaged
+  defaults from local `./configs`.
+- Verification passed:
+  - Focused Ruff checks on touched loader/init/test files.
+  - Focused tests: `13 passed`.

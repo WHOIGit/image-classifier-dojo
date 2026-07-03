@@ -65,8 +65,9 @@ dojo inspect config experiment=p1/plankton-toy --format json
 
 ### Overriding the data block
 
-`data=<name>` selects a **config group** by name (from `src/dojo/configs/data/`
-or the project-root `./configs/data/`) — it is not a file path. Swap the dataset
+`data=<name>` selects a **config group** by name (from
+`src/dojo/config_defaults/data/` or the project-root `./configs/data/`) — it is
+not a file path. Swap the dataset
 on any experiment by selecting a different data group and matching the head's
 class count:
 
@@ -75,7 +76,7 @@ class count:
 dojo train experiment=p1/plankton-toy data=plankton-miniset model.heads.species.num_classes=30
 
 # Same idea starting from a config file rather than a packaged experiment.
-dojo train --config src/dojo/configs/experiment/p1/plankton-toy.yaml \
+dojo train --config src/dojo/config_defaults/experiment/p1/plankton-toy.yaml \
   data=plankton-miniset model.heads.species.num_classes=30
 ```
 
@@ -104,9 +105,9 @@ An experiment file is a small root that pulls config *groups* together via its
 `defaults:` list — `runtime`, `storage`, `data`, `transforms`, `backbone`,
 `optimizer`, `training_outputs`, plus the `model`, `objectives`, and `training`
 blocks. Packaged config groups ship inside the package at
-[`src/dojo/configs/`](src/dojo/configs). A project-root `./configs/` directory,
-if present, **shadows and extends** the packaged groups, so you can override or
-add configs without copying the whole tree.
+[`src/dojo/config_defaults/`](src/dojo/config_defaults). A project-root
+`./configs/` directory, if present, **shadows and extends** the packaged groups,
+so you can override or add configs without copying the whole tree.
 
 Composition, validation, and path/runtime resolution live in
 [`src/dojo/config_loader/`](src/dojo/config_loader): `compositor.py` (Hydra
@@ -195,7 +196,7 @@ fresh clone (all `*.parquet` are LFS-tracked; `git lfs install` once per machine
 
 The full **NES-plankton-classifier-2022** dataset is *not* committed. You bring it
 (e.g. download from HuggingFace into `./datasets/`), and the packaged
-[`data/nes_plankton_parquet_images`](src/dojo/configs/data/nes_plankton_parquet_images.yaml)
+[`data/nes_plankton_parquet_images`](src/dojo/config_defaults/data/nes_plankton_parquet_images.yaml)
 group is the template pointing at it. Dataset materialization / inspection helpers
 (`dojo init`, `dojo inspect dataset`) are on the P2 roadmap
 ([`DESIGN-DOC/13-workplan.md`](DESIGN-DOC/13-workplan.md)), not yet implemented.

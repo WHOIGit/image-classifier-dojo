@@ -1,15 +1,16 @@
-# src/dojo/configs — packaged Hydra config groups
+# src/dojo/config_defaults — packaged Hydra config defaults
 
 ## Purpose
 
-The config groups that ship inside the package: `runtime`, `storage`, `data`,
-`transforms`, `backbone`, `optimizer`, `training_outputs`, and `experiment`
-roots (P1 experiments under `experiment/p1/`).
+The config default groups that ship inside the package: `runtime`, `storage`,
+`data`, `transforms`, `backbone`, `optimizer`, `training_outputs`, and
+`experiment` roots (P1 experiments under `experiment/p1/`).
 
 ## Ownership
 
 Owns the packaged defaults. The project-root `./configs/` directory shadows and
-extends these without copying the whole tree — keep the two consistent in shape.
+extends these without copying the whole tree — keep the two consistent in
+schema shape.
 
 ## Local Contracts
 

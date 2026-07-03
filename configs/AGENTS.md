@@ -3,14 +3,14 @@
 ## Purpose
 
 Optional project-root Hydra config groups that **shadow and extend** the
-packaged groups in `src/dojo/configs/`, so datasets/experiments can be
+packaged groups in `src/dojo/config_defaults/`, so datasets/experiments can be
 overridden or added without copying the whole packaged tree.
 
 ## Ownership
 
 Owns local, uncommitted-friendly config overrides (currently the
 `plankton-miniset` / NES data selectors and the local `p1/` and `p2/`
-experiment roots). Packaged defaults are owned by `src/dojo/configs/`.
+experiment roots). Packaged defaults are owned by `src/dojo/config_defaults/`.
 
 ## Local Contracts
 

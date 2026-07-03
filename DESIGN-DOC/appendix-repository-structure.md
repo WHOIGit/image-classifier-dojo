@@ -37,7 +37,7 @@ image-classifier-dojo/
 
 The repository-level `configs/` tree is the editable development copy of
 the packaged config resources. The installable package also carries a
-read-only copy under `src/dojo/configs/`; `dojo init` materializes selected
+read-only copy under `src/dojo/config_defaults/`; `dojo init` materializes selected
 packaged configs into a user's local `./configs` tree.
 
 ```text

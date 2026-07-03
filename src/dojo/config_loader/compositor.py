@@ -36,15 +36,15 @@ def _dedupe_paths(paths: Iterable[Path]) -> list[Path]:
 
 
 def default_config_dirs(extra_config_dirs: Iterable[Path] = ()) -> list[Path]:
-    """Return explicit dirs, then local ./configs, then packaged configs."""
+    """Return explicit dirs, then local ./configs, then packaged defaults."""
 
     candidates: list[Path] = [Path(path) for path in extra_config_dirs]
     local_configs = Path.cwd() / "configs"
     if local_configs.exists():
         candidates.append(local_configs)
 
-    with as_file(files("dojo").joinpath("configs")) as packaged_configs:
-        candidates.append(Path(packaged_configs))
+    with as_file(files("dojo").joinpath("config_defaults")) as packaged_defaults:
+        candidates.append(Path(packaged_defaults))
         return _dedupe_paths(candidates)
 
 
@@ -163,8 +163,8 @@ def compose_config(
 
     P1 supports direct experiment roots, e.g.
     ``experiment=p1/plankton-toy``, and direct files under a
-    config root. Local ``./configs`` shadows packaged configs, so local roots
-    can reference packaged defaults without copying the whole tree.
+    config root. Local ``./configs`` shadows packaged defaults, so local roots
+    can reference those defaults without copying the whole tree.
     """
 
     override_list = list(overrides)

@@ -1,10 +1,10 @@
-"""Search-path fall-through between packaged and project-root ./configs.
+"""Search-path fall-through between packaged defaults and project-root ./configs.
 
-A packaged experiment (src/dojo/configs) and a local experiment (./configs) must
-both compose: the packaged one resolves entirely from the package even though
-./configs is searched first, and the local one resolves its packaged config
-groups (runtime, backbone, …) from the searchpath while its own experiment file
-and local `data` group are found first under ./configs.
+A packaged experiment (`src/dojo/config_defaults`) and a local experiment
+(`./configs`) must both compose: the packaged one resolves entirely from the
+package even though `./configs` is searched first, and the local one resolves
+its packaged config groups (runtime, backbone, …) from the searchpath while its
+own experiment file and local `data` group are found first under `./configs`.
 """
 
 from omegaconf import OmegaConf

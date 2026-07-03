@@ -89,7 +89,7 @@ def init_command(
     ] = False,
     all_configs: Annotated[
         bool,
-        typer.Option("--all", help="Copy all packaged config groups and fixture data."),
+        typer.Option("--all", help="Copy all packaged config defaults and fixture data."),
     ] = False,
     dry_run: Annotated[
         bool,
@@ -100,7 +100,7 @@ def init_command(
         typer.Option("--clobber", help="Overwrite existing materialized files."),
     ] = False,
 ) -> None:
-    """Materialize packaged Dojo configs into an editable local project."""
+    """Materialize packaged Dojo config defaults into an editable local project."""
 
     selected_default = not any((minimal, supervised, data, all_configs))
     if selected_default:
@@ -114,8 +114,8 @@ def init_command(
     project_dir = project_dir.resolve()
     actions: list[InitAction] = []
 
-    with as_file(files("dojo").joinpath("configs")) as packaged_configs:
-        source = Path(packaged_configs)
+    with as_file(files("dojo").joinpath("config_defaults")) as packaged_defaults:
+        source = Path(packaged_defaults)
         actions.extend(
             _copy_tree(
                 source,

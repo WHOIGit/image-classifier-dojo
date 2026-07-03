@@ -43,7 +43,7 @@ external dependencies, not owned here.
 - [cli/](cli/AGENTS.md) — Typer front-end over the Hydra Compose API.
 - [config_loader/](config_loader/AGENTS.md) — compose → validate → resolve.
 - [config_schemas/](config_schemas/AGENTS.md) — strict Pydantic contract + hashing.
-- [configs/](configs/AGENTS.md) — packaged Hydra config groups.
+- [config_defaults/](config_defaults/AGENTS.md) — packaged Hydra config defaults.
 - [data/](data/AGENTS.md) — dataset backends, sample contract, transforms.
 - [inference/](inference/AGENTS.md) — checkpoint-backed inference and holdout eval.
 - [model/](model/AGENTS.md) — backbone + heads + supervised composition.

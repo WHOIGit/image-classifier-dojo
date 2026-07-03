@@ -305,15 +305,10 @@ obligation instead. See `appendix-deferred-features.md`.
 - P4.16 Automated sweep execution runners: local sequential execution and
   Slurm / HPC queue submission. Initial execution mode is `manual` via
   `sweep.execution.mode`.
-- P4.17 Rename the packaged Hydra YAML tree from `configs/` to
-  `config_defaults/` (and the local shadow dir `./configs` → `./config_defaults`),
-  to make the "these are the composable *default* fragments" intent explicit and
-  to stop the bare `configs/` name reading like an app config dir. Touches
-  `config_loader/compositor.py::default_config_dirs` (the `./configs` lookup and
-  the `files("dojo").joinpath("configs")` packaged root), `pyproject.toml`
-  package-data globs, `dojo init` materialization, and the `experiment=` path
-  hints. Adopted as the naming convention in the sibling SATI-style config design
-  notes; back-portable here as a mechanical rename.
+- P4.17 Optional rename of the local shadow dir `./configs` to
+  `./config_defaults`. The packaged Hydra YAML tree now lives at
+  `src/dojo/config_defaults/`; the local shadow remains `./configs` for current
+  user-editable project overrides.
 
 ## Historical Notes
 

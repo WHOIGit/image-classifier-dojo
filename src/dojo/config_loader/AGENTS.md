@@ -15,12 +15,12 @@ Turns CLI selectors/overrides into a validated, path-resolved `RootConfig`.
 
 Owns config composition and path/runtime resolution of `output_root` /
 `dir_template`. Does not own the schema (that is `config_schemas/`) or the
-config-group YAML (that is `configs/`).
+config-group YAML (packaged defaults are in `config_defaults/`).
 
 ## Local Contracts
 
-- Packaged groups under `src/dojo/configs/` are shadowed and extended by a
-  project-root `./configs/` when present.
+- Packaged groups under `src/dojo/config_defaults/` are shadowed and extended
+  by a project-root `./configs/` when present.
 - Validation is via the `config_schemas` Pydantic models; resolution happens
   after validation.
 - `run_id` and the `*_hash` columns must stay deterministic and reproducible
