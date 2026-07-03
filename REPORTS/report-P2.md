@@ -377,3 +377,34 @@ training experiments requested after P2 is ready.
 - Focused verification passed:
   - `tests/integration/test_inspect_dataset.py` (`2 passed`).
   - Focused Ruff checks for inspect-dataset files.
+
+## 2026-07-03 10:29 EDT — True Multi-Target Multihead Fixture and Runtime Path
+
+- Added a true multi-target toy fixture by extending synthetic manifests with
+  `coarse_label` / `coarse_name`, using `artifact` and `organism` labels.
+- Updated the supervised data contract:
+  - `DecodedSample` and `SampleBatch` keep legacy `target` for the primary
+    configured target.
+  - They now also expose `targets`, a logical target-name to tensor/index map
+    for all configured targets.
+- Updated dataset assembly and inspection:
+  - `DataBundle` now carries `target_names`, `class_counts_by_target`, and
+    `class_mapping_by_target`.
+  - `dojo inspect dataset` reports per-head counts and mappings using each
+    head's configured target.
+- Updated training and inference behavior:
+  - Each objective reads labels from the target configured on its head.
+  - Weighted loss class counts are selected per head target.
+  - Result scoring, checkpoint inference contracts, prediction rows, and
+    holdout-eval metrics use per-head target labels and class mappings.
+- Added regression tests for:
+  - multi-target dataset samples/batches and inspect output,
+  - Lightning objective routing where the coarse head would fail if it used the
+    primary species labels.
+- Decision junction recorded in `QUESTIONS-FOR-SIDNEY.md`: class-balanced /
+  weighted DataLoader sampling still defaults to the primary target until we
+  decide whether sampler config needs an explicit multi-target policy.
+- Verification passed:
+  - Focused Ruff checks on touched implementation and tests.
+  - Focused tests: `6 passed, 1 warning`.
+  - Full suite: `119 passed, 8 skipped, 1 warning`.

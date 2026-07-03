@@ -38,6 +38,7 @@ def sample_weights_for_dataset(
     *,
     scheme: str = "inverse_frequency",
     beta: float = 0.9999,
+    target_name: str | None = None,
 ) -> list[float]:
     """Map a dataset's target labels to per-sample weights."""
 
@@ -45,7 +46,7 @@ def sample_weights_for_dataset(
         raise TypeError("dataset does not expose target_for_index")
     class_weights = class_weight_by_index(class_counts, scheme=scheme, beta=beta)
     return [
-        class_weights.get(int(dataset.target_for_index(index)), 0.0)
+        class_weights.get(int(dataset.target_for_index(index, target_name)), 0.0)
         for index in range(len(dataset))
     ]
 

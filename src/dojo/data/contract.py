@@ -17,6 +17,7 @@ import torch
 class DecodedSample(TypedDict):
     image: torch.Tensor
     target: int
+    targets: dict[str, int]
     sample_id: str
     uri: str | None
     split: str
@@ -31,6 +32,7 @@ class DecodedSample(TypedDict):
 class SampleBatch(TypedDict):
     image: torch.Tensor          # (B, C, H, W)
     target: torch.Tensor         # (B,) int64
+    targets: dict[str, torch.Tensor]
     sample_id: list[str]
     uri: list[str | None]
     split: list[str]
@@ -48,6 +50,13 @@ def collate_samples(batch: list[DecodedSample]) -> SampleBatch:
     return SampleBatch(
         image=torch.stack([s["image"] for s in batch]),
         target=torch.tensor([s["target"] for s in batch], dtype=torch.int64),
+        targets={
+            target_name: torch.tensor(
+                [s["targets"][target_name] for s in batch],
+                dtype=torch.int64,
+            )
+            for target_name in batch[0]["targets"]
+        },
         sample_id=[s["sample_id"] for s in batch],
         uri=[s["uri"] for s in batch],
         split=[s["split"] for s in batch],

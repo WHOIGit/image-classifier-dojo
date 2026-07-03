@@ -6,8 +6,8 @@ Reads CSV/Parquet manifest-backed image datasets into decoded samples and
 batches for training, inspection, inference, and holdout eval.
 
 - `contract.py` — `DecodedSample` / `SampleBatch` TypedDicts: the shared sample
-  contract (image tensor, target index, URI, and provenance the result writer
-  needs).
+  contract (image tensor, primary target index, all target indices, URI, and
+  provenance the result writer needs).
 - `parquet_images.py` — manifest discovery/split routing for `csv_manifest`,
   `parquet_manifest`, and `parquet_images`.
 - `inspect.py` — `dojo inspect dataset` report and stats-cache writer.
@@ -24,9 +24,12 @@ must emit exactly the provenance fields the sample contract declares.
 
 ## Local Contracts
 
-- `DecodedSample` / `SampleBatch` are the boundary contract with `training/`
-  and `results/`. Keep them in sync with the `sample_metadata` columns in
-  `06-results-artifacts-and-metadata.md`.
+- `DecodedSample` / `SampleBatch` are the boundary contract with `training/`,
+  `inference/`, and `results/`. Keep them in sync with the `sample_metadata`
+  columns in `06-results-artifacts-and-metadata.md`.
+- Samples expose `target` as the first configured data target for legacy
+  single-target consumers and `targets` as the complete logical target-name to
+  class-index mapping for true multi-head / multi-target training and eval.
 - Split is data-driven; the split column must be present in the dataset.
 - External image manifest URIs are resolved relative to the manifest file/dir
   unless absolute or scheme-qualified.
@@ -42,10 +45,14 @@ must emit exactly the provenance fields the sample contract declares.
 - Stats caches keep large per-sample arrays out of JSON. Dimension rows are
   written as Parquet sidecars referenced from the JSON cache, and full image
   inspect passes record a separate `dataset_content_hash`.
+- Target class mappings and class counts are target-specific. `DataBundle`
+  keeps legacy `class_mapping` / `class_counts` for the primary target, while
+  new head-aware code must use `class_mapping_by_target` /
+  `class_counts_by_target`.
 - Target class mappings come from `label_index_column` + `label_name_column`,
-  name-only targets, or recognized dataset schema metadata such as
-  HuggingFace `ClassLabel` names. Index-only datasets without metadata fall
-  back to index strings downstream.
+  name-only targets, or recognized dataset schema metadata such as HuggingFace
+  `ClassLabel` names. Index-only datasets without metadata fall back to index
+  strings downstream.
 - `aspect_bucket` transforms can produce variable tensor shapes across
   samples; non-training and weighted training loaders must batch within buckets
   when a dataset exposes aspect buckets.

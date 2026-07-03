@@ -37,11 +37,23 @@ def build_inference_contract(
     cfg: RootConfig,
     *,
     class_mapping: dict[int, str],
+    class_mapping_by_target: dict[str, dict[int, str]] | None = None,
 ) -> dict[str, Any]:
-    compatibility = compatibility_hashes(cfg, class_mapping=class_mapping)
+    class_mappings_by_head = {
+        head_name: (class_mapping_by_target or {}).get(head.target, class_mapping)
+        for head_name, head in cfg.model.heads.items()
+    }
+    compatibility = compatibility_hashes(
+        cfg,
+        class_mapping=class_mapping,
+        class_mappings_by_head=class_mappings_by_head,
+    )
     class_maps = {
         head_name: [
-            {"index": index, "label": class_mapping.get(index, str(index))}
+            {
+                "index": index,
+                "label": class_mappings_by_head[head_name].get(index, str(index)),
+            }
             for index in range(head.num_classes)
         ]
         for head_name, head in sorted(cfg.model.heads.items())

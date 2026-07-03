@@ -16,6 +16,11 @@ or config composition.
 - Checkpoints must carry `checkpoint["dojo_inference_contract"]`.
 - Inference rebuilds the model from the contract rather than the producing
   run's `resolved.yaml`.
+- Holdout metrics and prediction rows route labels by each objective/head
+  target through `SampleBatch["targets"]`; `SampleBatch["target"]` is only a
+  primary-target fallback.
+- Class labels come from the checkpoint inference contract's per-head class
+  maps.
 - Result rows use `stage=infer` or `stage=holdout_eval`.
 - `dojo eval holdout` writes `eval_manifest.json` with checkpoint/dataset
   provenance, record counts, compatibility hashes, and a metric summary

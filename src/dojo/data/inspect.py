@@ -20,7 +20,6 @@ from dojo.data.parquet_images import (
     _integer_targets,
     _needed_columns,
     _resolve_class_mapping,
-    _sole_target,
     _tables_by_split,
     build_datasets,
 )
@@ -279,34 +278,40 @@ def inspect_dataset(
     root, files = _discover_files(data_cfg, storage)
     tables = _tables_by_split(data_cfg, files, _needed_columns(data_cfg))
     bundle = build_datasets(cfg, storage)
-    target_name = _sole_target(data_cfg)
-    target = data_cfg.targets[target_name]
-    class_mapping, class_index_by_name = _resolve_class_mapping(
-        target, list(tables.values())
-    )
+    class_index_by_name: dict[str, dict[str, int] | None] = {}
+    class_mapping_by_target: dict[str, dict[int, str]] = {}
+    for target_name, target in data_cfg.targets.items():
+        mapping, name_to_index = _resolve_class_mapping(target, list(tables.values()))
+        class_mapping_by_target[target_name] = mapping
+        class_index_by_name[target_name] = name_to_index
 
     target_reports = {
-        split: {target_name: _target_report(table, target)}
+        split: {
+            target_name: _target_report(table, target)
+            for target_name, target in data_cfg.targets.items()
+        }
         for split, table in tables.items()
     }
-    class_counts = _class_counts(tables, target, class_index_by_name)
-    head_name = next(
-        (name for name, head in cfg.model.heads.items() if head.target == target_name),
-        target_name,
-    )
-    if head_name in cfg.model.heads:
-        num_classes = cfg.model.heads[head_name].num_classes
-    else:
-        count_indices = [
-            int(index)
-            for counts in class_counts.values()
-            for index in counts
-        ]
-        num_classes = max(count_indices, default=-1) + 1
-    ordered_mapping = {
-        str(index): class_mapping.get(index, str(index))
-        for index in range(num_classes)
+    class_counts_by_target = {
+        target_name: _class_counts(tables, target, class_index_by_name[target_name])
+        for target_name, target in data_cfg.targets.items()
     }
+
+    counts_per_head: dict[str, dict[str, Any]] = {}
+    mapping_per_head: dict[str, dict[str, str]] = {}
+    for head_name, head in cfg.model.heads.items():
+        target_counts = class_counts_by_target[head.target]
+        target_mapping = class_mapping_by_target[head.target]
+        ordered_mapping = {
+            str(index): target_mapping.get(index, str(index))
+            for index in range(head.num_classes)
+        }
+        counts_per_head[head_name] = {
+            "num_classes": head.num_classes,
+            "total": sum(target_counts.get("train", {}).values()),
+            "counts": target_counts.get("train", {}),
+        }
+        mapping_per_head[head_name] = ordered_mapping
     bit_depth = 8 if cfg.transforms.input_bit_depth == "auto" else cfg.transforms.input_bit_depth
 
     dimensions, normalization, dataset_content_hash = _dimensions_normalization_and_content_hash(
@@ -322,15 +327,9 @@ def inspect_dataset(
         "class_counts": {
             "split": "train",
             "estimated": False,
-            "per_head": {
-                head_name: {
-                    "num_classes": len(ordered_mapping),
-                    "total": sum(class_counts.get("train", {}).values()),
-                    "counts": class_counts.get("train", {}),
-                }
-            },
+            "per_head": counts_per_head,
         },
-        "class_mapping": {"per_head": {head_name: ordered_mapping}},
+        "class_mapping": {"per_head": mapping_per_head},
         "bit_depth": {
             "split": "all",
             "value": bit_depth,

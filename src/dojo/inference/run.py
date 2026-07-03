@@ -155,6 +155,7 @@ def _metric_modules_from_contract(contract: dict[str, Any]) -> dict[str, dict[st
         metric_names = [metric["name"] for metric in objective.get("metrics", [])]
         metrics_by_objective[objective_name] = {
             "head": head_name,
+            "target": objective["target"],
             "metrics": build_metric_modules(metric_names, num_classes),
         }
     return metrics_by_objective
@@ -215,8 +216,9 @@ def _write_outputs(
                     name: head(embeddings) for name, head in model.heads.items()
                 }
             for spec in metrics_by_objective.values():
+                targets = batch["targets"].get(spec["target"], batch["target"])
                 for metric in spec["metrics"].values():
-                    metric.update(logits_by_head[spec["head"]], batch["target"])
+                    metric.update(logits_by_head[spec["head"]], targets)
 
             for index, sample_id in enumerate(batch["sample_id"]):
                 records.append(
@@ -257,9 +259,11 @@ def _write_outputs(
                         head_name=head_name,
                         class_mapping=class_mapping,
                     )
+                    target_name = cfg.model.heads[head_name].target
+                    targets = batch["targets"].get(target_name, batch["target"])
                     for index, sample_id in enumerate(batch["sample_id"]):
                         pred_index = int(prediction[index])
-                        target_index = int(batch["target"][index])
+                        target_index = int(targets[index])
                         records.append(
                             classification_output_record(
                                 provenance,

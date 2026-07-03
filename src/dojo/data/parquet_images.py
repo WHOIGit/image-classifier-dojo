@@ -47,10 +47,11 @@ class DataBundle:
     dataset_content_hash: str | None
     materialized_image_cache_dir: Path | None
     class_counts: dict[str, dict[int, int]]
+    class_counts_by_target: dict[str, dict[str, dict[int, int]]]
     target_name: str
-    # Resolved class index -> readable name for the sole P1 target. Missing
-    # indices (no name available) fall back to their index string downstream.
+    target_names: tuple[str, ...]
     class_mapping: dict[int, str]
+    class_mapping_by_target: dict[str, dict[int, str]]
 
 
 def _discover_files(cfg: DataConfig, storage: Storage) -> tuple[Path, list[Path]]:
@@ -280,15 +281,6 @@ def _integer_targets(
     return [class_index_by_name[str(n)] for n in names]
 
 
-def _sole_target(cfg: DataConfig) -> str:
-    if len(cfg.targets) != 1:
-        raise DatasetConfigError(
-            "P1 supports exactly one data target; "
-            f"got {sorted(cfg.targets)}"
-        )
-    return next(iter(cfg.targets))
-
-
 def build_datasets(cfg: RootConfig, storage: Storage | None = None) -> DataBundle:
     """Build per-split datasets, the ``dataset_hash``, and per-split class counts.
 
@@ -304,7 +296,8 @@ def build_datasets(cfg: RootConfig, storage: Storage | None = None) -> DataBundl
             "transforms.inference_pipeline is unresolved; resolve the config first"
         )
 
-    target_name = _sole_target(data_cfg)
+    target_names = tuple(data_cfg.targets)
+    target_name = target_names[0]
     root, files = _discover_files(data_cfg, storage)
     file_ids = sorted(
         (str(path.relative_to(root)), path.stat().st_size) for path in files
@@ -339,11 +332,18 @@ def build_datasets(cfg: RootConfig, storage: Storage | None = None) -> DataBundl
     train_aspect_bucket_step = find_aspect_bucket_step(cfg.transforms.pipeline)
     eval_aspect_bucket_step = find_aspect_bucket_step(cfg.transforms.inference_pipeline)
 
-    target = data_cfg.targets[target_name]
-    class_mapping, class_index_by_name = _resolve_class_mapping(target, list(tables.values()))
+    class_mapping_by_target: dict[str, dict[int, str]] = {}
+    class_index_by_name: dict[str, dict[str, int] | None] = {}
+    for name in target_names:
+        mapping, name_to_index = _resolve_class_mapping(
+            data_cfg.targets[name],
+            list(tables.values()),
+        )
+        class_mapping_by_target[name] = mapping
+        class_index_by_name[name] = name_to_index
 
     datasets: dict[str, ParquetImagesDataset | ManifestImagesDataset] = {}
-    class_counts: dict[str, dict[int, int]] = {}
+    class_counts_by_target: dict[str, dict[str, dict[int, int]]] = {}
     for split, table in tables.items():
         transform = train_transform if split == "train" else eval_transform
         aspect_bucket_step = (
@@ -353,7 +353,7 @@ def build_datasets(cfg: RootConfig, storage: Storage | None = None) -> DataBundl
             datasets[split] = ParquetImagesDataset(
                 table,
                 cfg=data_cfg,
-                target_name=target_name,
+                target_names=target_names,
                 split=split,
                 transform=transform,
                 aspect_bucket_step=aspect_bucket_step,
@@ -363,7 +363,7 @@ def build_datasets(cfg: RootConfig, storage: Storage | None = None) -> DataBundl
             datasets[split] = ManifestImagesDataset(
                 table,
                 cfg=data_cfg,
-                target_name=target_name,
+                target_names=target_names,
                 split=split,
                 transform=transform,
                 storage=storage,
@@ -371,8 +371,12 @@ def build_datasets(cfg: RootConfig, storage: Storage | None = None) -> DataBundl
                 aspect_bucket_step=aspect_bucket_step,
                 class_index_by_name=class_index_by_name,
             )
-        counts = Counter(_integer_targets(table, target, class_index_by_name))
-        class_counts[split] = dict(sorted(counts.items()))
+        class_counts_by_target[split] = {}
+        for name in target_names:
+            counts = Counter(
+                _integer_targets(table, data_cfg.targets[name], class_index_by_name[name])
+            )
+            class_counts_by_target[split][name] = dict(sorted(counts.items()))
 
     return DataBundle(
         datasets=datasets,
@@ -381,7 +385,13 @@ def build_datasets(cfg: RootConfig, storage: Storage | None = None) -> DataBundl
         files=file_ids,
         dataset_content_hash=dataset_content_hash,
         materialized_image_cache_dir=materialized_image_cache_dir,
-        class_counts=class_counts,
+        class_counts={
+            split: per_target[target_name]
+            for split, per_target in class_counts_by_target.items()
+        },
+        class_counts_by_target=class_counts_by_target,
         target_name=target_name,
-        class_mapping=class_mapping,
+        target_names=target_names,
+        class_mapping=class_mapping_by_target[target_name],
+        class_mapping_by_target=class_mapping_by_target,
     )

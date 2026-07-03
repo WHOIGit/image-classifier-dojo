@@ -36,15 +36,17 @@ class ParquetImagesDataset(Dataset[DecodedSample]):
         table: pa.Table,
         *,
         cfg: DataConfig,
-        target_name: str,
+        target_names: tuple[str, ...],
         split: str,
         transform: ImageTransform,
         aspect_bucket_step: AspectBucketStep | None = None,
-        class_index_by_name: dict[str, int] | None = None,
+        class_index_by_name: dict[str, dict[str, int] | None] | None = None,
     ) -> None:
         self._split = split
         self._transform = transform
         self._aspect_bucket_step = aspect_bucket_step
+        self._target_names = target_names
+        self._primary_target_name = target_names[0]
         self._sample_ids = table.column(cfg.sample_id_column).to_pylist()
 
         image = cfg.images
@@ -70,15 +72,21 @@ class ParquetImagesDataset(Dataset[DecodedSample]):
                 for value in table.column(ROW_IMAGE_PATH).to_pylist()
             ]
 
-        # Per-sample integer label index: read the index column directly, or map
-        # the name column through the backend-assigned class_index_by_name.
-        target = cfg.targets[target_name]
-        if target.label_index_column is not None:
-            self._targets = [int(v) for v in table.column(target.label_index_column).to_pylist()]
-        else:
-            assert class_index_by_name is not None
-            names = table.column(target.label_name_column).to_pylist()
-            self._targets = [class_index_by_name[str(n)] for n in names]
+        self._targets_by_name: dict[str, list[int]] = {}
+        for target_name in target_names:
+            target = cfg.targets[target_name]
+            if target.label_index_column is not None:
+                self._targets_by_name[target_name] = [
+                    int(v) for v in table.column(target.label_index_column).to_pylist()
+                ]
+            else:
+                assert class_index_by_name is not None
+                name_mapping = class_index_by_name[target_name]
+                assert name_mapping is not None
+                names = table.column(target.label_name_column).to_pylist()
+                self._targets_by_name[target_name] = [
+                    name_mapping[str(n)] for n in names
+                ]
 
         self._source_extra_cols = list(cfg.source_extra_columns)
         self._source_extra = {
@@ -93,8 +101,9 @@ class ParquetImagesDataset(Dataset[DecodedSample]):
     def __len__(self) -> int:
         return len(self._sample_ids)
 
-    def target_for_index(self, index: int) -> int:
-        return int(self._targets[index])
+    def target_for_index(self, index: int, target_name: str | None = None) -> int:
+        target_name = target_name or self._primary_target_name
+        return int(self._targets_by_name[target_name][index])
 
     def has_aspect_buckets(self) -> bool:
         return self._aspect_bucket_step is not None
@@ -131,7 +140,11 @@ class ParquetImagesDataset(Dataset[DecodedSample]):
 
         return DecodedSample(
             image=tensor,
-            target=int(self._targets[index]),
+            target=self.target_for_index(index),
+            targets={
+                target_name: int(values[index])
+                for target_name, values in self._targets_by_name.items()
+            },
             sample_id=str(self._sample_ids[index]),
             uri=self._uris[index],
             split=self._split,
@@ -173,19 +186,21 @@ class ManifestImagesDataset(Dataset[DecodedSample]):
         table: pa.Table,
         *,
         cfg: DataConfig,
-        target_name: str,
+        target_names: tuple[str, ...],
         split: str,
         transform: ImageTransform,
         storage: Storage,
         manifest_root: str,
         aspect_bucket_step: AspectBucketStep | None = None,
-        class_index_by_name: dict[str, int] | None = None,
+        class_index_by_name: dict[str, dict[str, int] | None] | None = None,
     ) -> None:
         self._split = split
         self._transform = transform
         self._storage = storage
         self._manifest_root = manifest_root
         self._aspect_bucket_step = aspect_bucket_step
+        self._target_names = target_names
+        self._primary_target_name = target_names[0]
         self._sample_ids = table.column(cfg.sample_id_column).to_pylist()
 
         assert cfg.image_uri_column is not None
@@ -194,13 +209,21 @@ class ManifestImagesDataset(Dataset[DecodedSample]):
             for value in table.column(cfg.image_uri_column).to_pylist()
         ]
 
-        target = cfg.targets[target_name]
-        if target.label_index_column is not None:
-            self._targets = [int(v) for v in table.column(target.label_index_column).to_pylist()]
-        else:
-            assert class_index_by_name is not None
-            names = table.column(target.label_name_column).to_pylist()
-            self._targets = [class_index_by_name[str(n)] for n in names]
+        self._targets_by_name: dict[str, list[int]] = {}
+        for target_name in target_names:
+            target = cfg.targets[target_name]
+            if target.label_index_column is not None:
+                self._targets_by_name[target_name] = [
+                    int(v) for v in table.column(target.label_index_column).to_pylist()
+                ]
+            else:
+                assert class_index_by_name is not None
+                name_mapping = class_index_by_name[target_name]
+                assert name_mapping is not None
+                names = table.column(target.label_name_column).to_pylist()
+                self._targets_by_name[target_name] = [
+                    name_mapping[str(n)] for n in names
+                ]
 
         self._source_extra_cols = list(cfg.source_extra_columns)
         self._source_extra = {
@@ -210,8 +233,9 @@ class ManifestImagesDataset(Dataset[DecodedSample]):
     def __len__(self) -> int:
         return len(self._sample_ids)
 
-    def target_for_index(self, index: int) -> int:
-        return int(self._targets[index])
+    def target_for_index(self, index: int, target_name: str | None = None) -> int:
+        target_name = target_name or self._primary_target_name
+        return int(self._targets_by_name[target_name][index])
 
     def has_aspect_buckets(self) -> bool:
         return self._aspect_bucket_step is not None
@@ -241,7 +265,11 @@ class ManifestImagesDataset(Dataset[DecodedSample]):
 
         return DecodedSample(
             image=tensor,
-            target=int(self._targets[index]),
+            target=self.target_for_index(index),
+            targets={
+                target_name: int(values[index])
+                for target_name, values in self._targets_by_name.items()
+            },
             sample_id=str(self._sample_ids[index]),
             uri=uri,
             split=self._split,

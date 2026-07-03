@@ -134,6 +134,7 @@ def class_mapping_hash_source(
     cfg: RootConfig,
     *,
     class_mapping: dict[int, str],
+    class_mappings_by_head: dict[str, dict[int, str]] | None = None,
 ) -> dict[str, Any]:
     return {
         "version": "1",
@@ -142,7 +143,11 @@ def class_mapping_hash_source(
                 "target": head.target,
                 "ordered_labels": _ordered_labels(
                     num_classes=head.num_classes,
-                    class_mapping=class_mapping,
+                    class_mapping=(
+                        class_mappings_by_head.get(name, class_mapping)
+                        if class_mappings_by_head is not None
+                        else class_mapping
+                    ),
                 ),
             }
             for name, head in sorted(cfg.model.heads.items())
@@ -210,12 +215,18 @@ def preprocessing_hash_source(cfg: RootConfig) -> dict[str, Any]:
 def compatibility_hashes(
     cfg: RootConfig,
     *,
-    class_mapping: dict[int, str],
+    class_mapping: dict[int, str] | None = None,
+    class_mappings_by_head: dict[str, dict[int, str]] | None = None,
 ) -> dict[str, Any]:
     """Return P2.5b compatibility hashes and their canonical source blocks."""
 
+    class_mapping = class_mapping or {}
     target_source = target_schema_hash_source(cfg)
-    class_source = class_mapping_hash_source(cfg, class_mapping=class_mapping)
+    class_source = class_mapping_hash_source(
+        cfg,
+        class_mapping=class_mapping,
+        class_mappings_by_head=class_mappings_by_head,
+    )
     model_source = model_config_hash_source(cfg)
     preprocessing_source = preprocessing_hash_source(cfg)
     return {

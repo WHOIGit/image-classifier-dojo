@@ -7,8 +7,9 @@ The supervised training layer built on Lightning.
 - `run.py` — `execute_train`: takes a resolved `RootConfig`, runs preflight,
   wires data → model → fit → hash best checkpoint → write canonical results /
   metrics / figures. The one place every training boundary meets.
-- `task.py` — the supervised `LightningModule` (forward, per-objective loss,
-  weighted total, metric updates, checkpoint inference contract).
+- `task.py` — the supervised `LightningModule` (forward, per-objective target
+  routing, loss, weighted total, metric updates, checkpoint inference
+  contract).
 - `trainer.py` — Trainer/callback/logger construction (best-k + last checkpoint,
   optional early stopping, `local` CSV metrics sink).
 - `losses.py`, `metrics.py`, `checkpoint.py`, `figures.py`,
@@ -31,6 +32,12 @@ results own those).
 - The best-checkpoint hash feeds result provenance — keep it deterministic.
 - Weighted/class-balanced objective behavior must use train-split class counts
   from `data/`, not ad hoc retallies inside the task.
+- Multi-head objectives route labels by the objective head's configured
+  `target`; use `SampleBatch["targets"]` for true multi-target datasets and
+  keep `SampleBatch["target"]` only as the primary-target fallback.
+- Result scoring and checkpoint inference contracts must use per-head class
+  mappings and class counts, not the primary target mapping unless the head
+  actually uses that target.
 - Result scoring must stream writes batch by batch; do not accumulate a full
   validation split's logits/probabilities in memory.
 - Metrics CSV cleanup keeps one merged row per epoch when Lightning emits

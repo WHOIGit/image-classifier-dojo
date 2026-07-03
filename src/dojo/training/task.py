@@ -34,6 +34,7 @@ from dojo.training.metrics import build_metric_modules, iter_metric_logs
 class _Objective:
     name: str
     head_name: str
+    target_name: str
     weight: float
 
 
@@ -66,7 +67,10 @@ class SupervisedTaskModule(L.LightningModule):
             if not objective.enabled:
                 continue
             head_name = objective.head or name
-            objectives.append(_Objective(name, head_name, float(objective.weight)))
+            target_name = model_config.heads[head_name].target
+            objectives.append(
+                _Objective(name, head_name, target_name, float(objective.weight))
+            )
             num_classes = self.model.heads[head_name].num_classes
             losses[name] = build_loss(
                 objective,
@@ -94,13 +98,14 @@ class SupervisedTaskModule(L.LightningModule):
 
     def _step(self, batch: SampleBatch, stage: str) -> torch.Tensor:
         images = batch["image"]
-        targets = batch["target"]
+        targets_by_name = batch.get("targets", {})
         logits = self.model(images)
         batch_size = images.shape[0]
 
         total = images.new_zeros(())
         for objective in self._objectives:
             head_logits = logits[objective.head_name]
+            targets = targets_by_name.get(objective.target_name, batch["target"])
             loss = self._losses[objective.name](head_logits, targets)
             total = total + objective.weight * loss
             self.log(

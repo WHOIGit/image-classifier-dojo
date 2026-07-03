@@ -106,12 +106,19 @@ def _write_results(
     # Names come from the resolved dataset class mapping (data name column, else
     # index strings); indexed by the head's class positions.
     labels = {
-        name: [bundle.class_mapping.get(index, str(index)) for index in range(head.num_classes)]
+        name: [
+            bundle.class_mapping_by_target.get(head.target, {}).get(index, str(index))
+            for index in range(head.num_classes)
+        ]
         for name, head in heads.items()
     }
     head_hashes = {
-        name: head_hash(cfg, head_name=name, class_mapping=bundle.class_mapping)
-        for name in heads
+        name: head_hash(
+            cfg,
+            head_name=name,
+            class_mapping=bundle.class_mapping_by_target.get(head.target, {}),
+        )
+        for name, head in heads.items()
     }
 
     writer = ResultWriter(
@@ -161,9 +168,11 @@ def _write_results(
                 probs = torch.softmax(head_logits, dim=1)
                 confidence, prediction = probs.max(dim=1)
                 head_labels = labels[head_name]
+                target_name = heads[head_name].target
+                targets = batch["targets"].get(target_name, batch["target"])
                 for index, sample_id in enumerate(batch["sample_id"]):
                     pred_index = int(prediction[index])
-                    target_index = int(batch["target"][index])
+                    target_index = int(targets[index])
                     records.append(
                         classification_output_record(
                             provenance,
@@ -269,6 +278,7 @@ def execute_train(
     inference_contract = build_inference_contract(
         cfg,
         class_mapping=bundle.class_mapping,
+        class_mapping_by_target=bundle.class_mapping_by_target,
     )
     module = SupervisedTaskModule(
         model_config=cfg.model,
@@ -276,8 +286,11 @@ def execute_train(
         objectives_config=cfg.objectives,
         optimizer_config=cfg.optimizer,
         class_counts_by_head={
-            head_name: bundle.class_counts.get("train", {})
-            for head_name in cfg.model.heads
+            head_name: bundle.class_counts_by_target.get("train", {}).get(
+                head.target,
+                {},
+            )
+            for head_name, head in cfg.model.heads.items()
         },
         inference_contract=inference_contract,
     )

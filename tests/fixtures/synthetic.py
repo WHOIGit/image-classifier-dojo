@@ -58,10 +58,16 @@ def write_manifest_images_dataset(
     labels: list[int],
     backend: str = "parquet_manifest",
     start_id: int = 0,
+    coarse_labels: list[int] | None = None,
+    coarse_names: list[str] | None = None,
 ) -> Path:
     """Write external PNG images plus a CSV or Parquet manifest."""
 
     rows = []
+    coarse_labels = coarse_labels or [1 if label >= 2 else 0 for label in labels]
+    coarse_names = coarse_names or [
+        "organism" if label else "artifact" for label in coarse_labels
+    ]
     for offset, label in enumerate(labels):
         sample_id = f"s{start_id + offset}"
         image_name = f"{sample_id}.png"
@@ -74,6 +80,8 @@ def write_manifest_images_dataset(
                 "split": "train" if offset < max(1, len(labels) - 1) else "val",
                 "label": label,
                 "classname": f"class-{label}",
+                "coarse_label": coarse_labels[offset],
+                "coarse_name": coarse_names[offset],
             }
         )
 
@@ -84,6 +92,14 @@ def write_manifest_images_dataset(
             "split": pa.array([row["split"] for row in rows], pa.string()),
             "label": pa.array([row["label"] for row in rows], pa.int64()),
             "classname": pa.array([row["classname"] for row in rows], pa.string()),
+            "coarse_label": pa.array(
+                [row["coarse_label"] for row in rows],
+                pa.int64(),
+            ),
+            "coarse_name": pa.array(
+                [row["coarse_name"] for row in rows],
+                pa.string(),
+            ),
         }
     )
     root.mkdir(parents=True, exist_ok=True)
