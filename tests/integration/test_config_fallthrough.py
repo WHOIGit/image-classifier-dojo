@@ -40,3 +40,76 @@ def test_local_experiment_resolves_packaged_groups_via_fallthrough():
     assert cfg.data.split_column == "split"
     # Inherited from packaged groups via the searchpath:
     assert cfg.model.image_input.backbone.architecture.name == "efficientnet_b0"
+
+
+def test_authored_experiment_can_select_packaged_timm_default(tmp_path):
+    config_file = tmp_path / "timm-toy.yaml"
+    config_file.write_text(
+        """
+# @package _global_
+defaults:
+  - /runtime: default
+  - /storage: local_only
+  - /data: plankton-toyset
+  - /transforms: supervised_default
+  - /backbone/timm@model.image_input.backbone: default
+  - /optimizer: adamw
+  - /training_outputs: p1_local
+  - _self_
+
+experiment:
+  name: timm_default_smoke
+
+task:
+  type: supervised
+
+model:
+  image_input:
+    name: image
+    backbone:
+      weights:
+        source: none
+  tabular_input:
+    enabled: false
+    name: tabular
+  embedding_adapter:
+    enabled: false
+  heads:
+    species:
+      type: multiclass_classification
+      target: species
+      num_classes: 6
+      network:
+        type: linear
+
+objectives:
+  species:
+    head: species
+    loss: cross_entropy
+    metrics: [f1_macro]
+    weight: 1.0
+
+training:
+  max_epochs: 1
+  batch_size: 16
+  freeze:
+    backbone:
+      policy: none
+
+checkpointing:
+  monitor: val/species/f1_macro
+  mode: max
+  save_top_k: 1
+  save_last: true
+
+output_root: ./runs
+""",
+        encoding="utf-8",
+    )
+
+    composed = compose_config(config_file=config_file)
+    cfg = RootConfig.model_validate(OmegaConf.to_container(composed.config, resolve=True))
+
+    assert cfg.model.image_input.backbone.architecture.source == "timm"
+    assert cfg.model.image_input.backbone.architecture.name == "efficientnet_b0"
+    assert cfg.model.image_input.backbone.weights.source == "none"

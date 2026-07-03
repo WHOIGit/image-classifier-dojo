@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import importlib.util
+
 import pytest
 import torch
 
@@ -50,6 +52,30 @@ def test_invalid_library_weight_name_rejected_without_download():
     )
     with pytest.raises(ValueError, match="not a valid weight"):
         build_backbone(cfg)
+
+
+@pytest.mark.skipif(
+    importlib.util.find_spec("timm") is None,
+    reason="timm optional dependency is not installed",
+)
+def test_builds_timm_backbone_without_download():
+    cfg = BackboneConfig.model_validate(
+        {
+            "architecture": {
+                "source": "timm",
+                "name": "efficientnet_b0",
+                "output_dim": "auto",
+                "input_channels": 3,
+            },
+            "weights": {"source": "none"},
+        }
+    )
+
+    backbone = build_backbone(cfg)
+
+    assert backbone.output_dim == EFFICIENTNET_B0_DIM
+    out = backbone.forward_features(torch.randn(2, 3, 32, 32))
+    assert out.shape == (2, EFFICIENTNET_B0_DIM)
 
 
 def test_freeze_policy_none_is_noop():

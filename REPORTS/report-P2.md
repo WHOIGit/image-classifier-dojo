@@ -451,3 +451,19 @@ training experiments requested after P2 is ready.
 - Verification passed:
   - Focused Ruff checks on touched transform/config/test files.
   - Focused tests: `16 passed`.
+
+## 2026-07-03 11:18 EDT — Packaged Timm Backbone Defaults
+
+- Added packaged timm backbone config groups:
+  - `backbone/timm/default`
+  - `backbone/timm/efficientnet_b0`
+- Both select timm `efficientnet_b0` with `output_dim: auto`,
+  `input_channels: 3`, and `weights.source: library`.
+- Added config composition coverage for authored experiments selecting
+  `/backbone/timm@model.image_input.backbone: default`.
+- Added a no-download runtime smoke test for building a timm EfficientNet-B0
+  backbone with `weights.source: none`; skipped when the optional timm
+  dependency is absent.
+- Verification passed:
+  - Focused Ruff checks on touched config/test files.
+  - Focused tests: `9 passed`.

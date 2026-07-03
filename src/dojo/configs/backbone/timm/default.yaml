@@ -1,0 +1,7 @@
+architecture:
+  source: timm
+  name: efficientnet_b0
+  output_dim: auto
+  input_channels: 3
+weights:
+  source: library
