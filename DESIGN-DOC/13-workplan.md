@@ -61,6 +61,32 @@ sweeps are layered on top.
 
 ## Priority 2 — Core supervised platform
 
+Sections keep stable `P2.x` identifiers (referenced elsewhere in the
+design doc) but are listed here in **recommended build order**, not
+numeric order. The order is dependency-driven:
+
+- **Foundations** consumed at config resolution come first: the full
+  config tree (P2.1) is the shape every other section extends, and the
+  dataset stats cache (P2.2) freezes the class-count / normalization /
+  dimension / bit-depth / bin-length values that model and transform
+  resolution read.
+- **Core producers** come next: model composition (P2.3) and transforms
+  (P2.4) are near-independent of each other but both depend on P2.2's
+  frozen values.
+- **Consumers / consolidation** come last: the config-derived result
+  hashes (P2.5b) must be cut against the settled resolved model and
+  preprocessing shapes, and inference / holdout evaluation (P2.6)
+  consumes the whole stack.
+
+P2.5 is **split**. Its schema / taxonomy half (**P2.5a**) is pulled
+ahead of the producers so multi-head result rows are written into a
+stable schema from the start rather than migrated later. Its
+config-derived hash extractors (**P2.5b**) stay after model and
+transforms, since `model_config_hash` / `preprocessing_hash` cannot be
+finalized before those resolved shapes exist.
+
+**Build order: P2.1 → P2.2 → P2.5a → P2.3 → P2.4 → P2.5b → P2.6.**
+
 ### P2.1 Config / CLI / storage foundation
 
 - Full config tree and Pydantic contract.
@@ -92,6 +118,28 @@ sweeps are layered on top.
   frozen class mapping in the stats cache. Not all inputs expose this (plain
   Parquet, CSV manifests), so it stays an optional enrichment, never required.
 
+### P2.5a Results schema and taxonomy
+
+Sequenced ahead of the producers so P2.3's multi-head training writes
+into a stable result schema instead of a later migration.
+
+- Full record-type taxonomy.
+- Ground-truth columns on `classification_output` rows (the sample's true
+  `target_index` / `target_name` alongside the `prediction_*` columns), so a
+  row is self-scoring without joining back to `sample_metadata` / the source
+  manifest. This is the ground-truth (`y_true`) half of the `target` vs
+  `prediction` pairing; P1 writes predictions only and drops the old target
+  identifier column (rows are scoped by `head_name`, and the head → target link
+  lives in `_metadata.json`). Settle the readable-suffix asymmetry then
+  (`prediction_label` vs `target_name`).
+- Per-head `head_hash` for join-free cross-run querying: a content hash over a
+  head's resolved config (target, `num_classes`, `class_mapping`, network),
+  finer-grained than the whole-schema `target_schema_hash`. Lets rows from the
+  same head configuration be grouped across runs without a denormalized name
+  column. Source-field list pinned in `06-results-artifacts-and-metadata.md`.
+- Partitioning.
+- External / internal column convention.
+
 ### P2.3 Model composition
 
 - Backbone registry: `torchvision` architecture functional, `timm`
@@ -118,24 +166,12 @@ sweeps are layered on top.
   outer, class weighting within bucket).
 - Record scale metadata columns.
 
-### P2.5 Results hardening
+### P2.5b Results hash extractors and metrics cleanup
 
-- Full record-type taxonomy.
-- Ground-truth columns on `classification_output` rows (the sample's true
-  `target_index` / `target_name` alongside the `prediction_*` columns), so a
-  row is self-scoring without joining back to `sample_metadata` / the source
-  manifest. This is the ground-truth (`y_true`) half of the `target` vs
-  `prediction` pairing; P1 writes predictions only and drops the old target
-  identifier column (rows are scoped by `head_name`, and the head → target link
-  lives in `_metadata.json`). Settle the readable-suffix asymmetry then
-  (`prediction_label` vs `target_name`).
-- Per-head `head_hash` for join-free cross-run querying: a content hash over a
-  head's resolved config (target, `num_classes`, `class_mapping`, network),
-  finer-grained than the whole-schema `target_schema_hash`. Lets rows from the
-  same head configuration be grouped across runs without a denormalized name
-  column.
-- Partitioning.
-- External / internal column convention.
+The config-derived half of results hardening, sequenced after model and
+transforms because the hashes are content hashes over their resolved
+shapes. (The schema / taxonomy half is P2.5a, ahead of the producers.)
+
 - Clean per-epoch metrics CSV: one merged row per epoch instead of separate
   train and validation rows at the same step (a Lightning `CSVLogger` quirk —
   the `on_train_epoch_end` / `on_validation_epoch_end` hooks flush as separate
@@ -145,6 +181,13 @@ sweeps are layered on top.
   `target_schema_hash`, `class_mapping_hash`, `model_config_hash`, and
   `preprocessing_hash` source field lists from
   `06-results-artifacts-and-metadata.md`.
+- Inference-contract writer: the task module's `on_save_checkpoint` hook
+  embeds the portable inference contract into
+  `checkpoint["dojo_inference_contract"]` (buildable `model_config`, resolved
+  `inference_pipeline` with frozen preprocessing stats, per-head class maps,
+  target schema, resolved `objective_summary`, and the four compatibility
+  hashes; see `05-models-training-and-heads.md` / `06-...md`). Depends on the
+  hash extractors above; this is the write side that P2.6 reads.
 
 ### P2.6 Inference and holdout evaluation
 
@@ -258,6 +301,15 @@ obligation instead. See `appendix-deferred-features.md`.
 - P4.16 Automated sweep execution runners: local sequential execution and
   Slurm / HPC queue submission. Initial execution mode is `manual` via
   `sweep.execution.mode`.
+- P4.17 Rename the packaged Hydra YAML tree from `configs/` to
+  `config_defaults/` (and the local shadow dir `./configs` → `./config_defaults`),
+  to make the "these are the composable *default* fragments" intent explicit and
+  to stop the bare `configs/` name reading like an app config dir. Touches
+  `config_loader/compositor.py::default_config_dirs` (the `./configs` lookup and
+  the `files("dojo").joinpath("configs")` packaged root), `pyproject.toml`
+  package-data globs, `dojo init` materialization, and the `experiment=` path
+  hints. Adopted as the naming convention in the sibling SATI-style config design
+  notes; back-portable here as a mechanical rename.
 
 ## Historical Notes
 

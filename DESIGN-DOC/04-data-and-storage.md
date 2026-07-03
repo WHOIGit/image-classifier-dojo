@@ -199,6 +199,47 @@ are handled separately by `transforms.tabular` imputation / categorical
 missing-token rules, so a missing feature does not drop or mask a supervised
 target.
 
+### Class-name sources
+
+Readable class names are resolved from up to three sources, in precedence
+order:
+
+1. `label_name_column` — the manifest column of readable names (P1). When
+   present it is authoritative and supplies the index → name mapping.
+2. `label_index_column` alone — when only integer indices are present, names
+   default to the stringified indices unless a source below supplies them.
+3. **Dataset feature-schema metadata** — when neither target column carries
+   readable names, read the index → label mapping from the dataset's own
+   schema metadata: a Hugging Face `ClassLabel` feature
+   (`features[<label>].int2str(...)`), or an equivalent Arrow field-metadata
+   / sidecar mapping. Not all inputs expose this (plain Parquet and CSV
+   manifests generally do not), so it is an **optional enrichment, never
+   required**. When present, the resolved index → name mapping is folded into
+   the frozen `class_mapping` in the `dataset_hash`-keyed stats cache and from
+   there into `_metadata.json`, exactly as if it had come from a
+   `label_name_column`.
+
+Source 3 is what makes a Hugging Face dataset usable with no manifest
+authoring. `data.manifest_uri` accepts a Hugging Face dataset URL, e.g.:
+
+```yaml
+data:
+  backend: parquet_manifest
+  manifest_uri: https://huggingface.co/datasets/sosiklab/NES-plankton-classifier-2022-dataset
+```
+
+The dataset is fetched once and **cached locally for fast retrieval** on
+subsequent runs. Hugging Face datasets are git repositories, so the resolved
+**git commit hash** of the referenced revision is the change-detection key:
+the cache is keyed by it, and a changed upstream commit invalidates the cache
+and triggers a re-fetch. That commit hash is also recorded as the
+`dataset_hash` basis (the `uri_etag`-equivalent identity in
+`06-results-artifacts-and-metadata.md`), so a dataset revision bump
+propagates through `dataset_hash` and auto-invalidates the stats cache rather
+than silently reusing stale frozen values. A pinned revision (e.g. a
+URL-embedded commit / tag) resolves to a stable commit hash and therefore a
+stable cache entry.
+
 ## IFCB bins
 
 ```yaml

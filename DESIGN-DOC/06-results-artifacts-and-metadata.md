@@ -406,6 +406,54 @@ models, for example with compatibility-hash extractor methods or field
 metadata. The documentation above is the execution contract those
 extractors must satisfy.
 
+### Per-head identity hash
+
+`head_hash` is a per-head content hash — one value per resolved head, not
+one per run — that lets rows produced by the same head configuration be
+grouped across runs without a denormalized name column or a join back to
+`_metadata.json`. It is written as a column on every per-head result row
+(`classification_output` and the other per-head record types) and recorded
+per head in `_metadata.json`. It is a **grouping / provenance key, not a
+compatibility gate**: unlike the four hashes above, nothing blocks on it,
+and it is not part of the portable inference contract. It is finer-grained
+than the whole-schema `target_schema_hash`, which changes when *any* head
+in the schema changes; `head_hash` isolates a single head so one head's rows
+remain groupable across runs even when sibling heads are added, removed, or
+reconfigured.
+
+`head_hash` source fields (canonicalized and hashed per head):
+
+```text
+version: "1"
+head:
+  type
+  target
+  target_type                       # from data.targets[<target>].type
+  num_classes                       # classification/ordinal heads
+  output_dim                        # regression/count/distributional heads
+  network                           # type, hidden_dims, activation (excludes dropout)
+  class_mapping:                    # discrete-class heads only; resolved ordered labels
+    - index: 0
+      label: <string>
+    - index: 1
+      label: <string>
+  ordinal:                          # ordinal_classification heads only
+    encoding                        # coral | corn | ordinal_cross_entropy
+    decoding                        # threshold | expected_rank | argmax
+```
+
+`head_hash` is the per-head projection of the same resolved values that feed
+`target_schema_hash` (`type`, `target`, `target_type`, `num_classes` /
+`output_dim`, `ordinal`), `class_mapping_hash` (the resolved ordered
+`class_mapping`), and the head slice of `model_config_hash`
+(`network`). It deliberately reuses those already-resolved field extractors
+rather than defining new ones. It excludes everything the whole-schema hashes
+exclude — loss type, loss params, objective weights, metric selections,
+optimizer settings, checkpoint monitor fields, and `dropout` — and excludes
+the backbone, embedding adapter, and tabular input, since those are shared
+across heads and belong to `model_config_hash`, not to a single head's
+identity. Non-discrete heads omit the `class_mapping` block.
+
 ## Portable inference contract
 
 `dojo infer` and `dojo eval` rebuild a model and its exact input pipeline
@@ -641,7 +689,7 @@ probabilities
 
 The row is scoped by `head_name`; the head → target link lives in
 `_metadata.json` (each head's `target`). Ground-truth columns
-(`target_index` / `target_name`) are reserved for P2 (see workplan P2.5); P1
+(`target_index` / `target_name`) are reserved for P2 (see workplan P2.5a); P1
 writes predictions only.
 
 ### Regression output
