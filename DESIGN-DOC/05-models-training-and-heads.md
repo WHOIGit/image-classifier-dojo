@@ -965,8 +965,9 @@ objectives:
 ### Compatible losses
 
 Classification: `cross_entropy`, `weighted_cross_entropy`,
-`class_balanced_effective_number`, `focal`,
-`label_smoothing_cross_entropy`.
+`class_balanced_effective_number`, `focal_loss`. Cross-entropy label
+smoothing is configured as `cross_entropy.params.label_smoothing`, not as a
+separate loss type.
 
 Regression: `mse`, `mae`, `huber`, `smooth_l1`, `quantile`.
 (`gaussian_nll`, `poisson_nll`, and `negative_binomial_nll` are deferred

@@ -25,6 +25,8 @@ not compose or resolve configs (that is `config_loader/`).
 - Image transform schema includes direct `resize` and aspect-preserving
   `letterbox`; use `resize` for fixed-size experiment defaults unless padding
   preservation is explicitly intended.
+- Supported active multiclass objective losses are `cross_entropy`,
+  `weighted_cross_entropy`, and `focal_loss`.
 - Hashes must be stable across runs of the same config/content; changing a hash
   input is a breaking, versioned change. `head_hash` and compatibility hashes
   use the same canonical JSON recipe as `config_hash`.

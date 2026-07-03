@@ -6,7 +6,7 @@ import torch
 import torch.nn as nn
 
 from dojo.config_schemas.root import ObjectiveConfig
-from dojo.training.losses import build_loss
+from dojo.training.losses import MulticlassFocalLoss, build_loss
 from dojo.training.metrics import build_metric_modules, iter_metric_logs
 
 
@@ -46,6 +46,50 @@ def test_weighted_cross_entropy_requires_counts():
 
     with pytest.raises(ValueError, match="requires train-split class_counts"):
         build_loss(objective)
+
+
+def test_build_loss_focal_loss_gamma_zero_matches_cross_entropy():
+    objective = ObjectiveConfig(
+        head="species",
+        loss={"type": "focal_loss", "params": {"gamma": 0.0}},
+    )
+    loss = build_loss(objective, num_classes=3)
+    logits = torch.tensor([[4.0, 0.0, -1.0], [0.0, 3.0, 1.0]])
+    target = torch.tensor([0, 2])
+
+    assert isinstance(loss, MulticlassFocalLoss)
+    assert torch.allclose(loss(logits, target), nn.CrossEntropyLoss()(logits, target))
+
+
+def test_focal_loss_downweights_easy_examples():
+    objective = ObjectiveConfig(head="species", loss="focal_loss")
+    loss = build_loss(objective, num_classes=2)
+    logits = torch.tensor([[8.0, -8.0], [0.1, -0.1]])
+    target = torch.tensor([0, 0])
+    ce = nn.CrossEntropyLoss(reduction="none")(logits, target)
+    focal = loss(logits, target)
+
+    assert isinstance(loss, MulticlassFocalLoss)
+    assert focal < ce.mean()
+
+
+def test_focal_loss_can_use_count_derived_alpha():
+    objective = ObjectiveConfig(
+        head="species",
+        loss={
+            "type": "focal_loss",
+            "params": {"scheme": "inverse_frequency", "gamma": 2.0},
+        },
+    )
+    loss = build_loss(
+        objective,
+        class_counts={0: 10, 1: 5, 2: 1},
+        num_classes=3,
+    )
+
+    assert isinstance(loss, MulticlassFocalLoss)
+    assert loss.alpha is not None
+    assert loss.alpha[2] > loss.alpha[1] > loss.alpha[0]
 
 
 def test_build_metric_modules_and_scalar_logs():

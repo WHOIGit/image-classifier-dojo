@@ -467,3 +467,21 @@ training experiments requested after P2 is ready.
 - Verification passed:
   - Focused Ruff checks on touched config/test files.
   - Focused tests: `9 passed`.
+
+## 2026-07-03 15:13 EDT — Multiclass Focal Loss
+
+- Added active strict-schema objective loss type `focal_loss`.
+- Implemented `MulticlassFocalLoss` for integer multiclass targets and raw
+  logits.
+- Supported params:
+  - `gamma` (default `2.0`)
+  - `alpha` as explicit scalar or per-class weights
+  - `scheme` / `beta` for count-derived alpha using the same class-count
+    weighting schemes as `weighted_cross_entropy`
+  - `reduction`
+  - `ignore_index`
+- Kept label smoothing on `cross_entropy` /
+  `weighted_cross_entropy` through `params.label_smoothing`.
+- Verification passed:
+  - Focused Ruff checks on touched schema/loss/test files.
+  - Focused tests: `22 passed, 1 warning`.

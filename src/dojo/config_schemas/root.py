@@ -362,12 +362,17 @@ class WeightedCrossEntropyLossConfig(StrictModel):
     params: dict[str, Any] = Field(default_factory=dict)
 
 
-LossConfig = CrossEntropyLossConfig | WeightedCrossEntropyLossConfig
+class FocalLossConfig(StrictModel):
+    type: Literal["focal_loss"]
+    params: dict[str, Any] = Field(default_factory=dict)
+
+
+LossConfig = CrossEntropyLossConfig | WeightedCrossEntropyLossConfig | FocalLossConfig
 
 
 class ObjectiveConfig(StrictModel):
     head: str | None = None
-    loss: Literal["cross_entropy", "weighted_cross_entropy"] | LossConfig = "cross_entropy"
+    loss: Literal["cross_entropy", "weighted_cross_entropy", "focal_loss"] | LossConfig = "cross_entropy"
     metrics: list[MetricName] = Field(default_factory=lambda: ["accuracy"])
     weight: float = Field(default=1.0, ge=0.0)
     enabled: bool = True
@@ -539,7 +544,7 @@ class RootConfig(StrictModel):
                 if isinstance(objective.loss, str)
                 else objective.loss.type
             )
-            if loss_type not in {"cross_entropy", "weighted_cross_entropy"}:
+            if loss_type not in {"cross_entropy", "weighted_cross_entropy", "focal_loss"}:
                 raise ValueError(
                     f"objectives.{objective_name}.loss {loss_type!r} is not "
                     "implemented"
