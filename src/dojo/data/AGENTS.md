@@ -40,6 +40,10 @@ must emit exactly the provenance fields the sample contract declares.
   content-addressed disk cache keyed by `dataset_content_hash`; cached datasets
   must load images from filesystem paths in workers, not from Parquet row
   groups.
+- Materialized image cache identity intentionally hashes source Parquet relative
+  file names and bytes. `data.image_cache.cache_bust` creates a distinct cache
+  directory under the same source identity; `data.image_cache.clobber` deletes
+  and rebuilds the selected cache directory.
 - Stats-cache writing is explicit: `inspect.py` writes JSON to
   `data.stats_cache_uri` only when requested by the caller.
 - Stats caches keep large per-sample arrays out of JSON. Dimension rows are
@@ -56,8 +60,12 @@ must emit exactly the provenance fields the sample contract declares.
 - `aspect_bucket` transforms can produce variable tensor shapes across
   samples; non-training and weighted training loaders must batch within buckets
   when a dataset exposes aspect buckets.
-- Class-balanced and weighted samplers use train-split class counts; they must
-  not resample validation, inference, or holdout-eval datasets.
+- `resize` directly resizes to the configured `(height, width)`, `letterbox`
+  preserves aspect ratio with padding, and `aspect_bucket` selects a bucket
+  canvas from native dimensions then directly resizes to that canvas.
+- Class-balanced and weighted samplers use train-split class counts for a
+  selected head/target; they must not resample validation, inference, or
+  holdout-eval datasets.
 
 ## Verification
 

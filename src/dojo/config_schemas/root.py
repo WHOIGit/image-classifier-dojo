@@ -79,6 +79,8 @@ class ImageCacheConfig(StrictModel):
     dir: str | None = None
     progress: bool = True
     force_rebuild: bool = False
+    clobber: bool = False
+    cache_bust: str | None = None
 
 
 class TargetConfig(StrictModel):
@@ -147,6 +149,13 @@ class LetterboxStep(StrictModel):
     canvas_size: tuple[int, int]
 
 
+class ResizeStep(StrictModel):
+    name: Literal["resize"]
+    enabled: bool = True
+    train_only: bool = False
+    size: tuple[int, int]
+
+
 class AspectBucketConfig(StrictModel):
     name: str
     min_aspect: float | None = None
@@ -211,6 +220,7 @@ class VerticalFlipStep(StrictModel):
 
 TransformStep = Annotated[
     LetterboxStep
+    | ResizeStep
     | AspectBucketStep
     | ForegroundCropStep
     | GrayscaleStep
@@ -384,6 +394,7 @@ class SamplerConfig(StrictModel):
     type: Literal["default", "batch_aspect_buckets", "class_balanced", "weighted"] = (
         "default"
     )
+    head: str | None = None
     class_weight_scheme: Literal["inverse_frequency", "effective_number"] = (
         "inverse_frequency"
     )
@@ -536,6 +547,14 @@ class RootConfig(StrictModel):
 
         if not any(obj.enabled and obj.weight > 0 for obj in self.objectives.values()):
             raise ValueError("at least one enabled objective with positive weight is required")
+        if (
+            self.training.sampler.head is not None
+            and self.training.sampler.head not in self.model.heads
+        ):
+            raise ValueError(
+                "training.sampler.head references missing model head "
+                f"{self.training.sampler.head!r}"
+            )
         return self
 
     def supervised_record_types(self) -> list[str]:

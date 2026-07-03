@@ -14,6 +14,8 @@ own runtime code contracts.
 ## Local Contracts
 
 - Keep reports chronological and factual.
+- Use full timestamps on new report entry headings:
+  `YYYY-MM-DD HH:MM TZ`.
 - Record decision junctions in `QUESTIONS-FOR-SIDNEY.md` when work continues
   through ambiguity; link or mention them from the report when relevant.
 - Do not store generated model artifacts, Parquet results, or large figures in

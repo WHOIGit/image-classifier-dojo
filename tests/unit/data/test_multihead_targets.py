@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dojo.config_loader import resolve_runtime_and_paths
 from dojo.config_schemas import RootConfig
-from dojo.data import build_dataloader, build_datasets
+from dojo.data import build_dataloader, build_datasets, sample_weights_for_dataset
 from dojo.data.inspect import inspect_dataset
 from tests.fixtures.configs import toy_config_dict
 from tests.fixtures.synthetic import write_manifest_images_dataset
@@ -79,6 +79,14 @@ def test_multihead_dataset_emits_targets_by_logical_target(tmp_path):
     assert set(batch["targets"]) == {"species", "coarse"}
     assert batch["targets"]["species"].shape == (3,)
     assert batch["targets"]["coarse"].shape == (3,)
+
+    weights = sample_weights_for_dataset(
+        bundle.datasets["train"],
+        bundle.class_counts_by_target["train"]["coarse"],
+        target_name="coarse",
+    )
+    assert weights[:2] == [1 / 2, 1 / 2]
+    assert weights[2:5] == [1 / 3, 1 / 3, 1 / 3]
 
 
 def test_multihead_inspect_dataset_reports_each_head_mapping(tmp_path):

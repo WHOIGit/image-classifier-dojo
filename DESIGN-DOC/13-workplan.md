@@ -101,6 +101,9 @@ finalized before those resolved shapes exist.
 ### P2.2 Dataset backends
 
 - `csv_manifest`, `parquet_manifest`, and `parquet_images`.
+- `parquet_images` materialized image cache for embedded image bytes, keyed by
+  source Parquet relative file names and bytes, with rebuild / clobber /
+  cache-bust controls.
 - Shared record contract.
 - Preflight checks: `empty_train_classes`,
   `non_contiguous_class_indices`, `imbalance_ratio_gt`.
@@ -154,7 +157,7 @@ into a stable result schema instead of a later migration.
 ### P2.4 Transforms
 
 - Transform builder.
-- Letterbox, aspect buckets, foreground crop, grayscale, `normalize`.
+- Resize, letterbox, aspect buckets, foreground crop, grayscale, `normalize`.
 - Per-step `train_only` flag and the derived, resolved-only
   `inference_pipeline` consumed by non-train stages, export, and
   `preprocessing_hash`.
@@ -163,7 +166,8 @@ into a stable result schema instead of a later migration.
   bucket-aware sampler yielding size-homogeneous batches.
 - Sampler factory: `class_balanced` and `weighted` samplers reading frozen
   class counts, composing with `batch_aspect_buckets` (bucket grouping
-  outer, class weighting within bucket).
+  outer, class weighting within bucket), and selecting class counts by
+  configured sampler head or the most imbalanced classification head.
 - Record scale metadata columns.
 
 ### P2.5b Results hash extractors and metrics cleanup

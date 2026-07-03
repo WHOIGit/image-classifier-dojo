@@ -51,6 +51,7 @@ def build_dataloader(
     seed: int = 0,
     sampler_type: str = "default",
     class_counts: dict[int, int] | None = None,
+    target_name: str | None = None,
     class_weight_scheme: str = "inverse_frequency",
     class_weight_beta: float = 0.9999,
 ) -> DataLoader:
@@ -72,6 +73,7 @@ def build_dataloader(
             class_counts,
             scheme=class_weight_scheme,
             beta=class_weight_beta,
+            target_name=target_name,
         )
 
     has_aspect_buckets = (

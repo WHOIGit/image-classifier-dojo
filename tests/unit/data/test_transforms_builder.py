@@ -1,4 +1,4 @@
-"""Image transform builder: letterbox, normalize, value range, train_only steps."""
+"""Image transform builder: resize, letterbox, normalize, and train_only steps."""
 
 from __future__ import annotations
 
@@ -23,6 +23,26 @@ def _letterbox_normalize(canvas=(32, 32)):
             "std": [1.0, 1.0, 1.0],
         },
     ]
+
+
+def test_resize_stretches_to_size_without_padding():
+    pipeline = [
+        {"name": "resize", "size": [32, 32]},
+        {
+            "name": "normalize",
+            "mode": "fixed",
+            "mean": [0.0, 0.0, 0.0],
+            "std": [1.0, 1.0, 1.0],
+        },
+    ]
+    cfg = _transforms(pipeline)
+    transform = build_image_transform(
+        cfg.pipeline, image_mode=cfg.image_mode, input_bit_depth=cfg.input_bit_depth
+    )
+    out = transform(Image.new("RGB", (20, 10), color=(255, 255, 255)))
+
+    assert out.shape == (3, 32, 32)
+    assert torch.all(out > 0.9)
 
 
 def test_letterbox_pads_to_canvas_and_scales_to_unit_range():

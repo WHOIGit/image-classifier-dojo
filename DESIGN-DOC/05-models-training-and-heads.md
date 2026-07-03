@@ -28,6 +28,7 @@ YAML configs             = experiment/domain-specific recipes
 Canonical image transform step names:
 
 ```text
+resize
 letterbox
 aspect_bucket
 foreground_crop
@@ -104,8 +105,7 @@ tiny ROIs). Scale-related fields are recorded as `sample_metadata` columns
 `aspect_bucket` produces variable canvas sizes *across* buckets but a fixed
 size *within* a bucket. Tensors in a batch must stack to identical H × W, so
 a bucketed run batches **within** a single bucket rather than across —
-otherwise the whole point of bucketing (avoiding letterbox padding waste) is
-lost.
+otherwise the whole point of bucketing (avoiding wasted padded area) is lost.
 
 The `batch_aspect_buckets` sampler is the consumer that makes this work: it
 groups samples by their `aspect_bucket` assignment and emits

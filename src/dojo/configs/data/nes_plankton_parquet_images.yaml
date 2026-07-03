@@ -18,6 +18,8 @@ image_cache:
   dir: null
   progress: true
   force_rebuild: false
+  clobber: false
+  cache_bust: null
 source_extra_columns:
   - classname
 targets:

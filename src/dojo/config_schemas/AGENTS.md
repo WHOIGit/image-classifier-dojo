@@ -19,6 +19,12 @@ not compose or resolve configs (that is `config_loader/`).
   reserved slots or runtime `NotImplementedError`.
 - Schemas are the single runtime contract; downstream layers trust validated
   models and do not re-validate ad hoc.
+- `data.image_cache` owns cache rebuild knobs (`force_rebuild`, `clobber`,
+  `cache_bust`) and `training.sampler.head` owns explicit head selection for
+  class-balanced / weighted DataLoader sampling.
+- Image transform schema includes direct `resize` and aspect-preserving
+  `letterbox`; use `resize` for fixed-size experiment defaults unless padding
+  preservation is explicitly intended.
 - Hashes must be stable across runs of the same config/content; changing a hash
   input is a breaking, versioned change. `head_hash` and compatibility hashes
   use the same canonical JSON recipe as `config_hash`.

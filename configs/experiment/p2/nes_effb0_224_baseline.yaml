@@ -51,8 +51,8 @@ transforms:
   image_mode: rgb
   input_bit_depth: 8
   pipeline:
-    - name: letterbox
-      canvas_size: [224, 224]
+    - name: resize
+      size: [224, 224]
     - name: horizontal_flip
       p: 0.5
       train_only: true

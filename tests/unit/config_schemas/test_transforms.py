@@ -14,7 +14,7 @@ def test_p1_transform_pipeline_derives_inference_pipeline():
     # The authored pipeline interleaves train-only augmentation between the
     # deterministic resize and normalize steps.
     assert [step.name for step in resolved.transforms.pipeline] == [
-        "letterbox",
+        "resize",
         "rotate",
         "horizontal_flip",
         "normalize",
@@ -22,6 +22,6 @@ def test_p1_transform_pipeline_derives_inference_pipeline():
     # inference_pipeline drops the train_only augmentations.
     assert resolved.transforms.inference_pipeline is not None
     assert [step.name for step in resolved.transforms.inference_pipeline] == [
-        "letterbox",
+        "resize",
         "normalize",
     ]

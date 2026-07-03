@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import shutil
 from pathlib import Path
 
 import pyarrow as pa
@@ -89,8 +90,16 @@ def _cache_base_dir(cfg: DataConfig, storage_cfg: StorageConfig) -> Path:
     return Path(configured).expanduser().resolve()
 
 
-def _cache_dir_for_hash(base: Path, dataset_content_hash: str) -> Path:
-    return base / dataset_content_hash.removeprefix("sha256:")
+def _cache_dir_for_hash(
+    base: Path,
+    dataset_content_hash: str,
+    *,
+    cache_bust: str | None,
+) -> Path:
+    component = dataset_content_hash.removeprefix("sha256:")
+    if cache_bust is not None:
+        component = f"{component}-{_safe_component(cache_bust)}"
+    return base / component
 
 
 def _marker_path(cache_dir: Path) -> Path:
@@ -102,6 +111,7 @@ def _marker_matches(
     cache_dir: Path,
     dataset_content_hash: str,
     files: list[tuple[str, int]],
+    cache_bust: str | None,
 ) -> bool:
     marker = _marker_path(cache_dir)
     if not marker.exists():
@@ -113,6 +123,7 @@ def _marker_matches(
     return (
         payload.get("schema_version") == _CACHE_SCHEMA_VERSION
         and payload.get("dataset_content_hash") == dataset_content_hash
+        and payload.get("cache_bust") == cache_bust
         and payload.get("complete") is True
         and payload.get("files") == [
             {"path": rel, "size": size} for rel, size in files
@@ -143,10 +154,12 @@ def _write_marker(
     dataset_content_hash: str,
     files: list[tuple[str, int]],
     image_count: int,
+    cache_bust: str | None,
 ) -> None:
     payload = {
         "schema_version": _CACHE_SCHEMA_VERSION,
         "dataset_content_hash": dataset_content_hash,
+        "cache_bust": cache_bust,
         "complete": True,
         "image_count": image_count,
         "files": [{"path": rel, "size": size} for rel, size in files],
@@ -253,13 +266,17 @@ def materialize_image_cache(
     cache_dir = _cache_dir_for_hash(
         _cache_base_dir(cfg, storage_cfg),
         dataset_content_hash,
+        cache_bust=cfg.image_cache.cache_bust,
     )
+    if cfg.image_cache.clobber and cache_dir.exists():
+        shutil.rmtree(cache_dir)
     cache_dir.mkdir(parents=True, exist_ok=True)
 
     if cfg.image_cache.force_rebuild or not _marker_matches(
         cache_dir=cache_dir,
         dataset_content_hash=dataset_content_hash,
         files=file_ids,
+        cache_bust=cfg.image_cache.cache_bust,
     ):
         image_count = _materialize_files(
             cfg=cfg,
@@ -273,6 +290,7 @@ def materialize_image_cache(
             dataset_content_hash=dataset_content_hash,
             files=file_ids,
             image_count=image_count,
+            cache_bust=cfg.image_cache.cache_bust,
         )
 
     cached_tables = {

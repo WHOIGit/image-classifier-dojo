@@ -1,7 +1,7 @@
 """Image transform builder for supervised Dojo image pipelines.
 
 Builds a ``PIL.Image -> torch.Tensor`` callable from resolved transform steps.
-Implemented steps include ``letterbox``, ``foreground_crop``,
+Implemented steps include ``resize``, ``letterbox``, ``foreground_crop``,
 ``aspect_bucket``, ``grayscale``, ``normalize``, and the stochastic
 ``train_only`` augmentations ``rotate`` (multiples of 90), ``horizontal_flip``,
 and ``vertical_flip``.
@@ -29,6 +29,7 @@ from dojo.config_schemas.root import (
     HorizontalFlipStep,
     LetterboxStep,
     NormalizeStep,
+    ResizeStep,
     RotateStep,
     TransformStep,
     VerticalFlipStep,
@@ -85,6 +86,12 @@ def _letterbox(tensor: torch.Tensor, canvas_size: tuple[int, int]) -> torch.Tens
     left = pad_w // 2
     # torchvision pad order is [left, top, right, bottom].
     return F.pad(resized, [left, top, pad_w - left, pad_h - top])
+
+
+def _resize(tensor: torch.Tensor, size: tuple[int, int]) -> torch.Tensor:
+    """Resize directly to ``size`` as ``(height, width)``."""
+
+    return F.resize(tensor, list(size), antialias=True)
 
 
 def _foreground_crop(
@@ -188,13 +195,15 @@ class _CompiledImageTransform:
                 )
             elif isinstance(step, LetterboxStep):
                 tensor = _letterbox(tensor, step.canvas_size)
+            elif isinstance(step, ResizeStep):
+                tensor = _resize(tensor, step.size)
             elif isinstance(step, AspectBucketStep):
                 bucket = choose_aspect_bucket(
                     width=native_w,
                     height=native_h,
                     buckets=step.buckets,
                 )
-                tensor = _letterbox(tensor, bucket.canvas_size)
+                tensor = _resize(tensor, bucket.canvas_size)
             elif isinstance(step, GrayscaleStep):
                 if random.random() < step.p:
                     tensor = _grayscale(tensor)

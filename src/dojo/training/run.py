@@ -84,6 +84,41 @@ def _evaluation_splits(bundle: DataBundle) -> list[str]:
     return non_train or list(bundle.datasets)
 
 
+def _imbalance_ratio(class_counts: dict[int, int], *, num_classes: int) -> float:
+    counts = [int(class_counts.get(index, 0)) for index in range(num_classes)]
+    if not counts or sum(counts) == 0:
+        return 0.0
+    if any(count == 0 for count in counts):
+        return float("inf")
+    return max(counts) / min(counts)
+
+
+def _select_sampler_head(cfg: RootConfig, bundle: DataBundle) -> str:
+    """Pick the head whose target distribution drives weighted sampling."""
+
+    if cfg.training.sampler.head is not None:
+        return cfg.training.sampler.head
+
+    classification_heads = {
+        name: head
+        for name, head in cfg.model.heads.items()
+        if head.type == "multiclass_classification"
+    }
+    if not classification_heads:
+        raise ValueError("weighted sampler requires at least one classification head")
+    if len(classification_heads) == 1:
+        return next(iter(classification_heads))
+
+    train_counts_by_target = bundle.class_counts_by_target.get("train", {})
+    return max(
+        sorted(classification_heads),
+        key=lambda name: _imbalance_ratio(
+            train_counts_by_target.get(classification_heads[name].target, {}),
+            num_classes=classification_heads[name].num_classes,
+        ),
+    )
+
+
 def _write_results(
     *,
     cfg: RootConfig,
@@ -301,6 +336,22 @@ def execute_train(
         cfg, callbacks=callbacks, logger=logger, **trainer_overrides
     )
 
+    sampler_head_name = (
+        _select_sampler_head(cfg, bundle)
+        if cfg.training.sampler.type in {"class_balanced", "weighted"}
+        else None
+    )
+    sampler_target_name = (
+        cfg.model.heads[sampler_head_name].target
+        if sampler_head_name is not None
+        else None
+    )
+    sampler_class_counts = (
+        bundle.class_counts_by_target.get("train", {}).get(sampler_target_name, {})
+        if sampler_target_name is not None
+        else None
+    )
+
     _status(status_callback, "Building training dataloader")
     train_loader = build_dataloader(
         bundle.datasets["train"],
@@ -310,7 +361,8 @@ def execute_train(
         drop_last=True,
         seed=cfg.runtime.seed,
         sampler_type=cfg.training.sampler.type,
-        class_counts=bundle.class_counts.get("train", {}),
+        class_counts=sampler_class_counts,
+        target_name=sampler_target_name,
         class_weight_scheme=cfg.training.sampler.class_weight_scheme,
         class_weight_beta=cfg.training.sampler.beta,
     )

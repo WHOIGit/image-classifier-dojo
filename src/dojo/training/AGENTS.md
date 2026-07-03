@@ -32,6 +32,9 @@ results own those).
 - The best-checkpoint hash feeds result provenance — keep it deterministic.
 - Weighted/class-balanced objective behavior must use train-split class counts
   from `data/`, not ad hoc retallies inside the task.
+- Weighted/class-balanced DataLoader sampling uses `training.sampler.head`
+  when configured; otherwise it selects the only classification head, or the
+  most imbalanced classification head in multi-head configs.
 - Multi-head objectives route labels by the objective head's configured
   `target`; use `SampleBatch["targets"]` for true multi-target datasets and
   keep `SampleBatch["target"]` only as the primary-target fallback.

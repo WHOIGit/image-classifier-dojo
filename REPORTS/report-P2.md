@@ -111,7 +111,7 @@ training experiments requested after P2 is ready.
   - `aspect_bucket`
   - `grayscale`
 - `aspect_bucket` chooses a configured canvas from native image dimensions and
-  resizes via letterboxing.
+  resizes into that canvas.
 - Added `training.sampler.type: batch_aspect_buckets`, which groups DataLoader
   batches by deterministic bucket assignment so variable canvas sizes remain
   tensor-stackable.
@@ -401,10 +401,53 @@ training experiments requested after P2 is ready.
   - multi-target dataset samples/batches and inspect output,
   - Lightning objective routing where the coarse head would fail if it used the
     primary species labels.
-- Decision junction recorded in `QUESTIONS-FOR-SIDNEY.md`: class-balanced /
-  weighted DataLoader sampling still defaults to the primary target until we
-  decide whether sampler config needs an explicit multi-target policy.
+- Follow-up: the class-balanced / weighted DataLoader sampler policy was
+  resolved in the `2026-07-03 10:50 EDT` entry below.
 - Verification passed:
   - Focused Ruff checks on touched implementation and tests.
   - Focused tests: `6 passed, 1 warning`.
   - Full suite: `119 passed, 8 skipped, 1 warning`.
+
+## 2026-07-03 10:50 EDT — Cache Busting and Multi-Target Sampler Policy
+
+- Resolved the materialized image-cache question:
+  - Kept cache identity based on source Parquet relative file names and bytes.
+  - Added `data.image_cache.cache_bust` to create a distinct cache directory
+    under the same source identity.
+  - Added `data.image_cache.clobber` to delete and rebuild the selected cache
+    directory.
+  - Kept `force_rebuild` as rebuild-in-place behavior for the selected cache
+    directory.
+- Resolved the multi-target sampler question:
+  - Added `training.sampler.head` for class-balanced / weighted DataLoader
+    sampling.
+  - If omitted and there is one classification head, the sampler uses that
+    head.
+  - If omitted and there are multiple classification heads, the sampler uses
+    the head with the largest train-split imbalance ratio.
+  - Sampling weights are computed against the selected head's configured
+    target, while losses and metrics remain per-head/per-target.
+- Updated the packaged NES `parquet_images` data config to expose the new
+  cache knobs.
+- Removed the resolved cache-identity and sampler-policy items from
+  `QUESTIONS-FOR-SIDNEY.md`; the remaining open item is GPU execution of the
+  final NES experiment runs.
+- Verification passed:
+  - Focused Ruff checks on touched implementation and tests.
+  - Focused tests: `15 passed`.
+  - Full suite: `123 passed, 8 skipped, 1 warning`.
+
+## 2026-07-03 11:05 EDT — Resize-First Experiment Transforms
+
+- Added a first-class `resize` transform step that directly resizes tensors to
+  configured `(height, width)` without aspect-preserving padding.
+- Kept the existing `letterbox` transform available for explicit
+  aspect-preserving padded workflows.
+- Updated fixed-size experiment/default transform configs from `letterbox` to
+  `resize`, including the P2 NES EfficientNet-B0 224 baseline that weighted
+  variants inherit.
+- Updated `aspect_bucket` to resize directly into the selected bucket canvas
+  rather than letterboxing into the bucket canvas.
+- Verification passed:
+  - Focused Ruff checks on touched transform/config/test files.
+  - Focused tests: `16 passed`.

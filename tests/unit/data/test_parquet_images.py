@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 import torch
 
 from dojo.config_loader import resolve_runtime_and_paths
@@ -57,6 +59,53 @@ def test_parquet_images_can_materialize_image_cache(tmp_path):
     assert dataset._materialized_paths is not None
     assert all(dataset._materialized_paths)
     assert sample["image"].shape == (3, 32, 32)
+
+
+def test_materialized_image_cache_can_cache_bust_and_clobber(tmp_path):
+    raw = toy_config_dict(canvas=(32, 32), output_root=str(tmp_path / "runs"))
+    raw["data"]["image_cache"] = {
+        "enabled": True,
+        "dir": str(tmp_path / "image-cache"),
+        "progress": False,
+    }
+    base_cfg = resolve_runtime_and_paths(RootConfig.model_validate(raw)).config
+    base_bundle = build_datasets(base_cfg)
+
+    busted_raw = toy_config_dict(canvas=(32, 32), output_root=str(tmp_path / "runs"))
+    busted_raw["data"]["image_cache"] = {
+        "enabled": True,
+        "dir": str(tmp_path / "image-cache"),
+        "progress": False,
+        "cache_bust": "trial-1",
+    }
+    busted_cfg = resolve_runtime_and_paths(RootConfig.model_validate(busted_raw)).config
+    busted_bundle = build_datasets(busted_cfg)
+
+    assert base_bundle.dataset_content_hash == busted_bundle.dataset_content_hash
+    assert base_bundle.materialized_image_cache_dir != busted_bundle.materialized_image_cache_dir
+    assert busted_bundle.materialized_image_cache_dir is not None
+    marker = json.loads(
+        (busted_bundle.materialized_image_cache_dir / "manifest.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert marker["cache_bust"] == "trial-1"
+
+    sentinel = busted_bundle.materialized_image_cache_dir / "stale.txt"
+    sentinel.write_text("remove me", encoding="utf-8")
+    clobber_raw = toy_config_dict(canvas=(32, 32), output_root=str(tmp_path / "runs"))
+    clobber_raw["data"]["image_cache"] = {
+        "enabled": True,
+        "dir": str(tmp_path / "image-cache"),
+        "progress": False,
+        "cache_bust": "trial-1",
+        "clobber": True,
+    }
+    clobber_cfg = resolve_runtime_and_paths(RootConfig.model_validate(clobber_raw)).config
+    clobber_bundle = build_datasets(clobber_cfg)
+
+    assert clobber_bundle.materialized_image_cache_dir == busted_bundle.materialized_image_cache_dir
+    assert not sentinel.exists()
 
 
 def test_class_counts_match_fixture_summary():
