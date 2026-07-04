@@ -1,0 +1,21 @@
+backend: parquet_manifest
+manifest_uri: ./datasets/cleanup-automorph-denticle-rois/data.parquet
+split_column: split
+sample_id_column: sample_id
+image_uri_column: image_uri
+source_extra_columns:
+- ffid
+- roi_filename
+- roi_parent_dir
+- duplicate
+- Type
+- Age
+- Depth
+- Age (Ma)
+- stage
+targets:
+  T1:
+    label_index_column: t1_label
+    label_name_column: t1_label_name
+    type: multiclass_classification
+    missing_policy: drop_sample

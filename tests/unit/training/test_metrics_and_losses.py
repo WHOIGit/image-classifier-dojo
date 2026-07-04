@@ -105,6 +105,42 @@ def test_build_metric_modules_and_scalar_logs():
     assert acc.item() == 1.0
 
 
+def test_f1_macro_uses_torchmetrics_absent_class_semantics():
+    metric = build_metric_modules(["f1_macro"], num_classes=3)["f1_macro"]
+    logits = torch.tensor(
+        [
+            [3.0, 0.0, 0.0],
+            [0.0, 3.0, 0.0],
+            [0.0, 3.0, 0.0],
+            [3.0, 0.0, 0.0],
+        ]
+    )
+    target = torch.tensor([0, 1, 1, 1])
+
+    metric.update(logits, target)
+
+    # Class 2 has neither target nor predictions, so TorchMetrics excludes it
+    # from the macro reduction instead of treating it as a zero-F1 class.
+    value = metric.compute()
+    assert torch.isclose(value, value.new_tensor(((2 / 3) + 0.8) / 2))
+
+    metric.reset()
+    logits_with_false_positive = torch.tensor(
+        [
+            [3.0, 0.0, 0.0],
+            [0.0, 0.0, 3.0],
+            [0.0, 3.0, 0.0],
+            [3.0, 0.0, 0.0],
+        ]
+    )
+    metric.update(logits_with_false_positive, target)
+
+    # If the model predicts an absent class, that false-positive class does
+    # contribute zero F1. This is why Dojo should keep the standard metric.
+    value = metric.compute()
+    assert torch.isclose(value, value.new_tensor(((2 / 3) + 0.5 + 0.0) / 3))
+
+
 def test_f1_per_class_expands_to_labeled_scalars():
     metric = build_metric_modules(["f1_per_class"], num_classes=3)["f1_per_class"]
     metric.update(torch.randn(6, 3), torch.tensor([0, 1, 2, 0, 1, 2]))

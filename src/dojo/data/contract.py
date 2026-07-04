@@ -13,6 +13,8 @@ from typing import Any, TypedDict
 
 import torch
 
+MISSING_TARGET_INDEX = -100
+
 
 class DecodedSample(TypedDict):
     image: torch.Tensor

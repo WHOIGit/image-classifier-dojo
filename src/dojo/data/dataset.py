@@ -10,7 +10,7 @@ from PIL import Image
 from torch.utils.data import Dataset
 
 from dojo.config_schemas.root import AspectBucketStep, DataConfig
-from dojo.data.contract import DecodedSample
+from dojo.data.contract import MISSING_TARGET_INDEX, DecodedSample
 from dojo.data.parquet_rows import (
     ROW_FILE_PATH,
     ROW_GROUP_INDEX,
@@ -76,17 +76,21 @@ class ParquetImagesDataset(Dataset[DecodedSample]):
         for target_name in target_names:
             target = cfg.targets[target_name]
             if target.label_index_column is not None:
-                self._targets_by_name[target_name] = [
-                    int(v) for v in table.column(target.label_index_column).to_pylist()
-                ]
+                self._targets_by_name[target_name] = _index_targets(
+                    table.column(target.label_index_column).to_pylist(),
+                    target_name=target_name,
+                    missing_policy=target.missing_policy,
+                )
             else:
                 assert class_index_by_name is not None
                 name_mapping = class_index_by_name[target_name]
                 assert name_mapping is not None
-                names = table.column(target.label_name_column).to_pylist()
-                self._targets_by_name[target_name] = [
-                    name_mapping[str(n)] for n in names
-                ]
+                self._targets_by_name[target_name] = _name_targets(
+                    table.column(target.label_name_column).to_pylist(),
+                    name_mapping=name_mapping,
+                    target_name=target_name,
+                    missing_policy=target.missing_policy,
+                )
 
         self._source_extra_cols = list(cfg.source_extra_columns)
         self._source_extra = {
@@ -213,17 +217,21 @@ class ManifestImagesDataset(Dataset[DecodedSample]):
         for target_name in target_names:
             target = cfg.targets[target_name]
             if target.label_index_column is not None:
-                self._targets_by_name[target_name] = [
-                    int(v) for v in table.column(target.label_index_column).to_pylist()
-                ]
+                self._targets_by_name[target_name] = _index_targets(
+                    table.column(target.label_index_column).to_pylist(),
+                    target_name=target_name,
+                    missing_policy=target.missing_policy,
+                )
             else:
                 assert class_index_by_name is not None
                 name_mapping = class_index_by_name[target_name]
                 assert name_mapping is not None
-                names = table.column(target.label_name_column).to_pylist()
-                self._targets_by_name[target_name] = [
-                    name_mapping[str(n)] for n in names
-                ]
+                self._targets_by_name[target_name] = _name_targets(
+                    table.column(target.label_name_column).to_pylist(),
+                    name_mapping=name_mapping,
+                    target_name=target_name,
+                    missing_policy=target.missing_policy,
+                )
 
         self._source_extra_cols = list(cfg.source_extra_columns)
         self._source_extra = {
@@ -301,3 +309,53 @@ class ManifestImagesDataset(Dataset[DecodedSample]):
             buckets=self._aspect_bucket_step.buckets,
         )
         return bucket.name
+
+
+def _missing_target_value(*, target_name: str, missing_policy: str) -> int:
+    if missing_policy == "mask_objective":
+        return MISSING_TARGET_INDEX
+    raise ValueError(
+        f"target {target_name!r} has missing labels but missing_policy is "
+        f"{missing_policy!r}"
+    )
+
+
+def _index_targets(
+    values: list[Any],
+    *,
+    target_name: str,
+    missing_policy: str,
+) -> list[int]:
+    targets: list[int] = []
+    for value in values:
+        if value is None:
+            targets.append(
+                _missing_target_value(
+                    target_name=target_name,
+                    missing_policy=missing_policy,
+                )
+            )
+        else:
+            targets.append(int(value))
+    return targets
+
+
+def _name_targets(
+    names: list[Any],
+    *,
+    name_mapping: dict[str, int],
+    target_name: str,
+    missing_policy: str,
+) -> list[int]:
+    targets: list[int] = []
+    for name in names:
+        if name is None:
+            targets.append(
+                _missing_target_value(
+                    target_name=target_name,
+                    missing_policy=missing_policy,
+                )
+            )
+        else:
+            targets.append(name_mapping[str(name)])
+    return targets

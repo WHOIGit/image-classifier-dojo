@@ -1,0 +1,256 @@
+backend: parquet_manifest
+manifest_uri: ./datasets/cleanup-automorph-denticle-rois/data.parquet
+split_column: split
+sample_id_column: sample_id
+image_uri_column: image_uri
+source_extra_columns:
+- ffid
+- roi_filename
+- roi_parent_dir
+- duplicate
+- Type
+- Age
+- Depth
+- Age (Ma)
+- stage
+targets:
+  Z1:
+    label_index_column: z1_label
+    label_name_column: z1_label_name
+    type: multiclass_classification
+    missing_policy: drop_sample
+  A1:
+    label_index_column: a1_label
+    label_name_column: a1_label_name
+    type: multiclass_classification
+    missing_policy: drop_sample
+  A2:
+    label_index_column: a2_label
+    label_name_column: a2_label_name
+    type: multiclass_classification
+    missing_policy: drop_sample
+  B1:
+    label_index_column: b1_label
+    label_name_column: b1_label_name
+    type: multiclass_classification
+    missing_policy: drop_sample
+  B2:
+    label_index_column: b2_label
+    label_name_column: b2_label_name
+    type: multiclass_classification
+    missing_policy: drop_sample
+  B3:
+    label_index_column: b3_label
+    label_name_column: b3_label_name
+    type: multiclass_classification
+    missing_policy: drop_sample
+  C1:
+    label_index_column: c1_label
+    label_name_column: c1_label_name
+    type: multiclass_classification
+    missing_policy: drop_sample
+  C2:
+    label_index_column: c2_label
+    label_name_column: c2_label_name
+    type: multiclass_classification
+    missing_policy: drop_sample
+  C3:
+    label_index_column: c3_label
+    label_name_column: c3_label_name
+    type: multiclass_classification
+    missing_policy: drop_sample
+  D1:
+    label_index_column: d1_label
+    label_name_column: d1_label_name
+    type: multiclass_classification
+    missing_policy: drop_sample
+  E1:
+    label_index_column: e1_label
+    label_name_column: e1_label_name
+    type: multiclass_classification
+    missing_policy: drop_sample
+  E2:
+    label_index_column: e2_label
+    label_name_column: e2_label_name
+    type: multiclass_classification
+    missing_policy: drop_sample
+  E3:
+    label_index_column: e3_label
+    label_name_column: e3_label_name
+    type: multiclass_classification
+    missing_policy: drop_sample
+  E4:
+    label_index_column: e4_label
+    label_name_column: e4_label_name
+    type: multiclass_classification
+    missing_policy: drop_sample
+  F1:
+    label_index_column: f1_label
+    label_name_column: f1_label_name
+    type: multiclass_classification
+    missing_policy: drop_sample
+  G1:
+    label_index_column: g1_label
+    label_name_column: g1_label_name
+    type: multiclass_classification
+    missing_policy: drop_sample
+  G2:
+    label_index_column: g2_label
+    label_name_column: g2_label_name
+    type: multiclass_classification
+    missing_policy: drop_sample
+  G3:
+    label_index_column: g3_label
+    label_name_column: g3_label_name
+    type: multiclass_classification
+    missing_policy: drop_sample
+  H1:
+    label_index_column: h1_label
+    label_name_column: h1_label_name
+    type: multiclass_classification
+    missing_policy: drop_sample
+  I1:
+    label_index_column: i1_label
+    label_name_column: i1_label_name
+    type: multiclass_classification
+    missing_policy: drop_sample
+  I2:
+    label_index_column: i2_label
+    label_name_column: i2_label_name
+    type: multiclass_classification
+    missing_policy: drop_sample
+  I3:
+    label_index_column: i3_label
+    label_name_column: i3_label_name
+    type: multiclass_classification
+    missing_policy: drop_sample
+  J1:
+    label_index_column: j1_label
+    label_name_column: j1_label_name
+    type: multiclass_classification
+    missing_policy: drop_sample
+  J2:
+    label_index_column: j2_label
+    label_name_column: j2_label_name
+    type: multiclass_classification
+    missing_policy: drop_sample
+  K1:
+    label_index_column: k1_label
+    label_name_column: k1_label_name
+    type: multiclass_classification
+    missing_policy: drop_sample
+  K2:
+    label_index_column: k2_label
+    label_name_column: k2_label_name
+    type: multiclass_classification
+    missing_policy: drop_sample
+  L1:
+    label_index_column: l1_label
+    label_name_column: l1_label_name
+    type: multiclass_classification
+    missing_policy: drop_sample
+  L2:
+    label_index_column: l2_label
+    label_name_column: l2_label_name
+    type: multiclass_classification
+    missing_policy: drop_sample
+  L3:
+    label_index_column: l3_label
+    label_name_column: l3_label_name
+    type: multiclass_classification
+    missing_policy: drop_sample
+  L4:
+    label_index_column: l4_label
+    label_name_column: l4_label_name
+    type: multiclass_classification
+    missing_policy: drop_sample
+  M1:
+    label_index_column: m1_label
+    label_name_column: m1_label_name
+    type: multiclass_classification
+    missing_policy: drop_sample
+  M2:
+    label_index_column: m2_label
+    label_name_column: m2_label_name
+    type: multiclass_classification
+    missing_policy: drop_sample
+  M3:
+    label_index_column: m3_label
+    label_name_column: m3_label_name
+    type: multiclass_classification
+    missing_policy: drop_sample
+  M4:
+    label_index_column: m4_label
+    label_name_column: m4_label_name
+    type: multiclass_classification
+    missing_policy: drop_sample
+  N1:
+    label_index_column: n1_label
+    label_name_column: n1_label_name
+    type: multiclass_classification
+    missing_policy: drop_sample
+  N2:
+    label_index_column: n2_label
+    label_name_column: n2_label_name
+    type: multiclass_classification
+    missing_policy: drop_sample
+  N3:
+    label_index_column: n3_label
+    label_name_column: n3_label_name
+    type: multiclass_classification
+    missing_policy: drop_sample
+  O1:
+    label_index_column: o1_label
+    label_name_column: o1_label_name
+    type: multiclass_classification
+    missing_policy: drop_sample
+  O2:
+    label_index_column: o2_label
+    label_name_column: o2_label_name
+    type: multiclass_classification
+    missing_policy: drop_sample
+  O3:
+    label_index_column: o3_label
+    label_name_column: o3_label_name
+    type: multiclass_classification
+    missing_policy: drop_sample
+  O4:
+    label_index_column: o4_label
+    label_name_column: o4_label_name
+    type: multiclass_classification
+    missing_policy: drop_sample
+  O5:
+    label_index_column: o5_label
+    label_name_column: o5_label_name
+    type: multiclass_classification
+    missing_policy: drop_sample
+  O6:
+    label_index_column: o6_label
+    label_name_column: o6_label_name
+    type: multiclass_classification
+    missing_policy: drop_sample
+  O7:
+    label_index_column: o7_label
+    label_name_column: o7_label_name
+    type: multiclass_classification
+    missing_policy: drop_sample
+  O8:
+    label_index_column: o8_label
+    label_name_column: o8_label_name
+    type: multiclass_classification
+    missing_policy: drop_sample
+  O9:
+    label_index_column: o9_label
+    label_name_column: o9_label_name
+    type: multiclass_classification
+    missing_policy: drop_sample
+  O10:
+    label_index_column: o10_label
+    label_name_column: o10_label_name
+    type: multiclass_classification
+    missing_policy: drop_sample
+  T1:
+    label_index_column: t1_label
+    label_name_column: t1_label_name
+    type: multiclass_classification
+    missing_policy: mask_objective

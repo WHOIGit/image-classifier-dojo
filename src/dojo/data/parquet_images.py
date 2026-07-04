@@ -200,6 +200,9 @@ def _resolve_class_mapping(
                         f"class index {index} maps to multiple names: "
                         f"{existing!r} and {name!r}"
                     )
+        metadata_mapping = _class_mapping_from_dojo_metadata(index_col, tables)
+        for index, name in metadata_mapping.items():
+            class_mapping.setdefault(index, name)
         return class_mapping, None
 
     metadata_mapping = _class_mapping_from_schema_metadata(index_col, tables)
@@ -252,6 +255,40 @@ def _metadata_class_names(metadata: dict[bytes, bytes] | None, index_col: str) -
     return None
 
 
+def _dojo_class_names(metadata: dict[bytes, bytes] | None) -> list[str] | None:
+    if not metadata:
+        return None
+    raw_names = metadata.get(b"dojo:class_names")
+    if raw_names is None:
+        return None
+    try:
+        names = json.loads(raw_names.decode("utf-8"))
+    except json.JSONDecodeError:
+        return None
+    if isinstance(names, list) and all(isinstance(name, str) for name in names):
+        return list(names)
+    return None
+
+
+def _class_mapping_from_dojo_metadata(
+    index_col: str | None,
+    tables: list[pa.Table],
+) -> dict[int, str]:
+    if index_col is None:
+        return {}
+    for table in tables:
+        if index_col not in table.column_names:
+            continue
+        field = table.schema.field(index_col)
+        names = _dojo_class_names(field.metadata)
+        if names is None:
+            names = _dojo_class_names(table.schema.metadata)
+        if names is None:
+            continue
+        return {index: label for index, label in enumerate(names)}
+    return {}
+
+
 def _class_mapping_from_schema_metadata(
     index_col: str | None,
     tables: list[pa.Table],
@@ -275,10 +312,52 @@ def _integer_targets(
     table: pa.Table, target: "TargetConfig", class_index_by_name: dict[str, int] | None
 ) -> list[int]:
     if target.label_index_column is not None:
-        return [int(v) for v in table.column(target.label_index_column).to_pylist()]
+        return [
+            int(v)
+            for v in table.column(target.label_index_column).to_pylist()
+            if v is not None
+        ]
     assert class_index_by_name is not None
     names = table.column(target.label_name_column).to_pylist()
-    return [class_index_by_name[str(n)] for n in names]
+    return [
+        class_index_by_name[str(n)]
+        for n in names
+        if n is not None
+    ]
+
+
+def _target_is_missing(table: pa.Table, target: TargetConfig, row_index: int) -> bool:
+    candidate_columns = [
+        column
+        for column in (target.label_index_column, target.label_name_column)
+        if column is not None
+    ]
+    return all(table.column(column)[row_index].as_py() is None for column in candidate_columns)
+
+
+def _apply_missing_policies(
+    tables: dict[str, pa.Table],
+    data_cfg: DataConfig,
+) -> dict[str, pa.Table]:
+    drop_targets = [
+        target
+        for target in data_cfg.targets.values()
+        if target.missing_policy == "drop_sample"
+    ]
+    if not drop_targets:
+        return tables
+
+    filtered: dict[str, pa.Table] = {}
+    for split, table in tables.items():
+        keep = [
+            not any(
+                _target_is_missing(table, target, row_index)
+                for target in drop_targets
+            )
+            for row_index in range(table.num_rows)
+        ]
+        filtered[split] = table.filter(pa.array(keep))
+    return filtered
 
 
 def build_datasets(cfg: RootConfig, storage: Storage | None = None) -> DataBundle:
@@ -304,7 +383,10 @@ def build_datasets(cfg: RootConfig, storage: Storage | None = None) -> DataBundl
     )
     dataset_hash, provenance = compute_dataset_hash(data_cfg, file_ids)
 
-    tables = _tables_by_split(data_cfg, files, _needed_columns(data_cfg))
+    tables = _apply_missing_policies(
+        _tables_by_split(data_cfg, files, _needed_columns(data_cfg)),
+        data_cfg,
+    )
     dataset_content_hash = None
     materialized_image_cache_dir = None
     if data_cfg.backend == "parquet_images" and data_cfg.image_cache.enabled:

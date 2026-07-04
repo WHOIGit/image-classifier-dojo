@@ -17,6 +17,7 @@ from PIL import Image
 from dojo.config_schemas.root import RootConfig, TargetConfig
 from dojo.data.parquet_images import (
     _discover_files,
+    _apply_missing_policies,
     _integer_targets,
     _needed_columns,
     _resolve_class_mapping,
@@ -276,7 +277,10 @@ def inspect_dataset(
     storage = storage or get_storage(cfg.storage)
     data_cfg = cfg.data
     root, files = _discover_files(data_cfg, storage)
-    tables = _tables_by_split(data_cfg, files, _needed_columns(data_cfg))
+    tables = _apply_missing_policies(
+        _tables_by_split(data_cfg, files, _needed_columns(data_cfg)),
+        data_cfg,
+    )
     bundle = build_datasets(cfg, storage)
     class_index_by_name: dict[str, dict[str, int] | None] = {}
     class_mapping_by_target: dict[str, dict[int, str]] = {}

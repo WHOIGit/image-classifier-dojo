@@ -40,6 +40,11 @@ results own those).
 - Multi-head objectives route labels by the objective head's configured
   `target`; use `SampleBatch["targets"]` for true multi-target datasets and
   keep `SampleBatch["target"]` only as the primary-target fallback.
+- Objectives skip samples whose routed target is the shared missing-target ignore
+  index, enabling sparse multihead `mask_objective` datasets.
+- `f1_macro` and `f1_micro` use the standard TorchMetrics multiclass F1
+  implementations after masked target rows are removed; do not add custom
+  absent-class handling unless TorchMetrics semantics change.
 - Result scoring and checkpoint inference contracts must use per-head class
   mappings and class counts, not the primary target mapping unless the head
   actually uses that target.
@@ -47,6 +52,10 @@ results own those).
   validation split's logits/probabilities in memory.
 - Metrics CSV cleanup keeps one merged row per epoch when Lightning emits
   train and validation metrics separately.
+- Figure output keeps cumulative train/validation loss, normalized loss, and
+  naive mean validation F1 curves at the top level; per-head loss, normalized
+  loss, validation F1, confusion matrix, and per-class metrics live under
+  `figures/<head_name>/`.
 
 ## Verification
 

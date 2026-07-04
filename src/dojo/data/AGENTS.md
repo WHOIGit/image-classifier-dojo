@@ -30,6 +30,11 @@ must emit exactly the provenance fields the sample contract declares.
 - Samples expose `target` as the first configured data target for legacy
   single-target consumers and `targets` as the complete logical target-name to
   class-index mapping for true multi-head / multi-target training and eval.
+- `missing_policy: mask_objective` emits the shared missing-target ignore index
+  for blank labels; `missing_policy: drop_sample` filters rows missing that
+  target before dataset construction/inspection. Class counts and mappings skip
+  blank labels rather than manufacturing a class. `missing_policy: error` still
+  fails on blank labels at dataset decode time.
 - Split is data-driven; the split column must be present in the dataset.
 - External image manifest URIs are resolved relative to the manifest file/dir
   unless absolute or scheme-qualified.
@@ -55,8 +60,10 @@ must emit exactly the provenance fields the sample contract declares.
   `class_counts_by_target`.
 - Target class mappings come from `label_index_column` + `label_name_column`,
   name-only targets, or recognized dataset schema metadata such as HuggingFace
-  `ClassLabel` names. Index-only datasets without metadata fall back to index
-  strings downstream.
+  `ClassLabel` names. For index+name targets, observed row names are authoritative
+  and explicit `dojo:class_names` metadata may fill labels for unobserved class
+  indices. Index-only datasets without metadata fall back to index strings
+  downstream.
 - `aspect_bucket` transforms can produce variable tensor shapes across
   samples; non-training and weighted training loaders must batch within buckets
   when a dataset exposes aspect buckets.

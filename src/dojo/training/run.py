@@ -29,6 +29,7 @@ from dojo.data import (
     build_datasets,
     run_dataset_preflight,
 )
+from dojo.data.contract import MISSING_TARGET_INDEX
 from dojo.results import (
     ClassificationHeadMeta,
     ClassificationOutputMeta,
@@ -208,6 +209,9 @@ def _write_results(
                 for index, sample_id in enumerate(batch["sample_id"]):
                     pred_index = int(prediction[index])
                     target_index = int(targets[index])
+                    target_index_or_none = (
+                        None if target_index == MISSING_TARGET_INDEX else target_index
+                    )
                     records.append(
                         classification_output_record(
                             provenance,
@@ -216,10 +220,11 @@ def _write_results(
                             uri=batch["uri"][index],
                             head_name=head_name,
                             head_hash=head_hashes[head_name],
-                            target_index=target_index,
-                            target_name=head_labels[target_index]
-                            if 0 <= target_index < len(head_labels)
-                            else str(target_index),
+                            target_index=target_index_or_none,
+                            target_name=head_labels[target_index_or_none]
+                            if target_index_or_none is not None
+                            and 0 <= target_index_or_none < len(head_labels)
+                            else None,
                             prediction_index=pred_index,
                             prediction_label=head_labels[pred_index],
                             prediction_confidence=float(confidence[index]),
@@ -430,6 +435,11 @@ def execute_train(
                 metrics_csv=run_dir / "metrics" / "metrics.csv",
                 figures_dir=figures_dir,
                 results_dir=results_dir,
+                objective_to_head={
+                    name: objective.head or name
+                    for name, objective in cfg.objectives.items()
+                    if objective.enabled
+                },
             )
         )
 

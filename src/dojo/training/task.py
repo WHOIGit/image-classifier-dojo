@@ -24,6 +24,7 @@ from dojo.config_schemas.root import (
     OptimizerConfig,
     TrainingConfig,
 )
+from dojo.data.contract import MISSING_TARGET_INDEX
 from dojo.data.contract import SampleBatch
 from dojo.model import build_supervised_model
 from dojo.training.losses import build_loss
@@ -103,11 +104,18 @@ class SupervisedTaskModule(L.LightningModule):
         batch_size = images.shape[0]
 
         total = images.new_zeros(())
+        has_loss = False
         for objective in self._objectives:
             head_logits = logits[objective.head_name]
             targets = targets_by_name.get(objective.target_name, batch["target"])
+            valid_mask = targets != MISSING_TARGET_INDEX
+            if not bool(valid_mask.any()):
+                continue
+            head_logits = head_logits[valid_mask]
+            targets = targets[valid_mask]
             loss = self._losses[objective.name](head_logits, targets)
             total = total + objective.weight * loss
+            has_loss = True
             self.log(
                 f"{stage}/{objective.name}/loss",
                 loss,
@@ -117,6 +125,9 @@ class SupervisedTaskModule(L.LightningModule):
             )
             for metric in self._stage_metrics(stage)[objective.name].values():
                 metric.update(head_logits, targets)
+
+        if not has_loss:
+            total = sum(value.sum() * 0 for value in logits.values())
 
         # Epoch-only: the CSV logger emits one row per epoch. prog_bar still
         # updates live during the epoch via the running mean.

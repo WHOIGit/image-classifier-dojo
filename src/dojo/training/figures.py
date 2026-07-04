@@ -125,19 +125,73 @@ def _line_trace(
     return {"type": "scatter", "mode": "lines+markers", "x": x, "y": y, "name": name}
 
 
-def _write_metric_lines(figures_dir: Path, metrics: list[dict[str, float | int]]) -> None:
+def _mean_metric_trace(
+    rows: list[dict[str, float | int]],
+    keys: list[str],
+    name: str,
+) -> dict[str, Any] | None:
+    xs: list[int] = []
+    ys: list[float] = []
+    for row in rows:
+        values = [float(row[key]) for key in keys if key in row]
+        if values:
+            xs.append(int(row["epoch"]))
+            ys.append(sum(values) / len(values))
+    if not ys:
+        return None
+    return {"type": "scatter", "mode": "lines+markers", "x": xs, "y": ys, "name": name}
+
+
+def _unique_metric_keys(
+    metrics: list[dict[str, float | int]],
+    *,
+    prefix: str,
+    suffix: str,
+) -> list[str]:
+    keys: list[str] = []
+    seen: set[str] = set()
+    for row in metrics:
+        for key in row:
+            if key.startswith(prefix) and key.endswith(suffix) and key not in seen:
+                seen.add(key)
+                keys.append(key)
+    return keys
+
+
+def _objective_names(metrics: list[dict[str, float | int]]) -> list[str]:
+    objectives: list[str] = []
+    seen: set[str] = set()
+    for row in metrics:
+        for key in row:
+            parts = key.split("/")
+            if len(parts) >= 3 and parts[0] in {"train", "val"}:
+                objective = parts[1]
+                if objective not in seen:
+                    seen.add(objective)
+                    objectives.append(objective)
+    return objectives
+
+
+def _write_loss_lines(
+    figures_dir: Path,
+    metrics: list[dict[str, float | int]],
+    *,
+    train_key: str,
+    val_key: str,
+    title: str,
+) -> None:
     loss_traces = [
         trace
         for trace in (
-            _line_trace(metrics, "train/loss", "train/loss"),
-            _line_trace(metrics, "val/loss", "val/loss"),
+            _line_trace(metrics, train_key, train_key),
+            _line_trace(metrics, val_key, val_key),
         )
         if trace is not None
     ]
     if loss_traces:
         _write_plotly_html(
             figures_dir / "loss_curves.html",
-            title="Training and Validation Loss",
+            title=title,
             traces=loss_traces,
             layout={"xaxis": {"title": "Epoch"}, "yaxis": {"title": "Loss"}},
         )
@@ -145,8 +199,8 @@ def _write_metric_lines(figures_dir: Path, metrics: list[dict[str, float | int]]
     normalized_loss_traces = [
         trace
         for trace in (
-            _line_trace(metrics, "train/loss", "train/loss normalized", normalize=True),
-            _line_trace(metrics, "val/loss", "val/loss normalized", normalize=True),
+            _line_trace(metrics, train_key, f"{train_key} normalized", normalize=True),
+            _line_trace(metrics, val_key, f"{val_key} normalized", normalize=True),
         )
         if trace is not None
     ]
@@ -158,27 +212,95 @@ def _write_metric_lines(figures_dir: Path, metrics: list[dict[str, float | int]]
             layout={"xaxis": {"title": "Epoch"}, "yaxis": {"title": "Loss / epoch0"}},
         )
 
-    f1_keys = [
-        (key, key)
-        for row in metrics
-        for key in row
-        if key.startswith("val/") and key.endswith(("/f1_macro", "/f1_micro"))
-    ]
-    seen: set[str] = set()
+
+def _write_f1_lines(
+    path: Path,
+    *,
+    title: str,
+    metrics: list[dict[str, float | int]],
+    keys_by_trace: list[tuple[list[str], str]],
+) -> None:
     f1_traces = []
-    for key, name in f1_keys:
-        if key in seen:
-            continue
-        seen.add(key)
-        trace = _line_trace(metrics, key, name)
+    for keys, name in keys_by_trace:
+        trace = (
+            _line_trace(metrics, keys[0], name)
+            if len(keys) == 1
+            else _mean_metric_trace(metrics, keys, name)
+        )
         if trace is not None:
             f1_traces.append(trace)
     if f1_traces:
         _write_plotly_html(
-            figures_dir / "val_f1_curves.html",
-            title="Validation F1 per Epoch",
+            path,
+            title=title,
             traces=f1_traces,
             layout={"xaxis": {"title": "Epoch"}, "yaxis": {"title": "F1"}},
+        )
+
+
+def _write_head_metric_lines(
+    figures_dir: Path,
+    metrics: list[dict[str, float | int]],
+    *,
+    objective_name: str,
+    head_name: str,
+) -> None:
+    head_dir = figures_dir / head_name
+    _write_loss_lines(
+        head_dir,
+        metrics,
+        train_key=f"train/{objective_name}/loss",
+        val_key=f"val/{objective_name}/loss",
+        title=f"{head_name} Training and Validation Loss",
+    )
+    head_f1_keys = [
+        ([key], key)
+        for key in (
+            f"val/{objective_name}/f1_macro",
+            f"val/{objective_name}/f1_micro",
+        )
+    ]
+    _write_f1_lines(
+        head_dir / "val_f1_curves.html",
+        title=f"{head_name} Validation F1 per Epoch",
+        metrics=metrics,
+        keys_by_trace=head_f1_keys,
+    )
+
+
+def _write_metric_lines(
+    figures_dir: Path,
+    metrics: list[dict[str, float | int]],
+    objective_to_head: dict[str, str] | None = None,
+) -> None:
+    _write_loss_lines(
+        figures_dir,
+        metrics,
+        train_key="train/loss",
+        val_key="val/loss",
+        title="Training and Validation Loss",
+    )
+
+    macro_keys = _unique_metric_keys(metrics, prefix="val/", suffix="/f1_macro")
+    micro_keys = _unique_metric_keys(metrics, prefix="val/", suffix="/f1_micro")
+    top_level_f1 = [
+        (macro_keys, "val/f1_macro mean"),
+        (micro_keys, "val/f1_micro mean"),
+    ]
+    _write_f1_lines(
+        figures_dir / "val_f1_curves.html",
+        title="Mean Validation F1 per Epoch",
+        metrics=metrics,
+        keys_by_trace=[item for item in top_level_f1 if item[0]],
+    )
+
+    objective_to_head = objective_to_head or {}
+    for objective in _objective_names(metrics):
+        _write_head_metric_lines(
+            figures_dir,
+            metrics,
+            objective_name=objective,
+            head_name=objective_to_head.get(objective, objective),
         )
 
 
@@ -232,8 +354,7 @@ def _per_class_metrics(
     return metrics
 
 
-def _write_result_figures(figures_dir: Path, results_dir: Path) -> None:
-    rows = _classification_rows(results_dir)
+def _write_result_figures_for_rows(figures_dir: Path, rows: list[dict[str, Any]]) -> None:
     if not rows:
         return
     labels, matrix = _confusion_payload(rows)
@@ -296,19 +417,31 @@ def _write_result_figures(figures_dir: Path, results_dir: Path) -> None:
     )
 
 
+def _write_result_figures(figures_dir: Path, results_dir: Path) -> None:
+    rows = _classification_rows(results_dir)
+    rows_by_head: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for row in rows:
+        head_name = row.get("head_name")
+        if head_name:
+            rows_by_head[str(head_name)].append(row)
+    for head_name, head_rows in rows_by_head.items():
+        _write_result_figures_for_rows(figures_dir / head_name, head_rows)
+
+
 def write_training_figures(
     *,
     metrics_csv: Path,
     figures_dir: Path,
     results_dir: Path | None,
+    objective_to_head: dict[str, str] | None = None,
 ) -> list[Path]:
     """Write all available supervised training figures and return their paths."""
 
-    before = set(figures_dir.glob("*.html")) if figures_dir.exists() else set()
+    before = set(figures_dir.rglob("*.html")) if figures_dir.exists() else set()
     metrics = _read_merged_metrics(metrics_csv)
     if metrics:
-        _write_metric_lines(figures_dir, metrics)
+        _write_metric_lines(figures_dir, metrics, objective_to_head=objective_to_head)
     if results_dir is not None and results_dir.exists():
         _write_result_figures(figures_dir, results_dir)
-    after = set(figures_dir.glob("*.html")) if figures_dir.exists() else set()
+    after = set(figures_dir.rglob("*.html")) if figures_dir.exists() else set()
     return sorted(after - before)

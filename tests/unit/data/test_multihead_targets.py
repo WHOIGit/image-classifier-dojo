@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import pyarrow as pa
+import pyarrow.parquet as pq
+
 from dojo.config_loader import resolve_runtime_and_paths
 from dojo.config_schemas import RootConfig
+from dojo.data.contract import MISSING_TARGET_INDEX
 from dojo.data import build_dataloader, build_datasets, sample_weights_for_dataset
 from dojo.data.inspect import inspect_dataset
 from tests.fixtures.configs import toy_config_dict
@@ -100,3 +104,137 @@ def test_multihead_inspect_dataset_reports_each_head_mapping(tmp_path):
         "0": "artifact",
         "1": "organism",
     }
+
+
+def test_mask_objective_targets_emit_ignore_index_and_skip_counts(tmp_path):
+    manifest = write_manifest_images_dataset(
+        tmp_path / "sparse",
+        labels=[0, 1, 0, 1],
+        coarse_labels=[0, None, 1, None],
+        coarse_names=["artifact", None, "organism", None],
+    )
+    table = pq.read_table(manifest)
+    table = table.set_column(
+        table.column_names.index("coarse_label"),
+        "coarse_label",
+        pa.array([0, None, 1, None], type=pa.int64()),
+    )
+    table = table.set_column(
+        table.column_names.index("coarse_name"),
+        "coarse_name",
+        pa.array(["artifact", None, "organism", None], type=pa.string()),
+    )
+    pq.write_table(table, manifest)
+
+    raw = toy_config_dict(canvas=(16, 16), batch_size=2)
+    raw["data"] = {
+        "backend": "parquet_manifest",
+        "manifest_uri": str(manifest),
+        "split_column": "split",
+        "sample_id_column": "sample_id",
+        "image_uri_column": "image_uri",
+        "targets": {
+            "species": {
+                "label_index_column": "label",
+                "label_name_column": "classname",
+                "type": "multiclass_classification",
+                "missing_policy": "error",
+            },
+            "coarse": {
+                "label_index_column": "coarse_label",
+                "label_name_column": "coarse_name",
+                "type": "multiclass_classification",
+                "missing_policy": "mask_objective",
+            },
+        },
+    }
+    raw["model"]["heads"]["coarse"] = {
+        "type": "multiclass_classification",
+        "target": "coarse",
+        "num_classes": 2,
+        "network": {"type": "linear"},
+    }
+    raw["objectives"]["coarse"] = {
+        "head": "coarse",
+        "loss": "cross_entropy",
+        "metrics": ["f1_macro"],
+        "weight": 1.0,
+    }
+    cfg = resolve_runtime_and_paths(RootConfig.model_validate(raw)).config
+
+    bundle = build_datasets(cfg)
+
+    assert bundle.class_counts_by_target["train"]["coarse"] == {0: 1, 1: 1}
+    train = bundle.datasets["train"]
+    assert [train.target_for_index(i, "coarse") for i in range(len(train))] == [
+        0,
+        MISSING_TARGET_INDEX,
+        1,
+    ]
+
+
+def test_drop_sample_targets_filter_rows_with_missing_labels(tmp_path):
+    manifest = write_manifest_images_dataset(
+        tmp_path / "drop-sparse",
+        labels=[0, 1, 0, 1],
+        coarse_labels=[0, None, 1, None],
+        coarse_names=["artifact", None, "organism", None],
+    )
+    table = pq.read_table(manifest)
+    table = table.set_column(
+        table.column_names.index("coarse_label"),
+        "coarse_label",
+        pa.array([0, None, 1, None], type=pa.int64()),
+    )
+    table = table.set_column(
+        table.column_names.index("coarse_name"),
+        "coarse_name",
+        pa.array(["artifact", None, "organism", None], type=pa.string()),
+    )
+    pq.write_table(table, manifest)
+
+    raw = toy_config_dict(canvas=(16, 16), batch_size=2)
+    raw["data"] = {
+        "backend": "parquet_manifest",
+        "manifest_uri": str(manifest),
+        "split_column": "split",
+        "sample_id_column": "sample_id",
+        "image_uri_column": "image_uri",
+        "targets": {
+            "species": {
+                "label_index_column": "label",
+                "label_name_column": "classname",
+                "type": "multiclass_classification",
+                "missing_policy": "error",
+            },
+            "coarse": {
+                "label_index_column": "coarse_label",
+                "label_name_column": "coarse_name",
+                "type": "multiclass_classification",
+                "missing_policy": "drop_sample",
+            },
+        },
+    }
+    raw["model"]["heads"]["coarse"] = {
+        "type": "multiclass_classification",
+        "target": "coarse",
+        "num_classes": 2,
+        "network": {"type": "linear"},
+    }
+    raw["objectives"]["coarse"] = {
+        "head": "coarse",
+        "loss": "cross_entropy",
+        "metrics": ["f1_macro"],
+        "weight": 1.0,
+    }
+    cfg = resolve_runtime_and_paths(RootConfig.model_validate(raw)).config
+
+    bundle = build_datasets(cfg)
+
+    assert len(bundle.datasets["train"]) == 2
+    assert len(bundle.datasets["val"]) == 0
+    assert bundle.class_counts_by_target["train"]["coarse"] == {0: 1, 1: 1}
+    assert [bundle.datasets["train"].target_for_index(i, "coarse") for i in range(2)] == [
+        0,
+        1,
+    ]

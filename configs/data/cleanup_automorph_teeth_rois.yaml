@@ -1,0 +1,290 @@
+backend: parquet_manifest
+manifest_uri: ./datasets/cleanup-automorph-teeth-rois/data.parquet
+split_column: split
+sample_id_column: sample_id
+image_uri_column: image_uri
+source_extra_columns:
+- ffid
+- roi_filename
+- roi_parent_dir
+- Type
+- Age
+- Depth
+- Age (Ma)
+- stage
+targets:
+  z1:
+    label_index_column: z1_label
+    label_name_column: z1_label_name
+    type: multiclass_classification
+    missing_policy: mask_objective
+  z2:
+    label_index_column: z2_label
+    label_name_column: z2_label_name
+    type: multiclass_classification
+    missing_policy: mask_objective
+  a1:
+    label_index_column: a1_label
+    label_name_column: a1_label_name
+    type: multiclass_classification
+    missing_policy: mask_objective
+  a2:
+    label_index_column: a2_label
+    label_name_column: a2_label_name
+    type: multiclass_classification
+    missing_policy: mask_objective
+  a3:
+    label_index_column: a3_label
+    label_name_column: a3_label_name
+    type: multiclass_classification
+    missing_policy: mask_objective
+  a4:
+    label_index_column: a4_label
+    label_name_column: a4_label_name
+    type: multiclass_classification
+    missing_policy: mask_objective
+  b1:
+    label_index_column: b1_label
+    label_name_column: b1_label_name
+    type: multiclass_classification
+    missing_policy: mask_objective
+  b2:
+    label_index_column: b2_label
+    label_name_column: b2_label_name
+    type: multiclass_classification
+    missing_policy: mask_objective
+  b3:
+    label_index_column: b3_label
+    label_name_column: b3_label_name
+    type: multiclass_classification
+    missing_policy: mask_objective
+  c1:
+    label_index_column: c1_label
+    label_name_column: c1_label_name
+    type: multiclass_classification
+    missing_policy: mask_objective
+  c2:
+    label_index_column: c2_label
+    label_name_column: c2_label_name
+    type: multiclass_classification
+    missing_policy: mask_objective
+  c3:
+    label_index_column: c3_label
+    label_name_column: c3_label_name
+    type: multiclass_classification
+    missing_policy: mask_objective
+  d1:
+    label_index_column: d1_label
+    label_name_column: d1_label_name
+    type: multiclass_classification
+    missing_policy: mask_objective
+  d2:
+    label_index_column: d2_label
+    label_name_column: d2_label_name
+    type: multiclass_classification
+    missing_policy: mask_objective
+  e1:
+    label_index_column: e1_label
+    label_name_column: e1_label_name
+    type: multiclass_classification
+    missing_policy: mask_objective
+  e2:
+    label_index_column: e2_label
+    label_name_column: e2_label_name
+    type: multiclass_classification
+    missing_policy: mask_objective
+  e3:
+    label_index_column: e3_label
+    label_name_column: e3_label_name
+    type: multiclass_classification
+    missing_policy: mask_objective
+  e4:
+    label_index_column: e4_label
+    label_name_column: e4_label_name
+    type: multiclass_classification
+    missing_policy: mask_objective
+  e5:
+    label_index_column: e5_label
+    label_name_column: e5_label_name
+    type: multiclass_classification
+    missing_policy: mask_objective
+  e6:
+    label_index_column: e6_label
+    label_name_column: e6_label_name
+    type: multiclass_classification
+    missing_policy: mask_objective
+  e7:
+    label_index_column: e7_label
+    label_name_column: e7_label_name
+    type: multiclass_classification
+    missing_policy: mask_objective
+  e8:
+    label_index_column: e8_label
+    label_name_column: e8_label_name
+    type: multiclass_classification
+    missing_policy: mask_objective
+  e9:
+    label_index_column: e9_label
+    label_name_column: e9_label_name
+    type: multiclass_classification
+    missing_policy: mask_objective
+  f1:
+    label_index_column: f1_label
+    label_name_column: f1_label_name
+    type: multiclass_classification
+    missing_policy: mask_objective
+  f2:
+    label_index_column: f2_label
+    label_name_column: f2_label_name
+    type: multiclass_classification
+    missing_policy: mask_objective
+  f3:
+    label_index_column: f3_label
+    label_name_column: f3_label_name
+    type: multiclass_classification
+    missing_policy: mask_objective
+  f4:
+    label_index_column: f4_label
+    label_name_column: f4_label_name
+    type: multiclass_classification
+    missing_policy: mask_objective
+  f5:
+    label_index_column: f5_label
+    label_name_column: f5_label_name
+    type: multiclass_classification
+    missing_policy: mask_objective
+  f6:
+    label_index_column: f6_label
+    label_name_column: f6_label_name
+    type: multiclass_classification
+    missing_policy: mask_objective
+  f7:
+    label_index_column: f7_label
+    label_name_column: f7_label_name
+    type: multiclass_classification
+    missing_policy: mask_objective
+  f8:
+    label_index_column: f8_label
+    label_name_column: f8_label_name
+    type: multiclass_classification
+    missing_policy: mask_objective
+  g2:
+    label_index_column: g2_label
+    label_name_column: g2_label_name
+    type: multiclass_classification
+    missing_policy: mask_objective
+  g3:
+    label_index_column: g3_label
+    label_name_column: g3_label_name
+    type: multiclass_classification
+    missing_policy: mask_objective
+  g4:
+    label_index_column: g4_label
+    label_name_column: g4_label_name
+    type: multiclass_classification
+    missing_policy: mask_objective
+  g5:
+    label_index_column: g5_label
+    label_name_column: g5_label_name
+    type: multiclass_classification
+    missing_policy: mask_objective
+  g6:
+    label_index_column: g6_label
+    label_name_column: g6_label_name
+    type: multiclass_classification
+    missing_policy: mask_objective
+  g7:
+    label_index_column: g7_label
+    label_name_column: g7_label_name
+    type: multiclass_classification
+    missing_policy: mask_objective
+  g8:
+    label_index_column: g8_label
+    label_name_column: g8_label_name
+    type: multiclass_classification
+    missing_policy: mask_objective
+  h1:
+    label_index_column: h1_label
+    label_name_column: h1_label_name
+    type: multiclass_classification
+    missing_policy: mask_objective
+  h2:
+    label_index_column: h2_label
+    label_name_column: h2_label_name
+    type: multiclass_classification
+    missing_policy: mask_objective
+  h3:
+    label_index_column: h3_label
+    label_name_column: h3_label_name
+    type: multiclass_classification
+    missing_policy: mask_objective
+  h4:
+    label_index_column: h4_label
+    label_name_column: h4_label_name
+    type: multiclass_classification
+    missing_policy: mask_objective
+  i1:
+    label_index_column: i1_label
+    label_name_column: i1_label_name
+    type: multiclass_classification
+    missing_policy: mask_objective
+  i2:
+    label_index_column: i2_label
+    label_name_column: i2_label_name
+    type: multiclass_classification
+    missing_policy: mask_objective
+  i3:
+    label_index_column: i3_label
+    label_name_column: i3_label_name
+    type: multiclass_classification
+    missing_policy: mask_objective
+  i4:
+    label_index_column: i4_label
+    label_name_column: i4_label_name
+    type: multiclass_classification
+    missing_policy: mask_objective
+  j1:
+    label_index_column: j1_label
+    label_name_column: j1_label_name
+    type: multiclass_classification
+    missing_policy: mask_objective
+  j2:
+    label_index_column: j2_label
+    label_name_column: j2_label_name
+    type: multiclass_classification
+    missing_policy: mask_objective
+  j3:
+    label_index_column: j3_label
+    label_name_column: j3_label_name
+    type: multiclass_classification
+    missing_policy: mask_objective
+  j4:
+    label_index_column: j4_label
+    label_name_column: j4_label_name
+    type: multiclass_classification
+    missing_policy: mask_objective
+  k1:
+    label_index_column: k1_label
+    label_name_column: k1_label_name
+    type: multiclass_classification
+    missing_policy: mask_objective
+  l1:
+    label_index_column: l1_label
+    label_name_column: l1_label_name
+    type: multiclass_classification
+    missing_policy: mask_objective
+  l2:
+    label_index_column: l2_label
+    label_name_column: l2_label_name
+    type: multiclass_classification
+    missing_policy: mask_objective
+  m1:
+    label_index_column: m1_label
+    label_name_column: m1_label_name
+    type: multiclass_classification
+    missing_policy: mask_objective
+  m2:
+    label_index_column: m2_label
+    label_name_column: m2_label_name
+    type: multiclass_classification
+    missing_policy: mask_objective
