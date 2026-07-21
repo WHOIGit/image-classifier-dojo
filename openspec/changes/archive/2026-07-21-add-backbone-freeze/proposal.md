@@ -1,6 +1,6 @@
 ## Why
 
-Workplan P3 transfer-learning experiments (`REPORTS/TRAINING-PLANS-P2.md`
+Workplan P3 transfer-learning experiments (`REPORTS/P2-TRAINING-PLANS.md`
 groups 07/08) need to hold a pretrained backbone fixed and train only the
 heads / embedding adapter. Until now `training.freeze.backbone.policy`
 accepted only `none`, so frozen-backbone transfer was impossible and

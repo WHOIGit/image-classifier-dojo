@@ -1,13 +1,16 @@
 ## 1. NES GPU experiment campaign
 
-- [ ] 1.1 Run `nes_effb0_224_baseline` on the GPU host, no pilot overrides
-- [ ] 1.2 Run `nes_effb0_buckets`
-- [ ] 1.3 Run `nes_effb0_weighted`
-- [ ] 1.4 Run `nes_effb0_buckets_weighted`
-- [ ] 1.5 Record final metrics/figures in `REPORTS/report-P2.md` and close
-      the hardware item in `QUESTIONS-FOR-SIDNEY.md`
-- [ ] 1.6 Verification: compare the four runs' `metrics/metrics.csv` and
-      figures; confirm result Parquet loads via the results reader
+- [ ] 1.1 Run the `00_baseline` config on the GPU host, no pilot overrides
+- [ ] 1.2 Run the `04_imbalance` group (label-smoothing, focal, weighted-CE,
+      class-balanced sampler, weighted sampler)
+- [ ] 1.3 Run the `05_input-fit` group (letterbox, aspect-buckets)
+- [ ] 1.4 Run the remaining single-head groups per `REPORTS/P2-TRAINING-PLANS.md`
+      (`01_architecture`, `02_provider`, `03_pretraining-and-normalization`,
+      `06_augmentation`)
+- [ ] 1.5 Record final metrics/figures in `REPORTS/P2-report.md`
+      and close the hardware item in `QUESTIONS-FOR-SIDNEY.md`
+- [ ] 1.6 Verification: compare the runs' `metrics/metrics.csv` and figures;
+      confirm result Parquet loads via the results reader
 
 ## 2. Multihead first-runs review
 

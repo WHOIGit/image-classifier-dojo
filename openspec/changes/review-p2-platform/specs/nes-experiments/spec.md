@@ -1,17 +1,15 @@
 ## ADDED Requirements
 
 ### Requirement: Committed NES experiment configs
-The four committed P2 NES experiment configs SHALL pass
+The P2 NES experiment configs under `configs/experiment/p2/` SHALL pass
 `dojo inspect config`, and their final reported metrics SHALL come from
-GPU runs without pilot overrides, recorded in `REPORTS/report-P2.md`.
-The configs are `configs/experiment/p2/nes_effb0_224_baseline.yaml`,
-`nes_effb0_buckets.yaml`, `nes_effb0_weighted.yaml`, and
-`nes_effb0_buckets_weighted.yaml`.
+GPU runs without pilot overrides, recorded in `REPORTS/P2-report.md`. The current experiment matrix is described in
+`REPORTS/P2-TRAINING-PLANS.md`.
 
 #### Scenario: Config validity
-- **WHEN** `dojo inspect config --format json` runs on each of the four
-  configs
-- **THEN** all four compose and validate
+- **WHEN** `dojo inspect config --format json` runs on each committed
+  `configs/experiment/p2/` config
+- **THEN** every config composes and validates
 
 #### Scenario: Final numbers are GPU numbers
 - **WHEN** P2 experiment results are cited
