@@ -1,0 +1,21 @@
+# Single-head ichthyolith denticle "Type" classification from the locally
+# annotated split CSV. `image_uri` holds absolute ROI paths; `split` is the
+# coverage-optimized split (see local_annotated_denticle_rois_split.csv).
+# Type is a coarse morphotype label; blank rows are dropped for this head.
+# Selectable as `data=ichthyoliths_denticle_type`. Run from the repo root.
+backend: csv_manifest
+manifest_uri: ./datasets/ichthyoliths/local_annotated_denticle_rois_split.csv
+split_column: split
+sample_id_column: ffid
+image_uri_column: image_uri
+source_extra_columns:
+  - roi_filename
+  - roi_parent_dir
+  - Age
+  - Depth
+  - stage
+targets:
+  Type:
+    label_name_column: Type
+    type: multiclass_classification
+    missing_policy: drop_sample

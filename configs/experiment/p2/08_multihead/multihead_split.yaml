@@ -1,0 +1,8 @@
+# @package _global_
+# 46 morphology heads on the coverage-optimized split.
+defaults:
+  - /experiment/p2/08_multihead/_base
+  - _self_
+
+experiment:
+  name: p2_multihead_split

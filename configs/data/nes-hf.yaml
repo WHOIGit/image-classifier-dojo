@@ -1,0 +1,30 @@
+# NES-plankton-classifier-2022 dataset as downloaded from HuggingFace into
+# ./datasets/nes-hf/data (parquet shards with HF ClassLabel metadata, 155 species).
+# Splits are encoded in filenames (train-*.parquet / validation-*.parquet).
+# Under ./configs so it is selectable as `data=nes-hf`. Run from the repo root.
+backend: parquet_images
+manifest_uri: ./datasets/nes-hf/data
+file_pattern: "*.parquet"
+split_from_filename:
+  train: "train-*.parquet"
+  val: "validation-*.parquet"
+sample_id_column: ifcb_roi_pid
+images:
+  column: image
+  bytes_field: bytes
+  path_field: path
+image_cache:
+  enabled: true
+  dir: null
+  progress: true
+  force_rebuild: false
+  clobber: false
+  cache_bust: null
+source_extra_columns:
+  - classname
+targets:
+  species:
+    label_index_column: label
+    label_name_column: classname
+    type: multiclass_classification
+    missing_policy: error

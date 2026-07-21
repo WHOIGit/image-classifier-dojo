@@ -1,0 +1,12 @@
+# @package _global_
+# 46 morphology heads plus a Type head weighted 3x in the total loss.
+defaults:
+  - /experiment/p2/08_multihead/multihead_type
+  - _self_
+
+experiment:
+  name: p2_multihead_type_weighted
+
+objectives:
+  Type:
+    weight: 3.0

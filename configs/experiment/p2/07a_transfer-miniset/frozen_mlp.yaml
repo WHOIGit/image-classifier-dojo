@@ -1,0 +1,21 @@
+# @package _global_
+defaults:
+  - /experiment/p2/07a_transfer-miniset/_base
+  - _self_
+
+experiment:
+  name: p2_transfer_miniset_frozen_mlp
+
+model:
+  embedding_adapter:
+    enabled: true
+    type: mlp
+    output_dim: 512
+    hidden_dims: [512]
+    activation: gelu
+    dropout: 0.1
+
+training:
+  freeze:
+    backbone:
+      policy: frozen

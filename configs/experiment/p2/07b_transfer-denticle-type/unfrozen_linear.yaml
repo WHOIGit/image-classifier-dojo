@@ -1,0 +1,18 @@
+# @package _global_
+defaults:
+  - /experiment/p2/07b_transfer-denticle-type/_base
+  - _self_
+
+experiment:
+  name: p2_transfer_type_unfrozen_linear
+
+model:
+  embedding_adapter:
+    enabled: true
+    type: linear
+    output_dim: 512
+
+training:
+  freeze:
+    backbone:
+      policy: none

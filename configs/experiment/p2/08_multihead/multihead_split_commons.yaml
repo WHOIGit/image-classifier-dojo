@@ -1,0 +1,11 @@
+# @package _global_
+# 46 morphology heads on the commons-weighted split.
+defaults:
+  - /experiment/p2/08_multihead/_base
+  - _self_
+
+experiment:
+  name: p2_multihead_split_commons
+
+data:
+  split_column: split-commons

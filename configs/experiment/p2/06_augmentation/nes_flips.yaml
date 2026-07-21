@@ -1,0 +1,8 @@
+# @package _global_
+# H+V flip augmentation (== baseline augmentation), named for the ablation.
+defaults:
+  - /experiment/p2/00_baseline/nes_baseline
+  - _self_
+
+experiment:
+  name: p2_aug_flips

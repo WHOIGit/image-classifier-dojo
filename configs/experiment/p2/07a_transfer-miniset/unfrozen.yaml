@@ -1,0 +1,16 @@
+# @package _global_
+defaults:
+  - /experiment/p2/07a_transfer-miniset/_base
+  - _self_
+
+experiment:
+  name: p2_transfer_miniset_unfrozen
+
+model:
+  embedding_adapter:
+    enabled: false
+
+training:
+  freeze:
+    backbone:
+      policy: none

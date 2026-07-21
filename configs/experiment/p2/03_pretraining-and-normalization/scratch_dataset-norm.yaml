@@ -1,0 +1,33 @@
+# @package _global_
+# pretrained=False, normalization=dataset (NES).
+defaults:
+  - /experiment/p2/00_baseline/nes_baseline
+  - _self_
+
+experiment:
+  name: p2_scratch_dataset_norm
+
+model:
+  image_input:
+    backbone:
+      weights:
+        source: none
+transforms:
+  image_mode: rgb
+  input_bit_depth: 8
+  pipeline:
+    - name: resize
+      size: [224, 224]
+    - name: horizontal_flip
+      p: 0.5
+      train_only: true
+    - name: vertical_flip
+      p: 0.5
+      train_only: true
+    - name: normalize
+      mode: fixed
+      mean: [0.6425475478172302, 0.6425475478172302, 0.6425475478172302]
+      std: [0.19147475063800812, 0.19147475063800812, 0.19147475063800812]
+
+training:
+  max_epochs: 30

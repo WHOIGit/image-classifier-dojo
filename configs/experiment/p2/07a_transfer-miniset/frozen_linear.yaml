@@ -1,0 +1,18 @@
+# @package _global_
+defaults:
+  - /experiment/p2/07a_transfer-miniset/_base
+  - _self_
+
+experiment:
+  name: p2_transfer_miniset_frozen_linear
+
+model:
+  embedding_adapter:
+    enabled: true
+    type: linear
+    output_dim: 512
+
+training:
+  freeze:
+    backbone:
+      policy: frozen

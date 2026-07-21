@@ -1,0 +1,13 @@
+# @package _global_
+# Class-balanced sampler over the species head; plain CE.
+defaults:
+  - /experiment/p2/00_baseline/nes_baseline
+  - _self_
+
+experiment:
+  name: p2_imbalance_class_balanced_sampler
+
+training:
+  sampler:
+    type: class_balanced
+    head: species

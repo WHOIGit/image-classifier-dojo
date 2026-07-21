@@ -1,0 +1,20 @@
+# @package _global_
+# timm vit_base_patch16_224. Provider held to timm; compare against the matching architecture
+# under 01_architecture (torchvision).
+defaults:
+  - /experiment/p2/00_baseline/nes_baseline
+  - _self_
+
+experiment:
+  name: p2_provider_timm_vit_base
+
+model:
+  image_input:
+    backbone:
+      architecture:
+        source: timm
+        name: vit_base_patch16_224
+        output_dim: auto
+        input_channels: 3
+      weights:
+        source: library

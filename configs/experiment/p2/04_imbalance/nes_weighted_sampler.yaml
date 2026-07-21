@@ -1,0 +1,14 @@
+# @package _global_
+# Inverse-frequency weighted sampler over the species head; plain CE.
+defaults:
+  - /experiment/p2/00_baseline/nes_baseline
+  - _self_
+
+experiment:
+  name: p2_imbalance_weighted_sampler
+
+training:
+  sampler:
+    type: weighted
+    head: species
+    class_weight_scheme: inverse_frequency

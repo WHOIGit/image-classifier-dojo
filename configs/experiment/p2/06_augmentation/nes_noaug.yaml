@@ -1,0 +1,19 @@
+# @package _global_
+# No augmentation: resize + normalize only.
+defaults:
+  - /experiment/p2/00_baseline/nes_baseline
+  - _self_
+
+experiment:
+  name: p2_aug_none
+
+transforms:
+  image_mode: rgb
+  input_bit_depth: 8
+  pipeline:
+    - name: resize
+      size: [224, 224]
+    - name: normalize
+      mode: fixed
+      mean: [0.485, 0.456, 0.406]
+      std: [0.229, 0.224, 0.225]

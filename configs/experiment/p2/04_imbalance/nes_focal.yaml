@@ -1,0 +1,15 @@
+# @package _global_
+# Focal loss (gamma=2.0).
+defaults:
+  - /experiment/p2/00_baseline/nes_baseline
+  - _self_
+
+experiment:
+  name: p2_imbalance_focal
+
+objectives:
+  species:
+    loss:
+      type: focal_loss
+      params:
+        gamma: 2.0

@@ -1,0 +1,15 @@
+# @package _global_
+# torchvision convnext_tiny. Provider held to torchvision; compare against the same
+# architecture under 02_provider (timm) to isolate the provider effect.
+defaults:
+  - /experiment/p2/00_baseline/nes_baseline
+  - _self_
+
+experiment:
+  name: p2_arch_tv_convnext_tiny
+
+model:
+  image_input:
+    backbone:
+      architecture:
+        name: convnext_tiny

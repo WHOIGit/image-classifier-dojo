@@ -1,0 +1,207 @@
+# Multi-head ichthyolith denticle morphology (A1-O10) plus the coarse Type
+# label, from the locally annotated split CSV. `image_uri` holds absolute ROI
+# paths. `split` is the coverage-optimized split; override data.split_column to
+# `split-commons` for the commons-weighted variant. All heads use
+# mask_objective so blank cells mask the per-head loss instead of dropping the
+# whole row (the morphological columns are sparse). Type uses mask_objective
+# too. Selectable as `data=ichthyoliths_denticle_multihead`. Run from repo root.
+backend: csv_manifest
+manifest_uri: ./datasets/ichthyoliths/local_annotated_denticle_rois_split.csv
+split_column: split
+sample_id_column: ffid
+image_uri_column: image_uri
+source_extra_columns:
+  - roi_filename
+  - roi_parent_dir
+  - Age
+  - Depth
+  - stage
+targets:
+  A1:
+    label_name_column: A1
+    type: multiclass_classification
+    missing_policy: mask_objective
+  A2:
+    label_name_column: A2
+    type: multiclass_classification
+    missing_policy: mask_objective
+  B1:
+    label_name_column: B1
+    type: multiclass_classification
+    missing_policy: mask_objective
+  B2:
+    label_name_column: B2
+    type: multiclass_classification
+    missing_policy: mask_objective
+  B3:
+    label_name_column: B3
+    type: multiclass_classification
+    missing_policy: mask_objective
+  C1:
+    label_name_column: C1
+    type: multiclass_classification
+    missing_policy: mask_objective
+  C2:
+    label_name_column: C2
+    type: multiclass_classification
+    missing_policy: mask_objective
+  C3:
+    label_name_column: C3
+    type: multiclass_classification
+    missing_policy: mask_objective
+  D1:
+    label_name_column: D1
+    type: multiclass_classification
+    missing_policy: mask_objective
+  E1:
+    label_name_column: E1
+    type: multiclass_classification
+    missing_policy: mask_objective
+  E2:
+    label_name_column: E2
+    type: multiclass_classification
+    missing_policy: mask_objective
+  E3:
+    label_name_column: E3
+    type: multiclass_classification
+    missing_policy: mask_objective
+  E4:
+    label_name_column: E4
+    type: multiclass_classification
+    missing_policy: mask_objective
+  F1:
+    label_name_column: F1
+    type: multiclass_classification
+    missing_policy: mask_objective
+  G1:
+    label_name_column: G1
+    type: multiclass_classification
+    missing_policy: mask_objective
+  G2:
+    label_name_column: G2
+    type: multiclass_classification
+    missing_policy: mask_objective
+  G3:
+    label_name_column: G3
+    type: multiclass_classification
+    missing_policy: mask_objective
+  H1:
+    label_name_column: H1
+    type: multiclass_classification
+    missing_policy: mask_objective
+  I1:
+    label_name_column: I1
+    type: multiclass_classification
+    missing_policy: mask_objective
+  I2:
+    label_name_column: I2
+    type: multiclass_classification
+    missing_policy: mask_objective
+  I3:
+    label_name_column: I3
+    type: multiclass_classification
+    missing_policy: mask_objective
+  J1:
+    label_name_column: J1
+    type: multiclass_classification
+    missing_policy: mask_objective
+  J2:
+    label_name_column: J2
+    type: multiclass_classification
+    missing_policy: mask_objective
+  K1:
+    label_name_column: K1
+    type: multiclass_classification
+    missing_policy: mask_objective
+  K2:
+    label_name_column: K2
+    type: multiclass_classification
+    missing_policy: mask_objective
+  L1:
+    label_name_column: L1
+    type: multiclass_classification
+    missing_policy: mask_objective
+  L2:
+    label_name_column: L2
+    type: multiclass_classification
+    missing_policy: mask_objective
+  L3:
+    label_name_column: L3
+    type: multiclass_classification
+    missing_policy: mask_objective
+  L4:
+    label_name_column: L4
+    type: multiclass_classification
+    missing_policy: mask_objective
+  M1:
+    label_name_column: M1
+    type: multiclass_classification
+    missing_policy: mask_objective
+  M2:
+    label_name_column: M2
+    type: multiclass_classification
+    missing_policy: mask_objective
+  M3:
+    label_name_column: M3
+    type: multiclass_classification
+    missing_policy: mask_objective
+  M4:
+    label_name_column: M4
+    type: multiclass_classification
+    missing_policy: mask_objective
+  N1:
+    label_name_column: N1
+    type: multiclass_classification
+    missing_policy: mask_objective
+  N2:
+    label_name_column: N2
+    type: multiclass_classification
+    missing_policy: mask_objective
+  N3:
+    label_name_column: N3
+    type: multiclass_classification
+    missing_policy: mask_objective
+  O1:
+    label_name_column: O1
+    type: multiclass_classification
+    missing_policy: mask_objective
+  O2:
+    label_name_column: O2
+    type: multiclass_classification
+    missing_policy: mask_objective
+  O3:
+    label_name_column: O3
+    type: multiclass_classification
+    missing_policy: mask_objective
+  O4:
+    label_name_column: O4
+    type: multiclass_classification
+    missing_policy: mask_objective
+  O5:
+    label_name_column: O5
+    type: multiclass_classification
+    missing_policy: mask_objective
+  O6:
+    label_name_column: O6
+    type: multiclass_classification
+    missing_policy: mask_objective
+  O7:
+    label_name_column: O7
+    type: multiclass_classification
+    missing_policy: mask_objective
+  O8:
+    label_name_column: O8
+    type: multiclass_classification
+    missing_policy: mask_objective
+  O9:
+    label_name_column: O9
+    type: multiclass_classification
+    missing_policy: mask_objective
+  O10:
+    label_name_column: O10
+    type: multiclass_classification
+    missing_policy: mask_objective
+  Type:
+    label_name_column: Type
+    type: multiclass_classification
+    missing_policy: mask_objective

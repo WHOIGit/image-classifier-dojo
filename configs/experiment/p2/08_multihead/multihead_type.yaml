@@ -1,0 +1,26 @@
+# @package _global_
+# 46 morphology heads plus a coarse Type head (all mask_objective).
+defaults:
+  - /experiment/p2/08_multihead/_base
+  - _self_
+
+experiment:
+  name: p2_multihead_type
+
+model:
+  heads:
+    Type:
+      type: multiclass_classification
+      target: Type
+      num_classes: 48
+      network:
+        type: linear
+
+objectives:
+  Type:
+    head: Type
+    loss: cross_entropy
+    metrics:
+      - f1_macro
+      - f1_micro
+    weight: 1.0

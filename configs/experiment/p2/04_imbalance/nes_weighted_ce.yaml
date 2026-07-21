@@ -1,0 +1,15 @@
+# @package _global_
+# Inverse-frequency weighted cross-entropy.
+defaults:
+  - /experiment/p2/00_baseline/nes_baseline
+  - _self_
+
+experiment:
+  name: p2_imbalance_weighted_ce
+
+objectives:
+  species:
+    loss:
+      type: weighted_cross_entropy
+      params:
+        scheme: inverse_frequency

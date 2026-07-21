@@ -1,0 +1,15 @@
+# @package _global_
+# Cross-entropy with label smoothing (0.1). Baseline covers plain CE.
+defaults:
+  - /experiment/p2/00_baseline/nes_baseline
+  - _self_
+
+experiment:
+  name: p2_imbalance_label_smoothing
+
+objectives:
+  species:
+    loss:
+      type: cross_entropy
+      params:
+        label_smoothing: 0.1
