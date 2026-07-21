@@ -38,6 +38,15 @@ def test_explicit_output_dim_mismatch_rejected():
         build_backbone(_backbone_cfg(output_dim=999))
 
 
+def test_builds_torchvision_vit_via_heads_strip():
+    # torchvision vision transformers expose `.heads` (not `.classifier`);
+    # the builder strips it and returns the 768-dim pooled class token.
+    backbone = build_backbone(_backbone_cfg(name="vit_b_16"))
+    assert backbone.output_dim == 768
+    out = backbone.forward_features(torch.randn(2, 3, 224, 224))
+    assert out.shape == (2, 768)
+
+
 def test_non_three_input_channels_rejected():
     with pytest.raises(ValueError, match="input_channels=3"):
         build_backbone(_backbone_cfg(input_channels=1))

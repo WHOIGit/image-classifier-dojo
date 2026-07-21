@@ -65,7 +65,9 @@ def _strip_classifier(model: nn.Module) -> int:
     """Replace the model's final linear projection with identity, returning its in_features.
 
     Covers the ``classifier``-as-``Sequential`` family (efficientnet, mobilenet,
-    convnext, …), which is all P1 needs.
+    convnext, …) and the ``heads``-as-``Sequential`` family used by the
+    torchvision vision transformers (``vit_b_16`` …), whose ``forward`` then
+    returns the pooled class-token embedding.
     """
 
     classifier = getattr(model, "classifier", None)
@@ -73,9 +75,15 @@ def _strip_classifier(model: nn.Module) -> int:
         in_features = classifier[-1].in_features
         model.classifier = nn.Identity()
         return in_features
+    heads = getattr(model, "heads", None)
+    if isinstance(heads, nn.Sequential) and isinstance(heads[-1], nn.Linear):
+        in_features = heads[-1].in_features
+        model.heads = nn.Identity()
+        return in_features
     raise ValueError(
         f"unsupported torchvision head layout on {type(model).__name__}; "
-        "P1 supports the classifier-sequential family (e.g. efficientnet_b0)"
+        "supported: the classifier-sequential family (e.g. efficientnet_b0) "
+        "and the heads-sequential vision transformers (e.g. vit_b_16)"
     )
 
 
