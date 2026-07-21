@@ -1,0 +1,35 @@
+schema: spec-driven
+
+context: |
+  Project: image-classifier-dojo — a Hydra/Pydantic-configured PyTorch
+  Lightning platform for supervised image classification (and later SSL,
+  ensembling, sweeps, export) at WHOI. CLI entry point: `dojo`.
+
+  Authoritative design lives in DESIGN-DOC/ (per-topic numbered files;
+  13-workplan.md is the priority-ordered workplan). REPORTS/ holds dated
+  implementation reports. Priorities P1 (thin end-to-end slice) and P2
+  (core supervised platform: config tree, dataset backends, model
+  composition, transforms/samplers, result hashes, inference/holdout eval)
+  are implemented; P3+ (export, ensembling, sweeps, SSL, IFCB bins,
+  tabular input) are not started and live as changes here.
+
+  Conventions:
+  - Python >= 3.11 (dev shell uses 3.14), src/dojo package, tests/ with
+    unit + integration; expensive tests behind `--run-expensive`.
+  - Strict Pydantic schema: deferred features are absent from the schema,
+    never stubbed with NotImplementedError.
+  - Canonical results are tall Parquet via amplify-db-utils with a
+    _metadata.json sidecar; identity via content hashes (config_hash,
+    dataset_hash, model_config_hash, preprocessing_hash, head_hash, ...).
+  - Packaged Hydra defaults ship in src/dojo/config_defaults/; the
+    project-root ./configs is the local override shadow.
+  - Specs in openspec/specs/ document implemented behavior; keep them in
+    sync with DESIGN-DOC/ (design doc = intent, specs = shipped contract).
+
+rules:
+  proposal:
+    - Reference the relevant DESIGN-DOC/ sections and workplan priority
+      (e.g. P3.2) in the Why section.
+  tasks:
+    - Every task group ends with a verification task naming the focused
+      test paths to run.
