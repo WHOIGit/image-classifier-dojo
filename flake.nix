@@ -18,6 +18,7 @@
     in
     {
       devShells.${system}.default = pkgs.mkShell {
+        name = "dojo-shell";
         packages = [
           python
           pkgs.git
