@@ -22,7 +22,7 @@ dependencies = [
   "pyarrow",
   "datasets",
   "duckdb",
-  "amplify-storage-utils @ git+https://github.com/WHOIGit/amplify-storage-utils.git@2255ae7e8c8545244ead3f34f4282331cdfeb41f",
+  "amplify-storage-utils @ git+https://github.com/WHOIGit/amplify-storage-utils.git",
   "amplify-db-utils @ git+https://github.com/WHOIGit/amplify-db-utils.git",
   "typer",
   "rich",

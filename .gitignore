@@ -6,6 +6,7 @@ __pycache__
 
 # ignore venv
 venv/
+.venv/
 
 # ignore environment files
 *.env
@@ -26,9 +27,10 @@ sbatchs/
 logs/
 *.ckpt
 
-DESIGN-DOC-as-pdf.sh
 *.pdf
 pyrightconfig.json
 runs/
 .cache/
 MY-NOTES/
+.claude/
+.codex/skills/
