@@ -30,4 +30,9 @@ transforms:
       std: [0.19147475063800812, 0.19147475063800812, 0.19147475063800812]
 
 training:
-  max_epochs: 30
+  max_epochs: 100
+  early_stopping:
+    enabled: true
+    monitor: val/loss
+    mode: min
+    patience: 10
