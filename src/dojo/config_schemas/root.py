@@ -379,7 +379,7 @@ class ObjectiveConfig(StrictModel):
 
 
 class BackboneFreezeConfig(StrictModel):
-    policy: Literal["none"]
+    policy: Literal["none", "frozen"]
 
 
 class FreezeConfig(StrictModel):

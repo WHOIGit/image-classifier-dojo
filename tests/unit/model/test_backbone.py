@@ -82,3 +82,9 @@ def test_freeze_policy_none_is_noop():
     backbone = build_backbone(_backbone_cfg())
     apply_freeze_policy(backbone, BackboneFreezeConfig(policy="none"))
     assert all(p.requires_grad for p in backbone.parameters())
+
+
+def test_freeze_policy_frozen_disables_backbone_grads():
+    backbone = build_backbone(_backbone_cfg())
+    apply_freeze_policy(backbone, BackboneFreezeConfig(policy="frozen"))
+    assert not any(p.requires_grad for p in backbone.parameters())

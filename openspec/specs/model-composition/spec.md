@@ -5,9 +5,7 @@
 Backbone registry, heads, objectives, multi-head normalization, and the
 embedding adapter for supervised models. Source design:
 `DESIGN-DOC/05-models-training-and-heads.md` (workplan P2.3).
-
 ## Requirements
-
 ### Requirement: Backbone registry
 The backbone registry SHALL support `architecture.source: torchvision`
 (open architecture-name string) and `architecture.source: timm` (gated
@@ -56,3 +54,22 @@ Packaged config groups SHALL include torchvision defaults and
 #### Scenario: Experiment selects packaged timm backbone
 - **WHEN** an authored experiment selects the packaged timm default
 - **THEN** config composition and validation succeed
+
+### Requirement: Backbone freeze policy
+The backbone freeze policy `training.freeze.backbone.policy` SHALL support
+`none` (fully trainable, the default) and `frozen`. When `frozen`, the
+system SHALL set `requires_grad=False` on every backbone parameter at model
+build and SHALL exclude those parameters from the optimizer, so a
+pretrained or checkpoint-initialized backbone stays fixed while heads and
+any embedding adapter train.
+
+#### Scenario: Frozen backbone transfer
+- **WHEN** `training.freeze.backbone.policy: frozen` is set with a
+  checkpoint- or library-initialized backbone
+- **THEN** backbone parameters are not updated during training and only the
+  heads and embedding adapter (if enabled) receive gradients
+
+#### Scenario: Default trainable backbone
+- **WHEN** `training.freeze.backbone.policy` is unset or `none`
+- **THEN** all backbone parameters remain trainable
+

@@ -177,8 +177,12 @@ def build_backbone(cfg: BackboneConfig) -> Backbone:
 
 
 def apply_freeze_policy(backbone: Backbone, cfg: BackboneFreezeConfig) -> None:
-    """Apply the backbone freeze policy. P1 supports ``none`` (fully trainable)."""
+    """Apply the backbone freeze policy."""
 
     if cfg.policy == "none":
         return
-    raise NotImplementedError(f"freeze policy {cfg.policy!r} is not implemented in P1")
+    if cfg.policy == "frozen":
+        for param in backbone.parameters():
+            param.requires_grad = False
+        return
+    raise NotImplementedError(f"freeze policy {cfg.policy!r} is not implemented")

@@ -93,8 +93,9 @@ class SupervisedTaskModule(L.LightningModule):
 
     def configure_optimizers(self):
         cfg = self._optimizer_config
+        trainable = [p for p in self.parameters() if p.requires_grad]
         return torch.optim.AdamW(
-            self.parameters(), lr=cfg.lr, weight_decay=cfg.weight_decay
+            trainable, lr=cfg.lr, weight_decay=cfg.weight_decay
         )
 
     def _step(self, batch: SampleBatch, stage: str) -> torch.Tensor:
