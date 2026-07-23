@@ -141,7 +141,10 @@ def _tables_by_split(
 
     def read_table(path: Path) -> pa.Table:
         if cfg.backend == "csv_manifest":
-            return pacsv.read_csv(path).select(columns)
+            return pacsv.read_csv(
+                path,
+                convert_options=pacsv.ConvertOptions(strings_can_be_null=True),
+            ).select(columns)
         if cfg.backend == "parquet_images":
             return read_parquet_images_table(path)
         return pq.read_table(path, columns=columns)

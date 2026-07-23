@@ -18,6 +18,10 @@ task:
 runtime:
   num_workers: 8
   progress_bar: true
+  preflight:
+    checks:
+      empty_train_classes: warn
+      non_contiguous_class_indices: warn
 
 model:
   image_input:

@@ -73,12 +73,15 @@ def _strip_classifier(model: nn.Module) -> int:
     classifier = getattr(model, "classifier", None)
     if isinstance(classifier, nn.Sequential) and isinstance(classifier[-1], nn.Linear):
         in_features = classifier[-1].in_features
-        model.classifier = nn.Identity()
+        # Replace only the final Linear, preserving any Flatten/norm before it
+        # (e.g. convnext's classifier is LayerNorm2d → Flatten → Linear; stripping
+        # the whole Sequential would remove the Flatten and produce (N, D, 1, 1)).
+        classifier[-1] = nn.Identity()
         return in_features
     heads = getattr(model, "heads", None)
     if isinstance(heads, nn.Sequential) and isinstance(heads[-1], nn.Linear):
         in_features = heads[-1].in_features
-        model.heads = nn.Identity()
+        heads[-1] = nn.Identity()
         return in_features
     raise ValueError(
         f"unsupported torchvision head layout on {type(model).__name__}; "

@@ -47,6 +47,16 @@ def test_builds_torchvision_vit_via_heads_strip():
     assert out.shape == (2, 768)
 
 
+def test_builds_torchvision_convnext_emits_flat_embedding():
+    # convnext classifier is LayerNorm2d → Flatten → Linear; stripping only the
+    # final Linear (not the whole Sequential) must preserve the Flatten so the
+    # backbone emits (N, 768) not (N, 768, 1, 1).
+    backbone = build_backbone(_backbone_cfg(name="convnext_tiny"))
+    assert backbone.output_dim == 768
+    out = backbone.forward_features(torch.randn(2, 3, 224, 224))
+    assert out.shape == (2, 768)
+
+
 def test_non_three_input_channels_rejected():
     with pytest.raises(ValueError, match="input_channels=3"):
         build_backbone(_backbone_cfg(input_channels=1))

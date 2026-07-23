@@ -28,7 +28,7 @@ model:
     backbone:
       weights:
         source: checkpoint
-        uri: "./runs/p2_nes_baseline/2026-07-21_16-11-17_neon-wapiti/checkpoints/epoch=7-step=9696.ckpt"
+        uri: "./runs/p2_nes_baseline/2026-07-21_17-47-48_venomous-panda/checkpoints/epoch=15-step=19392.ckpt"
         strict: false
   tabular_input:
     enabled: false
