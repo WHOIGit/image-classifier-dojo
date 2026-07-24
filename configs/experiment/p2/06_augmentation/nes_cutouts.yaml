@@ -1,0 +1,12 @@
+# @package _global_
+# Random erasing / cutout augmentation ablation.
+# NOTE: random_erasing is not yet a supported pipeline step. This experiment
+# config is a placeholder pending the add-cutout-augmentation change. Once
+# implemented, add a random_erasing step (train_only: true) after resize and
+# before normalize.
+defaults:
+  - /experiment/p2/00_baseline/nes_baseline
+  - _self_
+
+experiment:
+  name: p2_aug_cutouts
