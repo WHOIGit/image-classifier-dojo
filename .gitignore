@@ -20,6 +20,7 @@ SCRATCH/
 # Datasets are local by default; the small committed `plankton-miniset` example is the
 # exception (tracked via LFS) so example experiments run on a fresh clone.
 datasets/*
+!datasets/AGENTS.md
 !datasets/plankton-miniset/
 experiments/
 slogs/
