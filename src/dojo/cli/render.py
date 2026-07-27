@@ -46,7 +46,7 @@ def _backup_figures(figures_dir: Path) -> Path | None:
     index = 1
     while (candidate := figures_dir.with_name(f"{figures_dir.name}.{index}")).exists():
         index += 1
-    shutil.copytree(figures_dir, candidate)
+    shutil.move(str(figures_dir), str(candidate))
     return candidate
 
 
@@ -55,7 +55,7 @@ def render_run(
     run_dir: Annotated[Path, typer.Argument(help="Completed run's top-level directory.")],
     backup: Annotated[
         bool,
-        typer.Option("--backup", help="Copy existing figures to figures.N before overwrite."),
+        typer.Option("--backup", help="Move existing figures to figures.N before overwrite."),
     ] = False,
 ) -> None:
     """Regenerate training figures from persisted run artifacts."""

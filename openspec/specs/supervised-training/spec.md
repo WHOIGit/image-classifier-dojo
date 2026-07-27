@@ -139,8 +139,8 @@ training-time output for the same inputs. The command SHALL overwrite the run's
 #### Scenario: Back up existing figures before overwrite
 - **WHEN** `dojo render run <run_dir> --backup` is invoked and `figures/`
   already exists
-- **THEN** the existing `figures/` is copied to the next numeric-incremented
-  sibling directory before the fresh figure set overwrites `figures/`
+- **THEN** the existing `figures/` is moved to the next numeric-incremented
+  sibling directory before the fresh figure set is written to a clean `figures/`
 
 ### Requirement: Streaming result writing
 Training result scoring and inference/eval output writing SHALL flush

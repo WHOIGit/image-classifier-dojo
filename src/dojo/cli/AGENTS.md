@@ -32,7 +32,8 @@ Owns argument parsing, option/override splitting, and human-facing output
   config field is set; otherwise it is display-only.
 - `dojo render run <run_dir>` is artifact-only: it reads the completed run's
   persisted metrics, results, and optional resolved config; it never composes a
-  new run or loads a model. `--backup` copies existing figures to `figures.N`.
+  new run or loads a model. `--backup` moves existing figures to `figures.N`,
+  leaving a clean destination for regenerated output.
 
 ## Verification
 

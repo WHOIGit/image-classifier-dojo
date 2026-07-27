@@ -773,7 +773,7 @@ def _write_confusion_matrix(path: Path, labels: list[str], matrix: list[list[int
             "id": "norm",
             "kind": "buttons",
             "label": "Values",
-            "default": "counts",
+            "default": "recall",
             "options": [
                 {"value": "counts", "label": "Counts"},
                 {"value": "recall", "label": "Row-Normalized"},

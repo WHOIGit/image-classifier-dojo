@@ -96,6 +96,7 @@ def test_render_run_backup_preserves_previous_figures(tmp_path):
     assert result.exit_code == 0, result.output
     assert (run_dir / "figures.1" / "previous.html").read_text(encoding="utf-8") == "old figure"
     assert (figures_dir / "loss_curves.html").exists()
+    assert not (figures_dir / "previous.html").exists()
 
 
 def test_render_run_uses_identity_mapping_without_resolved_config(tmp_path):
