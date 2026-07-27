@@ -35,3 +35,4 @@ runs/
 MY-NOTES/
 .claude/
 .codex/skills/
+.mypy_cache/3.14/

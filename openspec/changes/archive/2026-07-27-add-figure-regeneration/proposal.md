@@ -9,14 +9,16 @@ though every input already persists in the finished run: line plots read
 
 ## What Changes
 
-- Add a `dojo eval training-figures` command that regenerates the standalone
-  HTML figure set from a completed run directory (or its resolved config),
-  reading the persisted `metrics.csv` and `classification_output` rows, without
-  retraining.
+- Add a new top-level `dojo render` command group and a `dojo render run
+  <run_dir>` command that regenerates the standalone HTML figure set from a
+  completed run's top-level directory, reading the persisted `metrics.csv`,
+  `classification_output` rows, and `config/resolved.yaml`, without retraining.
 - Reuse the exact figure builders used during training so live and regenerated
-  figures are byte-identical for the same inputs.
-- Write to `training_outputs.figures.dir` (or an explicit output override),
-  honoring `--clobber` semantics consistent with other artifact writers.
+  figures are byte-identical for the same inputs; `objective_to_head` is
+  reconstructed from the run's snapshot config (identity fallback for older
+  runs lacking it).
+- Overwrite the run's `figures/` in place by default; `--backup` first copies
+  the existing `figures/` to a numeric-incremented sibling, then overwrites.
 
 ## Capabilities
 
