@@ -149,9 +149,11 @@ function renderExplorer() {
     classOrder.forEach(value => classSelect.appendChild(options[value]));
     classSelect.value = state.class;
   }
-  const traces = v.traces.map((trace, index) => (
-    Object.assign({}, trace, {visible: view.visible[index]})
-  ));
+  const traces = v.traces.map((trace, index) => {
+    const visible = view.visible[index];
+    // Keep one FP and one FN legend item for the class currently in view.
+    return Object.assign({}, trace, {visible: visible, showlegend: visible});
+  });
   return {traces, layout: {
     title: view.title, height: view.height,
     yaxis: Object.assign({}, view.yaxis, {categoryarray: categoryarray})
@@ -366,6 +368,7 @@ _LEGEND_INSIDE = {
     "y": 0.99,
     "xanchor": "right",
     "yanchor": "top",
+    "traceorder": "reversed",
     "bgcolor": "rgba(255,255,255,0.6)",
 }
 
@@ -915,6 +918,8 @@ def _write_misclassification_explorer(
                 "y": [labels[j] for j in fp_idx],
                 "x": fp_values,
                 "name": "FP (mistaken as)",
+                "legendgroup": "fp",
+                "legendrank": 1,
                 "marker": {"color": "#1f77b4"},
                 "visible": i == initial_class,
                 "hovertext": [
@@ -932,6 +937,8 @@ def _write_misclassification_explorer(
                 "y": [labels[j] for j in fn_idx],
                 "x": fn_values,
                 "name": "FN (mistaken for)",
+                "legendgroup": "fn",
+                "legendrank": 2,
                 "marker": {"color": "#2ca02c"},
                 "visible": i == initial_class,
                 "hovertext": [
@@ -1011,7 +1018,14 @@ def _write_misclassification_explorer(
             "yaxis": initial["yaxis"],
             "height": initial["height"],
             "showlegend": True,
-            "legend": {"orientation": "h", "x": 1, "xanchor": "right", "y": 1.02},
+            "legend": {
+                "orientation": "v",
+                "x": 0.99,
+                "xanchor": "right",
+                "y": 0.95,
+                "yanchor": "top",
+                "groupclick": "togglegroup",
+            },
         },
     )
 

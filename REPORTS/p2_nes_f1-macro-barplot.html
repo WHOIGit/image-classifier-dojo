@@ -9,6 +9,20 @@
 <div id="fig"></div>
 <script>
 Plotly.newPlot('fig', [{"type": "bar", "orientation": "h", "name": "input-fit", "x": [0.8700332641601562, 0.9241348505020142], "y": ["p2_input_aspect_buckets", "p2_input_letterbox"], "marker": {"color": "#B279A2"}, "text": ["0.8700", "0.9241"], "textposition": "outside", "cliponaxis": false, "hovertemplate": "<b>%{y}</b><br>F1 Macro: %{x:.4f}<extra></extra>"}, {"type": "bar", "orientation": "h", "name": "provider", "x": [0.8789588809013367, 0.9154784083366394, 0.9217112064361572], "y": ["p2_provider_timm_vit_base", "p2_provider_timm_convnext_tiny", "p2_provider_timm_effb0"], "marker": {"color": "#E45756"}, "text": ["0.8790", "0.9155", "0.9217"], "textposition": "outside", "cliponaxis": false, "hovertemplate": "<b>%{y}</b><br>F1 Macro: %{x:.4f}<extra></extra>"}, {"type": "bar", "orientation": "h", "name": "architecture", "x": [0.8894903063774109, 0.9221620559692383, 0.929638147354126], "y": ["p2_arch_tv_vit_b16", "p2_arch_tv_effb0", "p2_arch_tv_convnext_tiny"], "marker": {"color": "#F58518"}, "text": ["0.8895", "0.9222", "0.9296"], "textposition": "outside", "cliponaxis": false, "hovertemplate": "<b>%{y}</b><br>F1 Macro: %{x:.4f}<extra></extra>"}, {"type": "bar", "orientation": "h", "name": "pretraining", "x": [0.8973128795623779, 0.9044599533081055, 0.9221620559692383, 0.9226909875869751], "y": ["p2_scratch_imagenet_norm", "p2_scratch_dataset_norm", "p2_pretrained_imagenet_norm", "p2_pretrained_dataset_norm"], "marker": {"color": "#72B7B2"}, "text": ["0.8973", "0.9045", "0.9222", "0.9227"], "textposition": "outside", "cliponaxis": false, "hovertemplate": "<b>%{y}</b><br>F1 Macro: %{x:.4f}<extra></extra>"}, {"type": "bar", "orientation": "h", "name": "imbalance", "x": [0.9157755374908447, 0.9191123247146606, 0.9286834597587585, 0.9402474164962769], "y": ["p2_imbalance_focal", "p2_imbalance_weighted_sampler", "p2_imbalance_weighted_ce", "p2_imbalance_label_smoothing"], "marker": {"color": "#54A24B"}, "text": ["0.9158", "0.9191", "0.9287", "0.9402"], "textposition": "outside", "cliponaxis": false, "hovertemplate": "<b>%{y}</b><br>F1 Macro: %{x:.4f}<extra></extra>"}, {"type": "bar", "orientation": "h", "name": "augmentation", "x": [0.9179950952529907, 0.9221620559692383, 0.9221620559692383], "y": ["p2_aug_none", "p2_aug_fgcrop", "p2_aug_flips"], "marker": {"color": "#FF9DA6"}, "text": ["0.9180", "0.9222", "0.9222"], "textposition": "outside", "cliponaxis": false, "hovertemplate": "<b>%{y}</b><br>F1 Macro: %{x:.4f}<extra></extra>"}, {"type": "bar", "orientation": "h", "name": "baseline", "x": [0.9179950952529907, 0.9221620559692383], "y": ["p2_nes_simple", "p2_nes_baseline"], "marker": {"color": "#4C78A8"}, "text": ["0.9180", "0.9222"], "textposition": "outside", "cliponaxis": false, "hovertemplate": "<b>%{y}</b><br>F1 Macro: %{x:.4f}<extra></extra>"}], {"title": {"text": "P2 NES-hf Species Classification \u2014 Best Val F1 Macro", "font": {"size": 18}}, "xaxis": {"title": "Val F1 Macro (species)", "range": [0.86, 0.9562474164962769], "tickformat": ".3f", "gridcolor": "#e0e0e0"}, "yaxis": {"title": "", "automargin": true, "tickfont": {"family": "monospace", "size": 12}}, "barmode": "overlay", "legend": {"title": {"text": "Group"}, "bgcolor": "rgba(255,255,255,0.8)"}, "plot_bgcolor": "#fafafa", "paper_bgcolor": "#ffffff", "margin": {"l": 10, "r": 90, "t": 60, "b": 60}, "height": 1380}, {responsive: true});
+// Compact the one-off report while retaining room for all 21 labeled bars.
+Plotly.relayout('fig', {
+  height: 820,
+  legend: {
+    orientation: 'v',
+    traceorder: 'reversed',
+    x: 0.99,
+    xanchor: 'right',
+    y: 0.99,
+    yanchor: 'top',
+    bgcolor: 'rgba(255,255,255,0.8)'
+  }
+});
+Plotly.restyle('fig', {width: 0.52});
 </script>
 </body>
 </html>

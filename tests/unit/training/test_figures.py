@@ -124,6 +124,10 @@ def test_write_training_figures_from_metrics_and_results(tmp_path):
     assert "loss_curves_normalized.html" not in {n.rsplit("/", 1)[-1] for n in names}
     assert not (figures_dir / "confusion_matrix.html").exists()
     assert "val/f1_macro mean" in (figures_dir / "val_f1_curves.html").read_text()
+    for figure_name in ("loss_curves.html", "val_f1_curves.html"):
+        assert '"traceorder": "reversed"' in (
+            figures_dir / figure_name
+        ).read_text()
     # Confusion matrix is an interactive figure driven by the shared control layer.
     confusion_html = (figures_dir / "species" / "confusion_matrix.html").read_text()
     assert "Plotly.react" in confusion_html
@@ -217,6 +221,15 @@ def test_write_training_figures_single_head_flat_layout(tmp_path):
         "misclassification_explorer.html",
     } <= names
     assert not any(name.startswith("species/") for name in names)
+    explorer_html = (figures_dir / "misclassification_explorer.html").read_text()
+    assert '"orientation": "v"' in explorer_html
+    assert '"y": 0.95' in explorer_html
+    assert '"legendgroup": "fp"' in explorer_html
+    assert '"legendgroup": "fn"' in explorer_html
+    assert '"legendrank": 1' in explorer_html
+    assert '"legendrank": 2' in explorer_html
+    assert '"groupclick": "togglegroup"' in explorer_html
+    assert "showlegend: visible" in explorer_html
 
 
 def test_merge_metrics_csv_combines_train_and_val_rows(tmp_path):
