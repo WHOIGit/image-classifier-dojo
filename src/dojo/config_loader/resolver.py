@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 import coolname
+from omegaconf import DictConfig
 
 from dojo.config_schemas.root import RootConfig
 
@@ -20,9 +21,25 @@ _TOKEN_RE = re.compile(r"\{([^{}]+)\}")
 
 
 @dataclass(frozen=True)
+class ConfigProvenance:
+    """How a resolved config was produced: the composed tree and the invocation.
+
+    Carried alongside the resolved config so a run can persist its full set of
+    config artifacts (``composed.yaml`` / ``cli.txt`` / ``overrides.txt``) without
+    recomposing. Absent when a caller builds a ``RootConfig`` directly, which is
+    why the artifacts it backs are optional rather than reconstructed.
+    """
+
+    composed: DictConfig
+    overrides: tuple[str, ...] = ()
+    invoked_command: str | None = None
+
+
+@dataclass(frozen=True)
 class ResolutionResult:
     config: RootConfig
     warnings: tuple[str, ...]
+    provenance: ConfigProvenance | None = None
 
 
 def _slug(value: Any) -> str:
@@ -122,7 +139,12 @@ def _resolve_model_shapes(cfg_dict: dict[str, Any]) -> None:
         architecture["output_dim"] = 1280
 
 
-def resolve_runtime_and_paths(cfg: RootConfig, *, cwd: Path | None = None) -> ResolutionResult:
+def resolve_runtime_and_paths(
+    cfg: RootConfig,
+    *,
+    cwd: Path | None = None,
+    provenance: ConfigProvenance | None = None,
+) -> ResolutionResult:
     cwd = (cwd or Path.cwd()).resolve()
     warnings: list[str] = []
     cfg_dict = cfg.model_dump(mode="json", exclude_none=True)
@@ -187,4 +209,5 @@ def resolve_runtime_and_paths(cfg: RootConfig, *, cwd: Path | None = None) -> Re
     return ResolutionResult(
         config=RootConfig.model_validate(cfg_dict),
         warnings=tuple(warnings),
+        provenance=provenance,
     )

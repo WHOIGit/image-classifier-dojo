@@ -8,6 +8,8 @@ flow) reuse it without depending on Typer / Rich.
 
 from __future__ import annotations
 
+import shlex
+import sys
 from pathlib import Path
 from typing import Annotated
 
@@ -48,6 +50,7 @@ def train_command(
             config_file=config,
             resolved_config_file=resolved_config,
             config_dirs=config_dir or (),
+            invoked_command=shlex.join(sys.argv),
         )
     except (ConfigCompositionError, ValidationError) as exc:
         console.print(f"[red]Error:[/red] {exc}")
@@ -60,7 +63,9 @@ def train_command(
     def _status(message: str) -> None:
         console.print(f"[dim]status:[/dim] {message}")
 
-    result = execute_train(cfg, status_callback=_status)
+    result = execute_train(
+        cfg, status_callback=_status, provenance=resolved.provenance
+    )
 
     console.print(f"[green]Run complete:[/green] {result.run_dir}")
     console.print(f"  config_hash:     {result.config_hash}")

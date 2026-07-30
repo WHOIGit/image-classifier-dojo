@@ -20,8 +20,9 @@ from typing import Any, Callable
 
 import lightning as L
 import torch
-from omegaconf import OmegaConf
 
+from dojo.config_loader.artifacts import write_run_config_artifacts
+from dojo.config_loader.resolver import ConfigProvenance
 from dojo.config_schemas import RootConfig, config_hash, head_hash
 from dojo.data import (
     DataBundle,
@@ -68,14 +69,6 @@ class TrainResult:
     config_hash: str
     dataset_hash: str
     result_record_count: int
-
-
-def _write_resolved_config(cfg: RootConfig, config_dir: Path) -> Path:
-    config_dir.mkdir(parents=True, exist_ok=True)
-    out = config_dir / "resolved.yaml"
-    container = OmegaConf.create(cfg.model_dump(mode="json", exclude_none=True))
-    out.write_text(OmegaConf.to_yaml(container), encoding="utf-8")
-    return out
 
 
 def _evaluation_splits(bundle: DataBundle) -> list[str]:
@@ -282,9 +275,15 @@ def execute_train(
     cfg: RootConfig,
     *,
     status_callback: StatusCallback | None = None,
+    provenance: ConfigProvenance | None = None,
     **trainer_overrides: Any,
 ) -> TrainResult:
-    """Run one resolved supervised training job and write its run directory."""
+    """Run one resolved supervised training job and write its run directory.
+
+    ``provenance`` is the composition history from :func:`compose_and_resolve`,
+    when the caller has it. Without it the run's ``config/`` holds only the
+    resolved pair; see :mod:`dojo.config_loader.artifacts`.
+    """
 
     _status(status_callback, "Seeding runtime")
     L.seed_everything(cfg.runtime.seed, workers=True)
@@ -311,8 +310,8 @@ def execute_train(
     config_dir = run_dir / "config"
     checkpoint_dir = run_dir / "checkpoints"
     run_dir.mkdir(parents=True, exist_ok=True)
-    _status(status_callback, f"Writing resolved config to {config_dir}")
-    _write_resolved_config(cfg, config_dir)
+    _status(status_callback, f"Writing config artifacts to {config_dir}")
+    write_run_config_artifacts(config_dir, cfg, provenance=provenance)
 
     _status(status_callback, "Building model and training task")
     inference_contract = build_inference_contract(

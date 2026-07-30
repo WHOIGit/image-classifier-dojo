@@ -54,10 +54,19 @@ def trained(tmp_path_factory):
 
 def test_run_directory_has_canonical_layout(trained):
     assert (trained.config_dir / "resolved.yaml").exists()
+    assert (trained.config_dir / "resolved.json").exists()
     assert list(trained.checkpoint_dir.glob("*.ckpt"))
     assert (trained.checkpoint_dir / "last.ckpt").exists()
     assert trained.best_checkpoint.exists()
     assert (trained.metrics_dir / "metrics.csv").exists()
+
+
+def test_direct_run_omits_provenance_derived_config_artifacts(trained):
+    # execute_train was called with a bare RootConfig, so there is no composition
+    # history to record; these must be absent, not reconstructed.
+    assert not (trained.config_dir / "composed.yaml").exists()
+    assert not (trained.config_dir / "cli.txt").exists()
+    assert not (trained.config_dir / "overrides.txt").exists()
     assert trained.results_dir is not None
     assert (trained.results_dir / "_metadata.json").exists()
     assert trained.checkpoint_hash.startswith("sha256:")
@@ -129,7 +138,25 @@ def test_packaged_experiment_runs_via_cli(tmp_path):
     runs = list(tmp_path.glob("plankton-toy_p1_efficientnet_b0/*"))
     assert len(runs) == 1
     run_dir = runs[0]
-    assert (run_dir / "config" / "resolved.yaml").exists()
+    # A composed run records its full config artifact set (sweep_values.txt is
+    # sweep-member-only and not expected here).
+    config_dir = run_dir / "config"
+    assert {path.name for path in config_dir.iterdir()} == {
+        "composed.yaml",
+        "resolved.yaml",
+        "resolved.json",
+        "cli.txt",
+        "overrides.txt",
+    }
+    assert (config_dir / "overrides.txt").read_text().splitlines() == [
+        "experiment=p1/plankton-toy",
+        "runtime.num_workers=0",
+        "runtime.precision=32-true",
+        "runtime.progress_bar=false",
+        "training.max_epochs=1",
+        f"output_root={tmp_path}",
+    ]
+    assert (config_dir / "cli.txt").read_text().strip()
     assert (run_dir / "checkpoints" / "last.ckpt").exists()
     assert (run_dir / "results" / "_metadata.json").exists()
     assert (run_dir / "metrics" / "metrics.csv").exists()

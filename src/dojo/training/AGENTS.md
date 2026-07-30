@@ -26,6 +26,10 @@ results own those).
 
 - `execute_train` consumes an already-resolved config; it does not compose or
   validate.
+- `execute_train` takes optional composition `provenance` and owns the run's
+  `config/` directory, delegating the writes to `config_loader.artifacts`.
+  Without provenance only `resolved.yaml` / `resolved.json` are written —
+  `composed.yaml` / `cli.txt` / `overrides.txt` are never reconstructed.
 - `execute_train` may emit phase messages through an optional
   `status_callback`; it must not write terminal output directly.
 - Checkpoint callback keys on `checkpointing.monitor`.

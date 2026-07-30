@@ -18,12 +18,14 @@ from dojo.config_loader.compositor import (
     compose_config,
     default_config_dirs,
 )
+from dojo.config_loader.artifacts import write_run_config_artifacts
 from dojo.config_loader.compare import compare_config_files
 from dojo.config_loader.conductor import (
     compose_and_resolve,
     validate_authored_only_fields,
 )
 from dojo.config_loader.resolver import (
+    ConfigProvenance,
     ResolutionResult,
     render_template,
     resolve_runtime_and_paths,
@@ -35,7 +37,9 @@ __all__ = [
     "ConfigCompositionError",
     "default_config_dirs",
     "compare_config_files",
+    "write_run_config_artifacts",
     "resolve_runtime_and_paths",
+    "ConfigProvenance",
     "ResolutionResult",
     "render_template",
     "compose_and_resolve",

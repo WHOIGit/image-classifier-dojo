@@ -17,7 +17,11 @@ from typing import Sequence
 from omegaconf import OmegaConf
 
 from dojo.config_loader.compositor import compose_config
-from dojo.config_loader.resolver import ResolutionResult, resolve_runtime_and_paths
+from dojo.config_loader.resolver import (
+    ConfigProvenance,
+    ResolutionResult,
+    resolve_runtime_and_paths,
+)
 from dojo.config_schemas import RootConfig
 
 
@@ -40,8 +44,14 @@ def compose_and_resolve(
     config_file: Path | None = None,
     resolved_config_file: Path | None = None,
     config_dirs: Sequence[Path] = (),
+    invoked_command: str | None = None,
 ) -> ResolutionResult:
-    """Compose, validate, and resolve a Dojo config into a :class:`ResolutionResult`."""
+    """Compose, validate, and resolve a Dojo config into a :class:`ResolutionResult`.
+
+    ``invoked_command`` is the command line that triggered this call, recorded
+    verbatim into the run's ``cli.txt``. Only the CLI knows it, so it is passed in
+    rather than reconstructed here.
+    """
 
     composed = compose_config(
         overrides=list(overrides),
@@ -54,4 +64,15 @@ def compose_and_resolve(
         raise ValueError("composed config root must be a mapping")
     validate_authored_only_fields(raw, resolved_source=resolved_config_file is not None)
     authored = RootConfig.model_validate(raw)
-    return resolve_runtime_and_paths(authored)
+    return resolve_runtime_and_paths(
+        authored,
+        provenance=ConfigProvenance(
+            composed=composed.config,
+            # The caller's list, not ``composed.overrides``: the compositor
+            # consumes any ``experiment=`` selector as the config root and drops
+            # it, but that selector is what determines the run and must survive
+            # into overrides.txt.
+            overrides=tuple(overrides),
+            invoked_command=invoked_command,
+        ),
+    )
