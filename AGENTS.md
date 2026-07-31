@@ -12,6 +12,8 @@ roadmap lives in `DESIGN-DOC/`.
 
 - `src/dojo/` — the package (implemented P1 slice). `src/dojo_deprecated/` is
   legacy reference code, outside the DOX contract; do not extend it.
+- `flake.nix` — reproducible Nix development shell, including Git and Git LFS
+  for fetching LFS-tracked dataset assets.
 - `DESIGN-DOC/` — authoritative spec and roadmap.
 - `tests/`, `configs/`, `datasets/` — see their child docs.
 - `REPORTS/` — durable implementation and experiment reports.

@@ -15,6 +15,10 @@ venv/
 .aim/
 aim-artifacts/
 
+# Apptainer
+nixos.sif
+nix-overlay.img
+
 # other
 SCRATCH/
 # Datasets are local by default; the small committed `plankton-miniset` example is the
