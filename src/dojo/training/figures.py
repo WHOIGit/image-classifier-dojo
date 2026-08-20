@@ -18,6 +18,7 @@ from typing import Any
 
 from dojo.results import ResultReader
 from dojo.results.schemas import RECORD_TYPE_CLASSIFICATION_OUTPUT
+from dojo.storage.paths import sanitize_path_component
 
 PLOTLY_CDN = "https://cdn.plot.ly/plotly-2.35.2.min.js"
 
@@ -574,7 +575,11 @@ def _write_head_metric_lines(
     objective_name: str,
     head_name: str | None,
 ) -> None:
-    head_dir = figures_dir if head_name is None else figures_dir / head_name
+    head_dir = (
+        figures_dir
+        if head_name is None
+        else figures_dir / sanitize_path_component(head_name)
+    )
     prefix = "" if head_name is None else f"{head_name} "
     _write_loss_curves(
         head_dir / "loss_curves.html",
@@ -1057,7 +1062,9 @@ def _write_result_figures(figures_dir: Path, results_dir: Path) -> None:
         _write_result_figures_for_rows(figures_dir, head_rows)
         return
     for head_name, head_rows in rows_by_head.items():
-        _write_result_figures_for_rows(figures_dir / head_name, head_rows)
+        _write_result_figures_for_rows(
+            figures_dir / sanitize_path_component(head_name), head_rows
+        )
 
 
 def write_training_figures(

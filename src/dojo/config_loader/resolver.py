@@ -15,6 +15,10 @@ import coolname
 from omegaconf import DictConfig
 
 from dojo.config_schemas.root import RootConfig
+# Imported as a module, not by name: dojo.storage.__init__ pulls in the amplify
+# FilesystemStore (which config loading must not require), and the module
+# indirection keeps the platform check patchable in one place.
+from dojo.storage import paths as fs_paths
 
 
 _TOKEN_RE = re.compile(r"\{([^{}]+)\}")
@@ -48,6 +52,14 @@ def _slug(value: Any) -> str:
     return re.sub(r"[^A-Za-z0-9_.-]", "_", text)
 
 
+def _sanitize_substitution(value: str) -> str:
+    # A substituted value that is already a rooted location (e.g. an absolute
+    # output_root) is a path, not a name: leave it intact.
+    if fs_paths.is_absolute_uri(value):
+        return value
+    return fs_paths.sanitize_relative_path(value)
+
+
 def _get_path(mapping: dict[str, Any], dotted_path: str) -> Any:
     current: Any = mapping
     for part in dotted_path.split("."):
@@ -70,6 +82,17 @@ def _seeded_slug(seed_material: str) -> str:
 
 
 def render_template(template: str, values: dict[str, Any]) -> str:
+    """Render an output-path template.
+
+    Substituted *values* are sanitized for the running filesystem
+    (:func:`dojo.storage.paths.sanitize_relative_path`) because they become path
+    components: an ``experiment.name`` containing ``:`` or ``?`` is legal config
+    but not a creatable directory on Windows. Literal template text is left
+    alone, so ``/`` separators authored in the template — and intentional
+    nesting inside a substituted value, e.g. ``experiment.name:
+    p2/08_multihead`` — still separate directories.
+    """
+
     def replace(match: re.Match[str]) -> str:
         token = match.group(1)
         if token == "timestamp":
@@ -90,10 +113,10 @@ def render_template(template: str, values: dict[str, Any]) -> str:
         path, sep, fmt = token.partition(":")
         value = _get_path(values, path)
         if not sep:
-            return str(value)
+            return _sanitize_substitution(str(value))
         if fmt == "slug":
             return _slug(value)
-        return format(value, fmt)
+        return _sanitize_substitution(format(value, fmt))
 
     return _TOKEN_RE.sub(replace, template)
 
@@ -139,6 +162,27 @@ def _resolve_model_shapes(cfg_dict: dict[str, Any]) -> None:
         architecture["output_dim"] = 1280
 
 
+def _platform_warnings(cfg_dict: dict[str, Any]) -> list[str]:
+    """Config settings that behave differently on the running platform."""
+
+    if not fs_paths.is_windows():
+        return []
+
+    warnings: list[str] = []
+    num_workers = int(cfg_dict.get("runtime", {}).get("num_workers", 0) or 0)
+    if num_workers > 0:
+        warnings.append(
+            f"runtime.num_workers={num_workers} on Windows: DataLoader workers "
+            "are spawned, not forked, so every worker starts a fresh "
+            "interpreter and unpickles its own copy of the dataset index "
+            "(memory scales with num_workers, and each epoch pays the startup "
+            "cost). Prefer runtime.num_workers=0 unless a higher value is "
+            "measurably faster on this machine; ignore Lightning's suggestion "
+            "to raise it to the CPU count."
+        )
+    return warnings
+
+
 def resolve_runtime_and_paths(
     cfg: RootConfig,
     *,
@@ -148,6 +192,8 @@ def resolve_runtime_and_paths(
     cwd = (cwd or Path.cwd()).resolve()
     warnings: list[str] = []
     cfg_dict = cfg.model_dump(mode="json", exclude_none=True)
+
+    warnings.extend(_platform_warnings(cfg_dict))
 
     run_id_template = cfg_dict["runtime"].get("run_id") or "{coolname:noseed}"
     if "{" in run_id_template:

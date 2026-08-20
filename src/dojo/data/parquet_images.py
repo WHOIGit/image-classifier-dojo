@@ -62,7 +62,10 @@ def _discover_files(cfg: DataConfig, storage: Storage) -> tuple[Path, list[Path]
         return root.parent, [root]
     default_pattern = "*.csv" if cfg.backend == "csv_manifest" else "*.parquet"
     pattern = cfg.file_pattern or default_pattern
-    files = sorted(root.glob(pattern))
+    # Sort on the POSIX-relative name: Path ordering is case-insensitive on
+    # Windows, which would give the manifest files a different order (and so a
+    # different dataset_hash / row order) than on Linux.
+    files = sorted(root.glob(pattern), key=lambda path: path.relative_to(root).as_posix())
     if not files:
         raise DatasetConfigError(
             f"no files matching {pattern!r} under data.manifest_uri: {root}"
@@ -381,8 +384,10 @@ def build_datasets(cfg: RootConfig, storage: Storage | None = None) -> DataBundl
     target_names = tuple(data_cfg.targets)
     target_name = target_names[0]
     root, files = _discover_files(data_cfg, storage)
+    # as_posix(), not str(): a Windows "sub\\part-0.parquet" would otherwise
+    # hash differently from the same dataset's "sub/part-0.parquet" on Linux.
     file_ids = sorted(
-        (str(path.relative_to(root)), path.stat().st_size) for path in files
+        (path.relative_to(root).as_posix(), path.stat().st_size) for path in files
     )
     dataset_hash, provenance = compute_dataset_hash(data_cfg, file_ids)
 

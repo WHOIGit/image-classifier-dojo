@@ -44,3 +44,24 @@ def test_mtime_is_not_part_of_identity():
     # same regardless of when/where the files were written.
     cfg = _data_cfg()
     assert compute_dataset_hash(cfg, FILES) == compute_dataset_hash(cfg, FILES)
+
+
+def test_windows_separators_hash_as_posix_separators():
+    # The same nested dataset discovered on Windows ("2022\\train-0.parquet")
+    # and on Linux ("2022/train-0.parquet") is one dataset, one hash.
+    cfg = _data_cfg()
+    posix = [("2022/train-00000.parquet", 100), ("2022/validation-00000.parquet", 50)]
+    windows = [
+        ("2022\\train-00000.parquet", 100),
+        ("2022\\validation-00000.parquet", 50),
+    ]
+    assert compute_dataset_hash(cfg, posix) == compute_dataset_hash(cfg, windows)
+
+
+def test_file_order_is_settled_on_normalized_paths():
+    # "/" (0x2f) and "\\" (0x5c) sort differently against "0" (0x30), so the
+    # sort has to happen after normalization or the two platforms disagree.
+    cfg = _data_cfg()
+    posix = [("a/b.parquet", 1), ("a0.parquet", 2)]
+    windows = [("a\\b.parquet", 1), ("a0.parquet", 2)]
+    assert compute_dataset_hash(cfg, posix) == compute_dataset_hash(cfg, windows)

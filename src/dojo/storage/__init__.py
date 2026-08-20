@@ -9,5 +9,18 @@ from dojo.storage.io import (
     StorageError,
     get_storage,
 )
+from dojo.storage.paths import (
+    is_absolute_uri,
+    sanitize_path_component,
+    sanitize_relative_path,
+)
 
-__all__ = ["Storage", "LocalStorage", "StorageError", "get_storage"]
+__all__ = [
+    "Storage",
+    "LocalStorage",
+    "StorageError",
+    "get_storage",
+    "is_absolute_uri",
+    "sanitize_path_component",
+    "sanitize_relative_path",
+]

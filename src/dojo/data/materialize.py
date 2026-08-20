@@ -66,14 +66,23 @@ def compute_dataset_content_hash(
     files: list[Path],
     progress_enabled: bool,
 ) -> str:
-    """Hash source Parquet file names and bytes for cache identity."""
+    """Hash source Parquet file names and bytes for cache identity.
+
+    Order and names are normalized to their POSIX form: ``sorted()`` over
+    ``Path`` compares case-insensitively on Windows and case-sensitively
+    elsewhere, so the same directory would otherwise hash differently per
+    platform whenever filenames differ only in case.
+    """
 
     digest = hashlib.sha256()
     total = sum(path.stat().st_size for path in files)
+    by_relative_path = sorted(
+        ((path.relative_to(root).as_posix(), path) for path in files),
+        key=lambda item: item[0],
+    )
     with _progress(progress_enabled, mode="bytes") as progress:
         task = progress.add_task("Hashing dataset content", total=total)
-        for path in sorted(files):
-            rel = path.relative_to(root).as_posix()
+        for rel, path in by_relative_path:
             digest.update(rel.encode("utf-8"))
             digest.update(b"\0")
             with path.open("rb") as handle:

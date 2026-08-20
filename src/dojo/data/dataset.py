@@ -20,7 +20,7 @@ from dojo.data.parquet_rows import (
     LazyParquetImageReader,
 )
 from dojo.data.transforms import ImageTransform, choose_aspect_bucket
-from dojo.storage import Storage
+from dojo.storage import Storage, is_absolute_uri
 
 
 class ParquetImagesDataset(Dataset[DecodedSample]):
@@ -249,7 +249,7 @@ class ManifestImagesDataset(Dataset[DecodedSample]):
         return self._aspect_bucket_step is not None
 
     def _resolve_uri(self, uri: str) -> str:
-        if "://" in uri or uri.startswith("/"):
+        if is_absolute_uri(uri):
             return uri
         return str((self._storage.localize(self._manifest_root) / uri).resolve())
 

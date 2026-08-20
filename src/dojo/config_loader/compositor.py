@@ -49,7 +49,25 @@ def default_config_dirs(extra_config_dirs: Iterable[Path] = ()) -> list[Path]:
 
 
 def _file_uri(path: Path) -> str:
-    return path.resolve().as_uri()
+    """A ``file://`` search-path entry Hydra can turn back into a native path.
+
+    Hydra strips the literal ``file://`` prefix and uses the remainder as an OS
+    path (``hydra/plugins/config_source.py``), so ``Path.as_uri()`` is wrong on
+    Windows: it yields ``file:///C:/...``, leaving ``/C:/...``, which resolves
+    to nothing and silently drops the packaged defaults off the search path.
+    Windows accepts forward slashes, so the native drive-rooted form works on
+    both platforms — and unlike ``as_uri()`` it does not percent-encode spaces,
+    which Hydra would not decode.
+    """
+
+    return f"file://{path.resolve().as_posix()}"
+
+
+def _quote_override_value(value: str) -> str:
+    """Single-quote a searchpath entry so spaces survive Hydra's grammar."""
+
+    escaped = value.replace("\\", "\\\\").replace("'", "\\'")
+    return f"'{escaped}'"
 
 
 def _relative_config_name(config_file: Path, config_dirs: Iterable[Path]) -> tuple[str, Path] | None:
@@ -134,7 +152,9 @@ def _compose_from_search_path(
     fallback_dirs = config_dirs[1:]
     hydra_overrides = list(overrides)
     if fallback_dirs:
-        searchpath = ",".join(_file_uri(path) for path in fallback_dirs)
+        searchpath = ",".join(
+            _quote_override_value(_file_uri(path)) for path in fallback_dirs
+        )
         hydra_overrides.append(f"hydra.searchpath=[{searchpath}]")
 
     with initialize_config_dir(version_base=None, config_dir=str(primary)):

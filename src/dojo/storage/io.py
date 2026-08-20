@@ -19,6 +19,7 @@ import os
 from abc import ABC, abstractmethod
 from pathlib import Path
 from urllib.parse import urlparse
+from urllib.request import url2pathname
 
 from storage.fs import FilesystemStore
 
@@ -34,8 +35,14 @@ class StorageError(RuntimeError):
 
 
 def _scheme(uri: str) -> str:
-    # A bare Windows-free POSIX path has no scheme; urlparse leaves it empty.
-    return urlparse(uri).scheme
+    # A bare POSIX path has no scheme; urlparse leaves it empty. A Windows
+    # drive-letter path ("C:\\data\\x.png") parses as the one-character scheme
+    # "c", which would otherwise be reported as an unsupported object store —
+    # no scheme is one character long, so treat those as local paths.
+    scheme = urlparse(uri).scheme
+    if len(scheme) == 1 and scheme.isalpha():
+        return ""
+    return scheme
 
 
 class Storage(ABC):
@@ -83,7 +90,13 @@ class LocalStorage(Storage):
                 f"{scheme}:// storage is not enabled in this build. P1 is "
                 "local-only; object-store backends (e.g. s3) are deferred."
             )
-        path = urlparse(uri).path if scheme == "file" else uri
+        if scheme == "file":
+            # url2pathname turns the percent-encoded URL path back into a
+            # native path: "/C:/data/x.png" -> "C:\\data\\x.png" on Windows,
+            # and "%20" back into a space everywhere.
+            path = url2pathname(urlparse(uri).path)
+        else:
+            path = uri
         return os.fspath(Path(path).expanduser().resolve())
 
     def read_bytes(self, uri: str) -> bytes:

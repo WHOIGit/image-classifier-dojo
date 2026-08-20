@@ -31,7 +31,7 @@ from dojo.data.parquet_rows import (
     LazyParquetImageReader,
 )
 from dojo.data.transforms import _decode_to_unit_chw
-from dojo.storage import Storage, get_storage
+from dojo.storage import Storage, get_storage, is_absolute_uri
 
 
 @dataclass(frozen=True)
@@ -109,7 +109,7 @@ def _decode_image_bytes(
         )
     assert cfg.data.image_uri_column is not None
     uri = table.column(cfg.data.image_uri_column)[row_index].as_py()
-    if "://" in uri or str(uri).startswith("/"):
+    if is_absolute_uri(str(uri)):
         resolved = str(uri)
     else:
         resolved = str((manifest_root / str(uri)).resolve())

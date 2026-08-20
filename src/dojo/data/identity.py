@@ -21,6 +21,12 @@ from dojo.config_schemas.root import DataConfig
 DATASET_HASH_PROVENANCE = "uri_size"
 
 
+def _normalize_separators(path: str) -> str:
+    """POSIX-style separators, so manifest identity is platform-independent."""
+
+    return path.replace("\\", "/")
+
+
 def _binding_source(cfg: DataConfig) -> dict[str, Any]:
     return {
         "backend": cfg.backend,
@@ -48,12 +54,22 @@ def compute_dataset_hash(
 
     ``files`` is the list of ``(relative_path, size_bytes)`` for the manifest
     Parquet files, sorted by path. Identical content in the same layout hashes
-    identically regardless of absolute location or modification time.
+    identically regardless of absolute location, modification time, or the
+    platform the manifest was discovered on: separators are normalized to
+    ``/`` here so a Windows run and a Linux run over the same dataset agree.
     """
 
     source = {
         "version": "1",
         "bindings": _binding_source(cfg),
-        "files": [{"path": path, "size": size} for path, size in sorted(files)],
+        # Normalize before sorting: "\\" and "/" sort differently against the
+        # other characters legal in a filename, so ordering must be settled on
+        # the normalized form to be platform-independent too.
+        "files": [
+            {"path": path, "size": size}
+            for path, size in sorted(
+                (_normalize_separators(path), size) for path, size in files
+            )
+        ],
     }
     return sha256_json(source), DATASET_HASH_PROVENANCE
